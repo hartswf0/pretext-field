@@ -1,5 +1,6 @@
 // Server-side text measurement using HarfBuzz (WASM).
-// Used for headless testing (bun test) where canvas measureText isn't available.
+// Kept around for headless probes/research where browser canvas measureText
+// isn't available.
 //
 // HarfBuzz is the same shaping engine browsers use internally, so measurements
 // are representative. The key difference: we load a specific font file, so results

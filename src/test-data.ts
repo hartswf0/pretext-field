@@ -1,5 +1,5 @@
-// Shared test data for the browser accuracy page (pages/accuracy.ts), headless
-// tests (layout.test.ts), and browser benchmark page (pages/benchmark.ts).
+// Shared test data for the browser accuracy pages/checkers and browser
+// benchmark page (pages/benchmark.ts).
 // Covers Latin, Arabic, Hebrew, CJK, Korean, Thai, emoji, mixed-direction,
 // and edge cases (empty, whitespace, newlines, long words). Parameters sweep
 // across realistic font sizes and container widths.

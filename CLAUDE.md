@@ -6,16 +6,16 @@ Internal notes for contributors and agents. Use `README.md` as the public source
 
 - `bun start` — serve pages at http://localhost:3000
 - `bun run check` — typecheck + lint
-- `bun test` — headless tests (HarfBuzz, 100% accuracy)
+- `bun test` — lightweight invariant tests against the shipped implementation
 - `bun run accuracy-check` / `:safari` / `:firefox` — browser accuracy sweeps
 - `bun run gatsby-check` / `:safari` — Gatsby canary diagnostics
 
 ### Important files
 
 - `src/layout.ts` — core library; keep `layout()` fast and allocation-light
-- `src/measure-harfbuzz.ts` — HarfBuzz backend for headless tests
-- `src/test-data.ts` — shared corpus for browser accuracy, headless tests, and benchmarks
-- `src/layout.test.ts` — Bun tests for consistency and word-sum accuracy
+- `src/measure-harfbuzz.ts` — HarfBuzz backend kept for ad hoc measurement probes
+- `src/test-data.ts` — shared corpus for browser accuracy pages/checkers and benchmarks
+- `src/layout.test.ts` — small durable invariant tests for the exported prepare/layout APIs
 - `pages/accuracy.ts` — browser sweep plus per-line diagnostics
 - `pages/benchmark.ts` — performance comparisons
 - `pages/bubbles.ts` — bubble shrinkwrap demo
@@ -35,8 +35,9 @@ Internal notes for contributors and agents. Use `README.md` as the public source
 - Supported CSS target is the common app-text configuration: `white-space: normal`, `word-break: normal`, `overflow-wrap: break-word`, `line-break: auto`.
 - `system-ui` is unsafe for accuracy; canvas and DOM can resolve different fonts on macOS.
 - Thai historically mismatched because CSS and `Intl.Segmenter` use different internal dictionaries; keep it in the browser sweep when changing segmentation rules.
-- HarfBuzz headless tests need explicit LTR to avoid wrong direction on isolated Arabic words.
+- HarfBuzz probes need explicit LTR to avoid wrong direction on isolated Arabic words.
 - Accuracy pages and checkers are now expected to be green in all three installed browsers on fresh runs; if a page disagrees, suspect stale tabs/servers before changing the algorithm.
+- Keep `src/layout.test.ts` small and durable. For browser-specific or narrow hypothesis work, prefer throwaway probes/scripts and promote only the stable invariants into permanent tests.
 
 ### Open questions
 

@@ -1,483 +1,176 @@
-import { test, expect, beforeAll, describe } from 'bun:test'
-import { init, loadFont, measureText } from './measure-harfbuzz.ts'
-import { TEXTS, SIZES, WIDTHS } from './test-data.ts'
+import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 
-// Headless test suite for the line breaking algorithm.
-//
-// Can't use canvas measureText in bun (no OffscreenCanvas), so we use HarfBuzz
-// for measurement instead. This is a simplified reimplementation of the core
-// algorithm using shared multilingual test data from test-data.ts, not a direct
-// invocation of the browser accuracy harness.
-//
-// Tests two things:
-//   1. Consistency: edge cases, monotonicity, determinism
-//   2. Accuracy: word-by-word sum vs full-line measurement using the same engine.
-//      This isolates algorithm accuracy from measurement backend differences.
-//      100% match confirms the word-by-word approach is exact.
+// Keep the permanent suite small and durable. These tests exercise the shipped
+// prepare/layout exports with a deterministic fake canvas backend. For narrow
+// browser-specific investigations, prefer throwaway probes and browser checkers
+// over mirroring the full implementation here.
 
-const FONT_PATH = '/Library/Fonts/Arial Unicode.ttf'
-const FONT_NAME = 'Arial Unicode'
+const FONT = '16px Test Sans'
+const LINE_HEIGHT = 19
 
-const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
-const needsWhitespaceNormalizationRe = /[\t\n\r\f]| {2,}|^ | $/
-const openingPunctuation = new Set(['(', '[', '{', '“', '‘', '«', '‹'])
-const leftStickyPunctuation = new Set(['.', ',', '!', '?', ':', ';', ')', ']', '}', '%', '”', '’', '»', '›', '…'])
-const kinsokuStart = new Set([
-  '\uFF0C', '\uFF0E', '\uFF01', '\uFF1A', '\uFF1B', '\uFF1F',
-  '\u3001', '\u3002', '\u30FB',
-  '\uFF09', '\u3015', '\u3009', '\u300B', '\u300D', '\u300F',
-  '\u3011', '\u3017', '\u3019', '\u301B',
-  '\u30FC', '\u3005', '\u303B',
-])
+type LayoutModule = typeof import('./layout.ts')
+
+let prepare: LayoutModule['prepare']
+let prepareWithSegments: LayoutModule['prepareWithSegments']
+let layout: LayoutModule['layout']
+let layoutWithLines: LayoutModule['layoutWithLines']
+let clearCache: LayoutModule['clearCache']
+
+const emojiPresentationRe = /\p{Emoji_Presentation}/u
+const punctuationRe = /[.,!?;:%)\]}'"”’»›…—-]/u
+
+function parseFontSize(font: string): number {
+  const match = font.match(/(\d+(?:\.\d+)?)\s*px/)
+  return match ? Number.parseFloat(match[1]!) : 16
+}
+
+function isWideCharacter(ch: string): boolean {
+  const code = ch.codePointAt(0)!
+  return (
+    (code >= 0x4E00 && code <= 0x9FFF) ||
+    (code >= 0x3400 && code <= 0x4DBF) ||
+    (code >= 0x3000 && code <= 0x303F) ||
+    (code >= 0x3040 && code <= 0x309F) ||
+    (code >= 0x30A0 && code <= 0x30FF) ||
+    (code >= 0xAC00 && code <= 0xD7AF) ||
+    (code >= 0xFF00 && code <= 0xFFEF)
+  )
+}
+
+function measureWidth(text: string, font: string): number {
+  const fontSize = parseFontSize(font)
+  let width = 0
+
+  for (const ch of text) {
+    if (ch === ' ') {
+      width += fontSize * 0.33
+    } else if (ch === '\t') {
+      width += fontSize * 1.32
+    } else if (emojiPresentationRe.test(ch) || ch === '\uFE0F') {
+      width += fontSize
+    } else if (isWideCharacter(ch)) {
+      width += fontSize
+    } else if (punctuationRe.test(ch)) {
+      width += fontSize * 0.4
+    } else {
+      width += fontSize * 0.6
+    }
+  }
+
+  return width
+}
+
+class TestCanvasRenderingContext2D {
+  font = ''
+
+  measureText(text: string): { width: number } {
+    return { width: measureWidth(text, this.font) }
+  }
+}
+
+class TestOffscreenCanvas {
+  constructor(_width: number, _height: number) {}
+
+  getContext(_kind: string): TestCanvasRenderingContext2D {
+    return new TestCanvasRenderingContext2D()
+  }
+}
 
 beforeAll(async () => {
-  await init()
-  loadFont(FONT_NAME, FONT_PATH)
+  Reflect.set(globalThis, 'OffscreenCanvas', TestOffscreenCanvas)
+  const mod = await import('./layout.ts')
+  ;({ prepare, prepareWithSegments, layout, layoutWithLines, clearCache } = mod)
 })
 
-function normalizeWhitespaceNormal(text: string): string {
-  if (!needsWhitespaceNormalizationRe.test(text)) return text
+beforeEach(() => {
+  clearCache()
+})
 
-  let normalized = text.replace(collapsibleWhitespaceRunRe, ' ')
-  if (normalized.charCodeAt(0) === 0x20) {
-    normalized = normalized.slice(1)
-  }
-  if (normalized.length > 0 && normalized.charCodeAt(normalized.length - 1) === 0x20) {
-    normalized = normalized.slice(0, -1)
-  }
-  return normalized
-}
-
-function isLeftStickyPunctuationSegment(segment: string): boolean {
-  for (const ch of segment) {
-    if (!leftStickyPunctuation.has(ch)) return false
-  }
-  return segment.length > 0
-}
-
-function isCJKLineStartProhibitedSegment(segment: string): boolean {
-  for (const ch of segment) {
-    if (!kinsokuStart.has(ch) && !leftStickyPunctuation.has(ch)) return false
-  }
-  return segment.length > 0
-}
-
-const lineFitEpsilon = 0.002
-
-// --- Minimal reimplementation of prepare+layout using HarfBuzz ---
-
-function isCJK(s: string): boolean {
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i)
-    if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) ||
-        (c >= 0x3000 && c <= 0x303F) || (c >= 0x3040 && c <= 0x309F) ||
-        (c >= 0x30A0 && c <= 0x30FF) || (c >= 0xAC00 && c <= 0xD7AF) ||
-        (c >= 0xFF00 && c <= 0xFFEF)) return true
-  }
-  return false
-}
-
-type Segment = { text: string, width: number, isWordLike: boolean, isSpace: boolean }
-
-function segmentAndMeasure(text: string, fontSize: number): Segment[] {
-  const normalized = normalizeWhitespaceNormal(text)
-  if (normalized.length === 0) return []
-
-  const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
-  const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-
-  // Merge left-sticky punctuation into the preceding non-space segment.
-  const rawSegs = [...segmenter.segment(normalized)]
-  const merged: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
-  for (const s of rawSegs) {
-    const ws = !s.isWordLike && /^\s+$/.test(s.segment)
-    if (
-      !s.isWordLike &&
-      !ws &&
-      merged.length > 0 &&
-      !merged[merged.length - 1]!.isSpace &&
-      (
-        isLeftStickyPunctuationSegment(s.segment) ||
-        (isCJKLineStartProhibitedSegment(s.segment) && isCJK(merged[merged.length - 1]!.text))
-      )
-    ) {
-      merged[merged.length - 1]!.text += s.segment
-    } else {
-      merged.push({ text: s.segment, isWordLike: s.isWordLike ?? false, isSpace: ws })
-    }
-  }
-
-  for (let i = merged.length - 2; i >= 0; i--) {
-    if (!merged[i]!.isSpace && !merged[i]!.isWordLike && merged[i]!.text.length === 1 && openingPunctuation.has(merged[i]!.text)) {
-      merged[i + 1]!.text = merged[i]!.text + merged[i + 1]!.text
-      merged.splice(i, 1)
-    }
-  }
-
-  const result: Segment[] = []
-  for (const seg of merged) {
-    if (seg.isWordLike && isCJK(seg.text)) {
-      const graphemes = [...graphemeSegmenter.segment(seg.text)]
-      for (let gi = 0; gi < graphemes.length; gi++) {
-        let unitText = graphemes[gi]!.segment
-        while (
-          gi + 1 < graphemes.length &&
-          (kinsokuStart.has(graphemes[gi + 1]!.segment) || leftStickyPunctuation.has(graphemes[gi + 1]!.segment))
-        ) {
-          unitText += graphemes[gi + 1]!.segment
-          gi++
-        }
-        result.push({
-          text: unitText,
-          width: measureText(unitText, FONT_NAME, fontSize),
-          isWordLike: true,
-          isSpace: false,
-        })
-      }
-    } else {
-      result.push({
-        text: seg.text,
-        width: measureText(seg.text, FONT_NAME, fontSize),
-        isWordLike: seg.isWordLike,
-        isSpace: seg.isSpace,
-      })
-    }
-  }
-  return result
-}
-
-function layoutSegments(segments: Segment[], maxWidth: number, lineHeight: number): { lineCount: number, height: number } {
-  if (segments.length === 0) return { lineCount: 0, height: 0 }
-
-  let lineCount = 0
-  let lineW = 0
-  let hasContent = false
-  let lineStart = 0
-  let lastWordIdx = -1
-
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]!
-    const w = seg.width
-
-    if (!hasContent) {
-      lineW = w
-      hasContent = true
-      lineCount++
-      lineStart = i
-      lastWordIdx = seg.isWordLike ? i : -1
-      continue
-    }
-
-    const newW = lineW + w
-    if (newW > maxWidth + lineFitEpsilon) {
-      if (seg.isWordLike) {
-        lineCount++
-        lineStart = i
-        lineW = w
-        lastWordIdx = i
-      } else if (seg.isSpace) {
-        continue
-      } else if (lastWordIdx > lineStart) {
-        const rewindStart = lastWordIdx
-        lineCount++
-        lineStart = rewindStart
-        lineW = 0
-        lastWordIdx = -1
-        for (let j = rewindStart; j <= i; j++) {
-          lineW += segments[j]!.width
-          if (segments[j]!.isWordLike) lastWordIdx = j
-        }
-      } else {
-        lineW = newW
-      }
-    } else {
-      lineW = newW
-      if (seg.isWordLike) lastWordIdx = i
-    }
-  }
-
-  return { lineCount, height: lineCount * lineHeight }
-}
-
-// --- Tests ---
-
-describe('layout consistency', () => {
-  test('line count increases as width decreases', () => {
-    for (const { text } of TEXTS) {
-      if (text.length === 0 || text.trim().length === 0) continue
-      const fontSize = 16
-      const lineHeight = Math.round(fontSize * 1.2)
-      const segments = segmentAndMeasure(text, fontSize)
-      let prevLineCount = 0
-      for (const width of [...WIDTHS].reverse()) {
-        const { lineCount } = layoutSegments(segments, width, lineHeight)
-        expect(lineCount).toBeGreaterThanOrEqual(prevLineCount)
-        prevLineCount = lineCount
-      }
-    }
+describe('prepare invariants', () => {
+  test('whitespace-only input stays empty', () => {
+    const prepared = prepare('  \t\n  ', FONT)
+    expect(prepared.widths).toEqual([])
+    expect(layout(prepared, 200, LINE_HEIGHT)).toEqual({ lineCount: 0, height: 0 })
   })
 
-  test('empty and whitespace texts return 0 height', () => {
-    for (const { label, text } of TEXTS) {
-      if (label !== 'Empty' && label !== 'Whitespace') continue
-      const segments = segmentAndMeasure(text, 16)
-      const { height } = layoutSegments(segments, 400, 19)
-      expect(height).toBe(0)
-    }
+  test('collapses ordinary whitespace runs and trims the edges', () => {
+    const prepared = prepareWithSegments('  Hello\t \n  World  ', FONT)
+    expect(prepared.segments).toEqual(['Hello', ' ', 'World'])
   })
 
-  test('single character fits on one line at any reasonable width', () => {
-    const segments = segmentAndMeasure('A', 16)
-    for (const width of WIDTHS) {
-      const { lineCount } = layoutSegments(segments, width, 19)
-      expect(lineCount).toBe(1)
-    }
+  test('keeps closing punctuation attached to the preceding word', () => {
+    const prepared = prepareWithSegments('hello.', FONT)
+    expect(prepared.segments).toEqual(['hello.'])
   })
 
-  test('CJK text breaks per character at narrow widths', () => {
-    const text = '这是中文'  // 4 chars
-    const fontSize = 16
-    const segments = segmentAndMeasure(text, fontSize)
-    // Each CJK char should be its own segment
-    expect(segments.length).toBe(4)
-    expect(segments.every(s => s.isWordLike)).toBe(true)
+  test('keeps opening quotes attached to the following word', () => {
+    const prepared = prepareWithSegments('“Whenever', FONT)
+    expect(prepared.segments).toEqual(['“Whenever'])
   })
 
-  test('newlines are treated as spaces', () => {
-    const withNewlines = segmentAndMeasure('Hello\nWorld', 16)
-    const withSpaces = segmentAndMeasure('Hello World', 16)
-    // Should produce same number of segments
-    expect(withNewlines.length).toBe(withSpaces.length)
+  test('keeps em dashes breakable', () => {
+    const prepared = prepareWithSegments('universe—so', FONT)
+    expect(prepared.segments).toEqual(['universe', '—', 'so'])
   })
 
-  test('collapsible whitespace runs normalize to a single space', () => {
-    const withRuns = segmentAndMeasure('  Hello\t \n  World  ', 16)
-    const normalized = segmentAndMeasure('Hello World', 16)
-    expect(withRuns.length).toBe(normalized.length)
-    expect(withRuns.map(s => s.text)).toEqual(normalized.map(s => s.text))
+  test('applies CJK and Hangul punctuation attachment rules', () => {
+    expect(prepareWithSegments('中文，测试。', FONT).segments).toEqual(['中', '文，', '测', '试。'])
+    expect(prepareWithSegments('테스트입니다.', FONT).segments.at(-1)).toBe('다.')
   })
 
-  test('punctuation merges with preceding word', () => {
-    const segments = segmentAndMeasure('hello.', 16)
-    // "hello." should be one segment, not "hello" + "."
-    expect(segments.length).toBe(1)
-    expect(segments[0]!.text).toBe('hello.')
-  })
-
-  test('opening quotes merge with the following word', () => {
-    const segments = segmentAndMeasure('“Whenever', 16)
-    expect(segments.length).toBe(1)
-    expect(segments[0]!.text).toBe('“Whenever')
-  })
-
-  test('em dash stays breakable after the preceding word', () => {
-    const segments = segmentAndMeasure('universe—so', 16)
-    expect(segments.map(s => s.text)).toEqual(['universe', '—', 'so'])
-  })
-
-  test('closing quote sticks to a preceding dash segment', () => {
-    const segments = segmentAndMeasure('thing—”', 16)
-    expect(segments.map(s => s.text)).toEqual(['thing', '—”'])
-  })
-
-  test('CJK punctuation sticks to the preceding character across segment boundaries', () => {
-    const segments = segmentAndMeasure('中文，测试。', 16)
-    expect(segments.map(s => s.text)).toEqual(['中', '文，', '测', '试。'])
-  })
-
-  test('ASCII period stays with the preceding Hangul character', () => {
-    const segments = segmentAndMeasure('테스트입니다.', 16)
-    expect(segments.at(-1)?.text).toBe('다.')
-  })
-
-  test('same text at same width always gives same result', () => {
-    const text = 'The quick brown fox jumps over the lazy dog'
-    const fontSize = 16
-    const lineHeight = 19
-    const segments = segmentAndMeasure(text, fontSize)
-    const r1 = layoutSegments(segments, 200, lineHeight)
-    const r2 = layoutSegments(segments, 200, lineHeight)
-    expect(r1.lineCount).toBe(r2.lineCount)
-    expect(r1.height).toBe(r2.height)
+  test('prepare and prepareWithSegments agree on numeric data', () => {
+    const plain = prepare('Alpha beta gamma', FONT)
+    const rich = prepareWithSegments('Alpha beta gamma', FONT)
+    expect(rich.widths).toEqual(plain.widths)
+    expect(rich.isSpace).toEqual(plain.isSpace)
+    expect(rich.breakableWidths).toEqual(plain.breakableWidths)
+    expect(Array.from(rich.segLevels ?? [])).toEqual(Array.from(plain.segLevels ?? []))
   })
 })
 
-// --- Precise layout: measures full candidate line as one string ---
+describe('layout invariants', () => {
+  test('line count grows monotonically as width shrinks', () => {
+    const prepared = prepare('The quick brown fox jumps over the lazy dog', FONT)
+    let previous = 0
 
-function layoutPrecise(text: string, fontSize: number, maxWidth: number, lineHeight: number): { lineCount: number, height: number } {
-  const normalized = normalizeWhitespaceNormal(text)
-  if (normalized.length === 0) return { lineCount: 0, height: 0 }
-
-  const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
-  const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-
-  // Merge left-sticky punctuation
-  const rawSegs = [...segmenter.segment(normalized)]
-  const merged: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
-  for (const s of rawSegs) {
-    const ws = !s.isWordLike && /^\s+$/.test(s.segment)
-    if (
-      !s.isWordLike &&
-      !ws &&
-      merged.length > 0 &&
-      !merged[merged.length - 1]!.isSpace &&
-      (
-        isLeftStickyPunctuationSegment(s.segment) ||
-        (isCJKLineStartProhibitedSegment(s.segment) && isCJK(merged[merged.length - 1]!.text))
-      )
-    ) {
-      merged[merged.length - 1]!.text += s.segment
-    } else {
-      merged.push({ text: s.segment, isWordLike: s.isWordLike ?? false, isSpace: ws })
-    }
-  }
-
-  for (let i = merged.length - 2; i >= 0; i--) {
-    if (!merged[i]!.isSpace && !merged[i]!.isWordLike && merged[i]!.text.length === 1 && openingPunctuation.has(merged[i]!.text)) {
-      merged[i + 1]!.text = merged[i]!.text + merged[i + 1]!.text
-      merged.splice(i, 1)
-    }
-  }
-
-  // Expand CJK into graphemes
-  const segs: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
-  for (const seg of merged) {
-    if (seg.isWordLike && isCJK(seg.text)) {
-      const graphemes = [...graphemeSegmenter.segment(seg.text)]
-      for (let gi = 0; gi < graphemes.length; gi++) {
-        let unitText = graphemes[gi]!.segment
-        while (
-          gi + 1 < graphemes.length &&
-          (kinsokuStart.has(graphemes[gi + 1]!.segment) || leftStickyPunctuation.has(graphemes[gi + 1]!.segment))
-        ) {
-          unitText += graphemes[gi + 1]!.segment
-          gi++
-        }
-        segs.push({ text: unitText, isWordLike: true, isSpace: false })
-      }
-    } else {
-      segs.push(seg)
-    }
-  }
-
-  // Line break using full-string measurement
-  let lineCount = 0
-  let lineStr = ''
-  let hasContent = false
-
-  for (let i = 0; i < segs.length; i++) {
-    const seg = segs[i]!
-    if (!hasContent) {
-      lineStr = seg.text
-      hasContent = true
-      lineCount++
-      continue
-    }
-
-    const candidate = lineStr + seg.text
-    const candidateW = measureText(candidate, FONT_NAME, fontSize)
-
-    if (candidateW > maxWidth + lineFitEpsilon) {
-      if (seg.isWordLike) {
-        lineCount++
-        lineStr = seg.text
-      } else if (seg.isSpace) {
-        // trailing space hangs
-        continue
-      } else {
-        // punctuation — would need to rewind, but for comparison just overflow
-        lineStr = candidate
-      }
-    } else {
-      lineStr = candidate
-    }
-  }
-
-  return { lineCount, height: lineCount * lineHeight }
-}
-
-describe('accuracy: word-sum vs full-line measurement', () => {
-  test('sweep all texts × sizes × widths', () => {
-    let total = 0
-    let matches = 0
-    const mismatches: string[] = []
-
-    for (const fontSize of SIZES) {
-      const lineHeight = Math.round(fontSize * 1.2)
-      for (const width of WIDTHS) {
-        for (const { label, text } of TEXTS) {
-          const segments = segmentAndMeasure(text, fontSize)
-          const wordSum = layoutSegments(segments, width, lineHeight)
-          const precise = layoutPrecise(text, fontSize, width, lineHeight)
-          total++
-
-          if (wordSum.lineCount === precise.lineCount) {
-            matches++
-          } else {
-            mismatches.push(`${fontSize}px w=${width} "${label}": wordSum=${wordSum.lineCount}L precise=${precise.lineCount}L`)
-          }
-        }
-      }
-    }
-
-    const pct = ((matches / total) * 100).toFixed(1)
-    console.log(`Accuracy: ${matches}/${total} (${pct}%)`)
-    if (mismatches.length > 0) {
-      console.log(`Mismatches (${mismatches.length}):`)
-      for (const m of mismatches.slice(0, 20)) console.log(`  ${m}`)
-      if (mismatches.length > 20) console.log(`  ... and ${mismatches.length - 20} more`)
-    }
-
-    // The current HarfBuzz setup should match exactly. Keep the threshold loose
-    // enough that the test still communicates intent if the corpus or backend
-    // changes in the future.
-    expect(matches / total).toBeGreaterThan(0.98)
-  })
-})
-
-describe('i18n sweep', () => {
-  test('all texts at all sizes and widths produce valid results', () => {
-    let total = 0
-    let valid = 0
-    for (const fontSize of SIZES) {
-      const lineHeight = Math.round(fontSize * 1.2)
-      for (const width of WIDTHS) {
-        for (const { text } of TEXTS) {
-          const segments = segmentAndMeasure(text, fontSize)
-          const result = layoutSegments(segments, width, lineHeight)
-          total++
-          if (result.height >= 0 && result.lineCount >= 0) valid++
-          expect(result.height).toBe(result.lineCount * lineHeight)
-        }
-      }
-    }
-    console.log(`Sweep: ${valid}/${total} valid results`)
-  })
-
-  test('Arabic text produces at least 1 line', () => {
-    for (const { label, text } of TEXTS) {
-      if (!label.startsWith('Arabic')) continue
-      const segments = segmentAndMeasure(text, 16)
-      const { lineCount } = layoutSegments(segments, 400, 19)
-      expect(lineCount).toBeGreaterThanOrEqual(1)
+    for (const width of [320, 200, 140, 90]) {
+      const { lineCount } = layout(prepared, width, LINE_HEIGHT)
+      expect(lineCount).toBeGreaterThanOrEqual(previous)
+      previous = lineCount
     }
   })
 
-  test('mixed bidi text does not crash', () => {
-    for (const { label, text } of TEXTS) {
-      if (!label.startsWith('Mixed')) continue
-      for (const width of WIDTHS) {
-        const segments = segmentAndMeasure(text, 16)
-        const result = layoutSegments(segments, width, 19)
-        expect(result.lineCount).toBeGreaterThanOrEqual(1)
-      }
-    }
+  test('trailing whitespace hangs past the line edge', () => {
+    const prepared = prepareWithSegments('Hello ', FONT)
+    const widthOfHello = prepared.widths[0]!
+
+    expect(layout(prepared, widthOfHello, LINE_HEIGHT).lineCount).toBe(1)
+
+    const withLines = layoutWithLines(prepared, widthOfHello, LINE_HEIGHT)
+    expect(withLines.lineCount).toBe(1)
+    expect(withLines.lines).toEqual([{ text: 'Hello', width: widthOfHello }])
   })
 
-  test('long word is handled without infinite loop', () => {
-    const text = 'Superlongwordwithoutanyspacesthatshouldjustoverflowthelineandkeepgoing'
-    const segments = segmentAndMeasure(text, 16)
-    const result = layoutSegments(segments, 150, 19)
+  test('breaks long words at grapheme boundaries and keeps both layout APIs aligned', () => {
+    const prepared = prepareWithSegments('Superlongword', FONT)
+    const graphemeWidths = prepared.breakableWidths[0]!
+    const maxWidth = graphemeWidths[0]! + graphemeWidths[1]! + graphemeWidths[2]! + 0.1
+
+    const plain = layout(prepared, maxWidth, LINE_HEIGHT)
+    const rich = layoutWithLines(prepared, maxWidth, LINE_HEIGHT)
+
+    expect(plain.lineCount).toBeGreaterThan(1)
+    expect(rich.lineCount).toBe(plain.lineCount)
+    expect(rich.height).toBe(plain.height)
+    expect(rich.lines.map(line => line.text).join('')).toBe('Superlongword')
+  })
+
+  test('mixed-direction text is a stable smoke test', () => {
+    const prepared = prepareWithSegments('According to محمد الأحمد, the results improved.', FONT)
+    const result = layoutWithLines(prepared, 120, LINE_HEIGHT)
+
     expect(result.lineCount).toBeGreaterThanOrEqual(1)
+    expect(result.height).toBe(result.lineCount * LINE_HEIGHT)
+    expect(result.lines.map(line => line.text).join('')).toBe('According to محمد الأحمد, the results improved.')
   })
 })

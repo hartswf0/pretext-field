@@ -54,8 +54,6 @@ Tested across 4 fonts × 8 sizes × 8 widths × 30 i18n texts (7680 tests):
 | Chrome | 100.00% | 7680 | None on the current browser sweep |
 | Safari | 100.00% | 7680 | None on the current browser sweep |
 | Firefox | 100.00% | 7680 | None on the current browser sweep |
-| Headless (HarfBuzz) | 100% | 1920 | Algorithm is exact |
-
 Tested across 4 fonts (Helvetica Neue, Georgia, Verdana, Courier New) × 8 sizes × 8 widths × 30 i18n texts. The browser sweep is now clean on fresh runs in Chrome, Safari, and Firefox. See [RESEARCH.md](RESEARCH.md) for the exploration log and the remaining Gatsby canary edge cases.
 
 ## i18n
@@ -70,7 +68,7 @@ Tested across 4 fonts (Helvetica Neue, Georgia, Verdana, Courier New) × 8 sizes
 - **CSS config**: targets a common app-text configuration (`white-space: normal`, `word-break: normal`, `overflow-wrap: break-word`, `line-break: auto`). Other configurations (`break-all`, `keep-all`, `strict`, `loose`, `anywhere`) are untested.
 - **`line-height`**: the library does not infer CSS line height. Pass the exact value you render with into `layout()` / `layoutWithLines()`. `line-height: normal` differs across fonts and browsers.
 - **`system-ui` font**: canvas and DOM resolve this CSS keyword to different font variants at certain sizes on macOS. Use a named font (Inter, Helvetica, Arial, etc.) for guaranteed accuracy. See [RESEARCH.md](RESEARCH.md#discovery-system-ui-font-resolution-mismatch).
-- **Server-side**: not zero-config today. The current entry expects browser DOM/canvas APIs; server use would need a canvas-backed path. Headless tests use HarfBuzz (WASM) instead.
+- **Server-side**: not zero-config today. The current entry expects browser DOM/canvas APIs; server use would need a canvas-backed path. We still keep a HarfBuzz (WASM) backend around for headless probes and research.
 
 ## How it works
 
@@ -95,7 +93,7 @@ Based on [Sebastian Markbage's text-layout](https://github.com/chenglou/text-lay
 bun install
 bun start        # http://localhost:3000 — demo pages
 bun run check    # typecheck + lint
-bun test         # headless accuracy tests (HarfBuzz)
+bun test         # lightweight invariants against the shipped implementation
 bun run accuracy-check         # Chrome browser sweep
 bun run accuracy-check:safari  # Safari browser sweep
 bun run accuracy-check:firefox # Firefox browser sweep
