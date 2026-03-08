@@ -22,6 +22,13 @@ const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g
 const needsWhitespaceNormalizationRe = /[\t\n\r\f]| {2,}|^ | $/
 const openingPunctuation = new Set(['(', '[', '{', '“', '‘', '«', '‹'])
 const leftStickyPunctuation = new Set(['.', ',', '!', '?', ':', ';', ')', ']', '}', '%', '”', '’', '»', '›', '…'])
+const kinsokuStart = new Set([
+  '\uFF0C', '\uFF0E', '\uFF01', '\uFF1A', '\uFF1B', '\uFF1F',
+  '\u3001', '\u3002', '\u30FB',
+  '\uFF09', '\u3015', '\u3009', '\u300B', '\u300D', '\u300F',
+  '\u3011', '\u3017', '\u3019', '\u301B',
+  '\u30FC', '\u3005', '\u303B',
+])
 
 beforeAll(async () => {
   await init()
@@ -47,6 +54,15 @@ function isLeftStickyPunctuationSegment(segment: string): boolean {
   }
   return segment.length > 0
 }
+
+function isCJKLineStartProhibitedSegment(segment: string): boolean {
+  for (const ch of segment) {
+    if (!kinsokuStart.has(ch) && !leftStickyPunctuation.has(ch)) return false
+  }
+  return segment.length > 0
+}
+
+const lineFitEpsilon = 0.002
 
 // --- Minimal reimplementation of prepare+layout using HarfBuzz ---
 
@@ -75,7 +91,16 @@ function segmentAndMeasure(text: string, fontSize: number): Segment[] {
   const merged: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
   for (const s of rawSegs) {
     const ws = !s.isWordLike && /^\s+$/.test(s.segment)
-    if (!s.isWordLike && !ws && merged.length > 0 && !merged[merged.length - 1]!.isSpace && isLeftStickyPunctuationSegment(s.segment)) {
+    if (
+      !s.isWordLike &&
+      !ws &&
+      merged.length > 0 &&
+      !merged[merged.length - 1]!.isSpace &&
+      (
+        isLeftStickyPunctuationSegment(s.segment) ||
+        (isCJKLineStartProhibitedSegment(s.segment) && isCJK(merged[merged.length - 1]!.text))
+      )
+    ) {
       merged[merged.length - 1]!.text += s.segment
     } else {
       merged.push({ text: s.segment, isWordLike: s.isWordLike ?? false, isSpace: ws })
@@ -92,10 +117,19 @@ function segmentAndMeasure(text: string, fontSize: number): Segment[] {
   const result: Segment[] = []
   for (const seg of merged) {
     if (seg.isWordLike && isCJK(seg.text)) {
-      for (const g of graphemeSegmenter.segment(seg.text)) {
+      const graphemes = [...graphemeSegmenter.segment(seg.text)]
+      for (let gi = 0; gi < graphemes.length; gi++) {
+        let unitText = graphemes[gi]!.segment
+        while (
+          gi + 1 < graphemes.length &&
+          (kinsokuStart.has(graphemes[gi + 1]!.segment) || leftStickyPunctuation.has(graphemes[gi + 1]!.segment))
+        ) {
+          unitText += graphemes[gi + 1]!.segment
+          gi++
+        }
         result.push({
-          text: g.segment,
-          width: measureText(g.segment, FONT_NAME, fontSize),
+          text: unitText,
+          width: measureText(unitText, FONT_NAME, fontSize),
           isWordLike: true,
           isSpace: false,
         })
@@ -135,7 +169,7 @@ function layoutSegments(segments: Segment[], maxWidth: number, lineHeight: numbe
     }
 
     const newW = lineW + w
-    if (newW > maxWidth) {
+    if (newW > maxWidth + lineFitEpsilon) {
       if (seg.isWordLike) {
         lineCount++
         lineStart = i
@@ -246,6 +280,16 @@ describe('layout consistency', () => {
     expect(segments.map(s => s.text)).toEqual(['thing', '—”'])
   })
 
+  test('CJK punctuation sticks to the preceding character across segment boundaries', () => {
+    const segments = segmentAndMeasure('中文，测试。', 16)
+    expect(segments.map(s => s.text)).toEqual(['中', '文，', '测', '试。'])
+  })
+
+  test('ASCII period stays with the preceding Hangul character', () => {
+    const segments = segmentAndMeasure('테스트입니다.', 16)
+    expect(segments.at(-1)?.text).toBe('다.')
+  })
+
   test('same text at same width always gives same result', () => {
     const text = 'The quick brown fox jumps over the lazy dog'
     const fontSize = 16
@@ -272,7 +316,16 @@ function layoutPrecise(text: string, fontSize: number, maxWidth: number, lineHei
   const merged: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
   for (const s of rawSegs) {
     const ws = !s.isWordLike && /^\s+$/.test(s.segment)
-    if (!s.isWordLike && !ws && merged.length > 0 && !merged[merged.length - 1]!.isSpace && isLeftStickyPunctuationSegment(s.segment)) {
+    if (
+      !s.isWordLike &&
+      !ws &&
+      merged.length > 0 &&
+      !merged[merged.length - 1]!.isSpace &&
+      (
+        isLeftStickyPunctuationSegment(s.segment) ||
+        (isCJKLineStartProhibitedSegment(s.segment) && isCJK(merged[merged.length - 1]!.text))
+      )
+    ) {
       merged[merged.length - 1]!.text += s.segment
     } else {
       merged.push({ text: s.segment, isWordLike: s.isWordLike ?? false, isSpace: ws })
@@ -290,8 +343,17 @@ function layoutPrecise(text: string, fontSize: number, maxWidth: number, lineHei
   const segs: { text: string, isWordLike: boolean, isSpace: boolean }[] = []
   for (const seg of merged) {
     if (seg.isWordLike && isCJK(seg.text)) {
-      for (const g of graphemeSegmenter.segment(seg.text)) {
-        segs.push({ text: g.segment, isWordLike: true, isSpace: false })
+      const graphemes = [...graphemeSegmenter.segment(seg.text)]
+      for (let gi = 0; gi < graphemes.length; gi++) {
+        let unitText = graphemes[gi]!.segment
+        while (
+          gi + 1 < graphemes.length &&
+          (kinsokuStart.has(graphemes[gi + 1]!.segment) || leftStickyPunctuation.has(graphemes[gi + 1]!.segment))
+        ) {
+          unitText += graphemes[gi + 1]!.segment
+          gi++
+        }
+        segs.push({ text: unitText, isWordLike: true, isSpace: false })
       }
     } else {
       segs.push(seg)
@@ -315,7 +377,7 @@ function layoutPrecise(text: string, fontSize: number, maxWidth: number, lineHei
     const candidate = lineStr + seg.text
     const candidateW = measureText(candidate, FONT_NAME, fontSize)
 
-    if (candidateW > maxWidth) {
+    if (candidateW > maxWidth + lineFitEpsilon) {
       if (seg.isWordLike) {
         lineCount++
         lineStr = seg.text

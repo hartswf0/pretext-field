@@ -63,6 +63,9 @@ function measureSegment(seg: string, cache: Map<string, number>): number {
   return w
 }
 
+// Browsers can keep a line that overflows by a tiny subpixel amount.
+const lineFitEpsilon = 0.002
+
 function parseFontSize(font: string): number {
   const m = font.match(/(\d+(?:\.\d+)?)\s*px/)
   return m ? parseFloat(m[1]!) : 16
@@ -238,6 +241,13 @@ const leftStickyPunctuation = new Set([
 function isLeftStickyPunctuationSegment(segment: string): boolean {
   for (const ch of segment) {
     if (!leftStickyPunctuation.has(ch)) return false
+  }
+  return segment.length > 0
+}
+
+function isCJKLineStartProhibitedSegment(segment: string): boolean {
+  for (const ch of segment) {
+    if (!kinsokuStart.has(ch) && !leftStickyPunctuation.has(ch)) return false
   }
   return segment.length > 0
 }
@@ -445,6 +455,7 @@ function prepareInternal(text: string, font: string, includeSegments: boolean): 
       !mergedSpace[mergedLen - 1]! &&
       (
         isLeftStickyPunctuationSegment(s.segment) ||
+        (isCJKLineStartProhibitedSegment(s.segment) && isCJK(mergedTexts[mergedLen - 1]!)) ||
         (s.segment === '-' && mergedWordLike[mergedLen - 1]!)
       )
     ) {
@@ -502,7 +513,10 @@ function prepareInternal(text: string, font: string, includeSegments: boolean): 
           gi++
         }
         // Check if the NEXT grapheme is a kinsoku-start char — absorb it
-        while (gi + 1 < gLen && kinsokuStart.has(gTexts[gi + 1]!)) {
+        while (
+          gi + 1 < gLen &&
+          (kinsokuStart.has(gTexts[gi + 1]!) || leftStickyPunctuation.has(gTexts[gi + 1]!))
+        ) {
           unitText += gTexts[gi + 1]!
           gi++
         }
@@ -612,7 +626,7 @@ export function layout(prepared: PreparedText, maxWidth: number, lineHeight: num
         lineW = 0
         for (let g = 0; g < gWidths.length; g++) {
           const gw = gWidths[g]!
-          if (lineW > 0 && lineW + gw > maxWidth) {
+          if (lineW > 0 && lineW + gw > maxWidth + lineFitEpsilon) {
             lineCount++
             lineW = gw
           } else {
@@ -630,7 +644,7 @@ export function layout(prepared: PreparedText, maxWidth: number, lineHeight: num
 
     const newW = lineW + w
 
-    if (newW > maxWidth) {
+    if (newW > maxWidth + lineFitEpsilon) {
       if (isSp[i]) continue // trailing whitespace hangs (CSS behavior)
 
       if (w > maxWidth && breakableWidths[i] !== null) {
@@ -638,7 +652,7 @@ export function layout(prepared: PreparedText, maxWidth: number, lineHeight: num
         lineW = 0
         for (let g = 0; g < gWidths.length; g++) {
           const gw = gWidths[g]!
-          if (lineW > 0 && lineW + gw > maxWidth) {
+          if (lineW > 0 && lineW + gw > maxWidth + lineFitEpsilon) {
             lineCount++
             lineW = gw
           } else {
@@ -735,7 +749,7 @@ export function layoutWithLines(prepared: PreparedTextWithSegments, maxWidth: nu
 
     const newW = lineW + w
 
-    if (newW > maxWidth) {
+    if (newW > maxWidth + lineFitEpsilon) {
       if (isSp[i]) continue
 
       if (w > maxWidth && breakableWidths[i] !== null) {

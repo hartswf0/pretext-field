@@ -15,6 +15,7 @@ const FONTS = [
 ]
 
 type Mismatch = {
+  label: string
   font: string
   fontSize: number
   width: number
@@ -22,10 +23,46 @@ type Mismatch = {
   predicted: number
   diff: number
   text: string
-  diagnostic?: string
+  diagnosticLines?: string[]
+}
+
+type AccuracyReport = {
+  status: 'ready' | 'error'
+  requestId?: string
+  total?: number
+  matchCount?: number
+  mismatchCount?: number
+  mismatches?: Mismatch[]
+  message?: string
+}
+
+declare global {
+  interface Window {
+    __ACCURACY_READY__?: boolean
+    __ACCURACY_REPORT__?: AccuracyReport
+  }
 }
 
 const diagnosticGraphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const params = new URLSearchParams(location.search)
+const requestId = params.get('requestId') ?? undefined
+const reportEl = document.createElement('pre')
+reportEl.id = 'accuracy-report'
+reportEl.hidden = true
+reportEl.dataset['ready'] = '0'
+document.body.appendChild(reportEl)
+
+function withRequestId<T extends AccuracyReport>(report: T): AccuracyReport {
+  return requestId === undefined ? report : { ...report, requestId }
+}
+
+function publishReport(report: AccuracyReport): void {
+  const reportJson = JSON.stringify(report)
+  reportEl.textContent = reportJson
+  reportEl.dataset['ready'] = '1'
+  window.__ACCURACY_REPORT__ = report
+  window.__ACCURACY_READY__ = true
+}
 
 type DiagnosticUnit = {
   text: string
@@ -120,7 +157,7 @@ function runSweep(): { total: number, mismatches: Mismatch[] } {
         }
 
         for (let i = 0; i < TEXTS.length; i++) {
-          const text = TEXTS[i]!.text
+          const { label, text } = TEXTS[i]!
           const actual = divs[i]!.getBoundingClientRect().height
           const predicted = layout(prepared[i]!, maxWidth, lineHeight).height
           total++
@@ -142,6 +179,7 @@ function runSweep(): { total: number, mismatches: Mismatch[] } {
             }
 
             mismatches.push({
+              label,
               font: fontFamily,
               fontSize,
               width: maxWidth,
@@ -149,7 +187,7 @@ function runSweep(): { total: number, mismatches: Mismatch[] } {
               predicted,
               diff: predicted - actual,
               text,
-              diagnostic: lineDetails.length > 0 ? lineDetails.join(' | ') : 'no per-line canvas/DOM diff found',
+              diagnosticLines: lineDetails.length > 0 ? lineDetails : ['no per-line canvas/DOM diff found'],
             })
           }
         }
@@ -167,68 +205,85 @@ function runSweep(): { total: number, mismatches: Mismatch[] } {
 function render() {
   const root = document.getElementById('root')!
   root.innerHTML = '<p>Running sweep...</p>'
+  window.__ACCURACY_READY__ = false
+  window.__ACCURACY_REPORT__ = withRequestId({ status: 'error', message: 'Pending sweep' })
+  reportEl.textContent = ''
+  reportEl.dataset['ready'] = '0'
 
   requestAnimationFrame(() => {
-    const { total, mismatches } = runSweep()
-    const matchCount = total - mismatches.length
-    const pct = ((matchCount / total) * 100).toFixed(2)
+    try {
+      const { total, mismatches } = runSweep()
+      const matchCount = total - mismatches.length
+      const pct = ((matchCount / total) * 100).toFixed(2)
 
-    let html = `
-      <div class="summary">
-        <span class="big">${matchCount}/${total}</span> match (${pct}%)
-        <span class="sep">|</span>
-        ${mismatches.length} mismatches
-        <span class="sep">|</span>
-        ${FONTS.length} fonts × ${SIZES.length} sizes × ${WIDTHS.length} widths × ${TEXTS.length} texts
-      </div>
-    `
+      let html = `
+        <div class="summary">
+          <span class="big">${matchCount}/${total}</span> match (${pct}%)
+          <span class="sep">|</span>
+          ${mismatches.length} mismatches
+          <span class="sep">|</span>
+          ${FONTS.length} fonts × ${SIZES.length} sizes × ${WIDTHS.length} widths × ${TEXTS.length} texts
+        </div>
+      `
 
-    // Group mismatches by font
-    const byFont = new Map<string, Mismatch[]>()
-    for (const m of mismatches) {
-      const key = m.font
-      let arr = byFont.get(key)
-      if (!arr) { arr = []; byFont.set(key, arr) }
-      arr.push(m)
-    }
-
-    // Group within font by size
-    for (const [font, ms] of byFont) {
-      html += `<h2>${font}</h2>`
-
-      const bySize = new Map<number, Mismatch[]>()
-      for (const m of ms) {
-        let arr = bySize.get(m.fontSize)
-        if (!arr) { arr = []; bySize.set(m.fontSize, arr) }
+      // Group mismatches by font
+      const byFont = new Map<string, Mismatch[]>()
+      for (const m of mismatches) {
+        const key = m.font
+        let arr = byFont.get(key)
+        if (!arr) { arr = []; byFont.set(key, arr) }
         arr.push(m)
       }
 
-      for (const [size, sizeMs] of bySize) {
-        html += `<h3>${size}px (${sizeMs.length} mismatches)</h3>`
-        html += '<table><colgroup><col class="num"><col class="num"><col class="num"><col class="num"><col class="text"></colgroup><tr><th>Width</th><th>Actual</th><th>Predicted</th><th>Diff</th><th>Text</th></tr>'
-        for (const m of sizeMs) {
-          const cls = m.diff > 0 ? 'over' : 'under'
-          const snippet = m.text
-          html += `<tr class="${cls}">
-            <td>${m.width}px</td>
-            <td>${m.actual}px</td>
-            <td>${m.predicted}px</td>
-            <td>${m.diff > 0 ? '+' : ''}${m.diff}px</td>
-            <td class="text">${escapeHtml(snippet)}</td>
-          </tr>`
-          if (m.diagnostic) {
-            html += `<tr class="${cls}"><td colspan="5" class="text" style="color:#888;font-size:11px;padding-left:24px">${escapeHtml(m.diagnostic)}</td></tr>`
-          }
+      // Group within font by size
+      for (const [font, ms] of byFont) {
+        html += `<h2>${font}</h2>`
+
+        const bySize = new Map<number, Mismatch[]>()
+        for (const m of ms) {
+          let arr = bySize.get(m.fontSize)
+          if (!arr) { arr = []; bySize.set(m.fontSize, arr) }
+          arr.push(m)
         }
-        html += '</table>'
+
+        for (const [size, sizeMs] of bySize) {
+          html += `<h3>${size}px (${sizeMs.length} mismatches)</h3>`
+          html += '<table><colgroup><col class="num"><col class="num"><col class="num"><col class="num"><col class="text"></colgroup><tr><th>Width</th><th>Actual</th><th>Predicted</th><th>Diff</th><th>Text</th></tr>'
+          for (const m of sizeMs) {
+            const cls = m.diff > 0 ? 'over' : 'under'
+            const snippet = m.text
+            html += `<tr class="${cls}">
+              <td>${m.width}px</td>
+              <td>${m.actual}px</td>
+              <td>${m.predicted}px</td>
+              <td>${m.diff > 0 ? '+' : ''}${m.diff}px</td>
+              <td class="text">${escapeHtml(snippet)}</td>
+            </tr>`
+            if (m.diagnosticLines && m.diagnosticLines.length > 0) {
+              html += `<tr class="${cls}"><td colspan="5" class="text" style="color:#888;font-size:11px;padding-left:24px">${escapeHtml(m.diagnosticLines.join(' | '))}</td></tr>`
+            }
+          }
+          html += '</table>'
+        }
       }
-    }
 
-    if (mismatches.length === 0) {
-      html += '<p class="perfect">All tests pass.</p>'
-    }
+      if (mismatches.length === 0) {
+        html += '<p class="perfect">All tests pass.</p>'
+      }
 
-    root.innerHTML = html
+      root.innerHTML = html
+      publishReport(withRequestId({
+        status: 'ready',
+        total,
+        matchCount,
+        mismatchCount: mismatches.length,
+        mismatches,
+      }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      root.innerHTML = `<p>${escapeHtml(message)}</p>`
+      publishReport(withRequestId({ status: 'error', message }))
+    }
   })
 }
 

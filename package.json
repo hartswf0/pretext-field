@@ -5,6 +5,7 @@
     "typescript": "^5"
   },
   "scripts": {
+    "accuracy-check": "bun run scripts/accuracy-check.ts",
     "check": "tsc && oxlint --type-aware src",
     "gatsby-check": "bun run scripts/gatsby-check.ts",
     "start": "bun --no-hmr pages/*.html"
