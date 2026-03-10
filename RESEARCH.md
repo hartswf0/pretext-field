@@ -713,11 +713,12 @@ The first real miss at `600px` was product-shaped, not literary:
   `https://example.com/reports/q3?lang=ar&mode=full`
 
 What helped:
-- treat URL-like runs (`scheme:` + `//...`, or `www.` starts) as one breakable preprocessing unit
-- keep the whole URL/path/query string together instead of letting `/`, `?`, `=`, `&` turn into many
-  eager word-boundary break opportunities
+- treat URL-like runs (`scheme:` + `//...`, or `www.` starts) as structured preprocessing units
+- keep `https://example.com/reports/q3?` together as the path/query-boundary segment
+- keep `lang=ar&mode=full` together as the query-string segment
+- allow a break between those two segments
 
-That change was a real keep:
+That narrower change was the right keep:
 - mixed corpus sentinel widths went exact again at `300`, `600`, and `800`
 - mixed coarse sweep (`300..900`, step `10`) improved to `54/61 exact`
 - Safari accuracy stayed `7680/7680`
@@ -728,6 +729,21 @@ The mixed corpus is now useful precisely because it still has a small field left
 - `+30px`: `410`, `580`, `610`, `620`
 
 So it should stay in the loop as the product-shaped canary, not just as another demo page.
+
+Further mixed-app work tightened that field substantially:
+- escaped quote clusters like `\"พระองค์...\"` need the same contextual glue treatment as plain ASCII quotes
+- numeric expressions like `२४×७` should stay together as one run
+- time ranges like `7:00-9:00` are better modeled as two breakable segments: `7:00-` and `9:00`
+- corpus diagnostics should use `layoutWithLines()` as the source of truth for our line boundaries; a second local
+  line walker drifted on soft-hyphen cases
+- span-probe browser extraction is not trustworthy for Southeast Asian scripts, so mixed / Thai diagnostics now force
+  the `Range`-based path
+
+Current state after those fixes:
+- mixed coarse sweep is `60/61 exact`
+- official browser accuracy stays `7680/7680` in Safari and Firefox
+- the remaining mixed miss is a single synthetic soft-hyphen width (`710px`) that still needs a cleaner explanation
+  before changing the engine again
 
 ## Thai corpus note
 

@@ -122,6 +122,8 @@ type DiagnosticUnit = {
   end: number
 }
 
+const rangeProbeScriptRe = /[\u0E00-\u0E7F\u0E80-\u0EFF\u1000-\u109F\u1780-\u17FF]/u
+
 type EnvironmentFingerprint = {
   userAgent: string
   devicePixelRatio: number
@@ -209,19 +211,6 @@ lineProbeDiv.style.padding = `${PADDING}px`
 document.body.appendChild(lineProbeDiv)
 
 const diagnosticGraphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-const diagnosticLineFitEpsilon = (() => {
-  const ua = navigator.userAgent
-  const vendor = navigator.vendor
-  const isSafari =
-    vendor === 'Apple Computer, Inc.' &&
-    ua.includes('Safari/') &&
-    !ua.includes('Chrome/') &&
-    !ua.includes('Chromium/') &&
-    !ua.includes('CriOS/') &&
-    !ua.includes('FxiOS/') &&
-    !ua.includes('EdgiOS/')
-  return isSafari ? 1 / 64 : 0.005
-})()
 
 let corpusList: CorpusMeta[] = []
 let currentMeta: CorpusMeta | null = null
@@ -450,178 +439,50 @@ function measureDomTextWidth(text: string, font: string, direction: string): num
   return width
 }
 
+function getCursorOffset(prepared: PreparedTextWithSegments, segmentIndex: number, graphemeIndex: number): number {
+  let offset = 0
+  for (let i = 0; i < segmentIndex; i++) {
+    offset += prepared.segments[i]!.length
+  }
+  if (graphemeIndex === 0 || segmentIndex >= prepared.segments.length) {
+    return offset
+  }
+
+  let localOffset = 0
+  let localGraphemeIndex = 0
+  for (const grapheme of diagnosticGraphemeSegmenter.segment(prepared.segments[segmentIndex]!)) {
+    if (localGraphemeIndex === graphemeIndex) break
+    localOffset += grapheme.segment.length
+    localGraphemeIndex++
+  }
+  return offset + localOffset
+}
+
 function getOurLines(
   prepared: PreparedTextWithSegments,
   normalizedText: string,
   maxWidth: number,
+  lineHeight: number,
   font: string,
 ): DiagnosticLine[] {
-  const lines: DiagnosticLine[] = []
-  const { widths, kinds, breakableWidths, segments } = prepared
-  if (widths.length === 0) return lines
-
-  let offset = 0
-  let lineStart = 0
-  let lineEnd = 0
-  let lineContentEnd = 0
-  let lineRenderedText = ''
-  let lineW = 0
-  let hasContent = false
-
-  function pushCurrentLine(): void {
-    if (!hasContent) return
-    const content = getLineContent(lineRenderedText, lineContentEnd)
-    const logicalText = normalizedText.slice(lineStart, content.end)
-    lines.push({
+  return layoutWithLines(prepared, maxWidth, lineHeight).lines.map(line => {
+    const start = getCursorOffset(prepared, line.start.segmentIndex, line.start.graphemeIndex)
+    const end = getCursorOffset(prepared, line.end.segmentIndex, line.end.graphemeIndex)
+    const logicalText = normalizedText.slice(start, end)
+    const content = getLineContent(logicalText, end)
+    const renderedContentText = line.text.trimEnd()
+    return {
       text: logicalText,
-      renderedText: lineRenderedText,
+      renderedText: line.text,
       contentText: content.text,
-      start: lineStart,
-      end: lineEnd,
+      start,
+      end,
       contentEnd: content.end,
-      sumWidth: measurePreparedSlice(prepared, lineStart, content.end, font),
-      fullWidth: measureFullTextWidth(content.text, font),
-      rawFullWidth: measureFullTextWidth(normalizedText.slice(lineStart, lineEnd), font),
-    })
-
-    hasContent = false
-    lineRenderedText = ''
-    lineW = 0
-    lineStart = lineEnd
-    lineContentEnd = lineEnd
-  }
-
-  function appendToCurrentLine(text: string, width: number, start: number, end: number): void {
-    if (!hasContent) {
-      lineStart = start
-      hasContent = true
+      sumWidth: line.width,
+      fullWidth: measureFullTextWidth(renderedContentText, font),
+      rawFullWidth: measureFullTextWidth(line.text, font),
     }
-    lineRenderedText += text
-    lineW += width
-    lineEnd = end
-    lineContentEnd = end
-  }
-
-  function layoutBreakableSegment(segIndex: number, segStart: number): void {
-    const graphemeWidths = breakableWidths[segIndex]!
-    let graphemeIndex = 0
-    let localOffset = 0
-
-    for (const grapheme of diagnosticGraphemeSegmenter.segment(segments[segIndex]!)) {
-      const gw = graphemeWidths[graphemeIndex]!
-      const gStart = segStart + localOffset
-      localOffset += grapheme.segment.length
-      const gEnd = segStart + localOffset
-
-      if (hasContent && lineW + gw > maxWidth + diagnosticLineFitEpsilon) {
-        pushCurrentLine()
-      }
-
-      appendToCurrentLine(grapheme.segment, gw, gStart, gEnd)
-      graphemeIndex++
-    }
-
-    offset = segStart + localOffset
-  }
-
-  for (let i = 0; i < widths.length; i++) {
-    const segStart = offset
-    const segText = segments[i]!
-    const segEnd = segStart + segText.length
-    const w = widths[i]!
-
-    if (!hasContent) {
-      if (w > maxWidth && breakableWidths[i] !== null) {
-        layoutBreakableSegment(i, segStart)
-      } else {
-        appendToCurrentLine(segText, w, segStart, segEnd)
-        offset = segEnd
-      }
-      continue
-    }
-
-    const newW = lineW + w
-    if (newW > maxWidth + diagnosticLineFitEpsilon) {
-      if (kinds[i] === 'space') {
-        lineEnd = segEnd
-        offset = segEnd
-        continue
-      }
-
-      if (w > maxWidth && breakableWidths[i] !== null) {
-        pushCurrentLine()
-        layoutBreakableSegment(i, segStart)
-      } else {
-        pushCurrentLine()
-        appendToCurrentLine(segText, w, segStart, segEnd)
-        offset = segEnd
-      }
-      continue
-    }
-
-    appendToCurrentLine(segText, w, segStart, segEnd)
-    offset = segEnd
-  }
-
-  pushCurrentLine()
-  return lines
-}
-
-function measurePreparedSlice(
-  prepared: PreparedTextWithSegments,
-  start: number,
-  end: number,
-  font: string,
-): number {
-  let total = 0
-  let offset = 0
-
-  for (let i = 0; i < prepared.segments.length; i++) {
-    const text = prepared.segments[i]!
-    const nextOffset = offset + text.length
-    if (nextOffset <= start) {
-      offset = nextOffset
-      continue
-    }
-    if (offset >= end) {
-      break
-    }
-
-    const overlapStart = Math.max(start, offset)
-    const overlapEnd = Math.min(end, nextOffset)
-    if (overlapStart >= overlapEnd) {
-      offset = nextOffset
-      continue
-    }
-
-    const localStart = overlapStart - offset
-    const localEnd = overlapEnd - offset
-    if (localStart === 0 && localEnd === text.length) {
-      total += prepared.widths[i]!
-      offset = nextOffset
-      continue
-    }
-
-    const graphemeWidths = prepared.breakableWidths[i]
-    if (graphemeWidths !== null && graphemeWidths !== undefined) {
-      let graphemeOffset = 0
-      let graphemeIndex = 0
-      for (const g of diagnosticGraphemeSegmenter.segment(text)) {
-        const nextGraphemeOffset = graphemeOffset + g.segment.length
-        if (nextGraphemeOffset > localStart && graphemeOffset < localEnd) {
-          total += graphemeWidths[graphemeIndex]!
-        }
-        graphemeOffset = nextGraphemeOffset
-        graphemeIndex++
-      }
-    } else {
-      total += measureFullTextWidth(text.slice(localStart, localEnd), font)
-    }
-
-    offset = nextOffset
-  }
-
-  return total
+  })
 }
 
 function getLineSegments(
@@ -811,11 +672,13 @@ function addDiagnostics(
     return report
   }
 
-  const ourLines = getOurLines(prepared, normalizedText, contentWidth, font)
+  const ourLines = getOurLines(prepared, normalizedText, contentWidth, lineHeight, font)
   const probeResult = getBrowserLinesFromSpans(prepared, lineProbeDiv, normalizedText, font)
   const probeHeight = probeResult.height
   const normalizedHeight = diagnosticDiv.getBoundingClientRect().height
+  const requiresRangeProbe = rangeProbeScriptRe.test(normalizedText)
   const probeReliable =
+    !requiresRangeProbe &&
     direction !== 'rtl' &&
     Math.abs(probeHeight - normalizedHeight) <= Math.max(1, lineHeight / 2)
   const browserResult = probeReliable

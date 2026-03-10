@@ -351,6 +351,7 @@ const closingQuoteChars = new Set([
 ])
 
 function isLeftStickyPunctuationSegment(segment: string): boolean {
+  if (isEscapedQuoteClusterSegment(segment)) return true
   let sawPunctuation = false
   for (const ch of segment) {
     if (leftStickyPunctuation.has(ch)) {
@@ -371,10 +372,24 @@ function isCJKLineStartProhibitedSegment(segment: string): boolean {
 }
 
 function isForwardStickyClusterSegment(segment: string): boolean {
+  if (isEscapedQuoteClusterSegment(segment)) return true
   for (const ch of segment) {
     if (!kinsokuEnd.has(ch) && !forwardStickyGlue.has(ch) && !combiningMarkRe.test(ch)) return false
   }
   return segment.length > 0
+}
+
+function isEscapedQuoteClusterSegment(segment: string): boolean {
+  let sawQuote = false
+  for (const ch of segment) {
+    if (ch === '\\' || combiningMarkRe.test(ch)) continue
+    if (kinsokuEnd.has(ch) || leftStickyPunctuation.has(ch) || forwardStickyGlue.has(ch)) {
+      sawQuote = true
+      continue
+    }
+    return false
+  }
+  return sawQuote
 }
 
 function isRepeatedSingleCharRun(segment: string, ch: string): boolean {
@@ -628,6 +643,10 @@ function isUrlLikeRunStart(segmentation: MergedSegmentation, index: number): boo
   )
 }
 
+function isUrlQueryBoundarySegment(text: string): boolean {
+  return text.includes('?') && (text.includes('://') || text.startsWith('www.'))
+}
+
 function mergeUrlLikeRuns(segmentation: MergedSegmentation): MergedSegmentation {
   const texts = segmentation.texts.slice()
   const isWordLike = segmentation.isWordLike.slice()
@@ -641,9 +660,11 @@ function mergeUrlLikeRuns(segmentation: MergedSegmentation): MergedSegmentation 
     while (j < segmentation.len && kinds[j] !== 'space' && kinds[j] !== 'zero-width-break') {
       texts[i] += texts[j]!
       isWordLike[i] = true
+      const endsQueryPrefix = texts[j]!.includes('?')
       kinds[j] = 'text'
       texts[j] = ''
       j++
+      if (endsQueryPrefix) break
     }
   }
 
@@ -667,6 +688,166 @@ function mergeUrlLikeRuns(segmentation: MergedSegmentation): MergedSegmentation 
 
   return {
     len: compactLen,
+    texts,
+    isWordLike,
+    kinds,
+    starts,
+  }
+}
+
+function mergeUrlQueryRuns(segmentation: MergedSegmentation): MergedSegmentation {
+  const texts: string[] = []
+  const isWordLike: boolean[] = []
+  const kinds: SegmentBreakKind[] = []
+  const starts: number[] = []
+
+  for (let i = 0; i < segmentation.len; i++) {
+    const text = segmentation.texts[i]!
+    texts.push(text)
+    isWordLike.push(segmentation.isWordLike[i]!)
+    kinds.push(segmentation.kinds[i]!)
+    starts.push(segmentation.starts[i]!)
+
+    if (!isUrlQueryBoundarySegment(text)) continue
+
+    const nextIndex = i + 1
+    if (nextIndex >= segmentation.len || segmentation.kinds[nextIndex] === 'space' || segmentation.kinds[nextIndex] === 'zero-width-break') {
+      continue
+    }
+
+    let queryText = ''
+    const queryStart = segmentation.starts[nextIndex]!
+    let j = nextIndex
+    while (j < segmentation.len && segmentation.kinds[j] !== 'space' && segmentation.kinds[j] !== 'zero-width-break') {
+      queryText += segmentation.texts[j]!
+      j++
+    }
+
+    if (queryText.length > 0) {
+      texts.push(queryText)
+      isWordLike.push(true)
+      kinds.push('text')
+      starts.push(queryStart)
+      i = j - 1
+    }
+  }
+
+  return {
+    len: texts.length,
+    texts,
+    isWordLike,
+    kinds,
+    starts,
+  }
+}
+
+const numericJoinerChars = new Set([
+  ':', '-', '/', '×', ',', '.', '+',
+  '\u2013', // –
+  '\u2014', // —
+])
+const decimalDigitRe = /\p{Nd}/u
+
+function segmentContainsDecimalDigit(text: string): boolean {
+  for (const ch of text) {
+    if (decimalDigitRe.test(ch)) return true
+  }
+  return false
+}
+
+function isNumericRunSegment(text: string): boolean {
+  if (text.length === 0) return false
+  for (const ch of text) {
+    if (decimalDigitRe.test(ch) || numericJoinerChars.has(ch)) continue
+    return false
+  }
+  return true
+}
+
+function mergeNumericRuns(segmentation: MergedSegmentation): MergedSegmentation {
+  const texts: string[] = []
+  const isWordLike: boolean[] = []
+  const kinds: SegmentBreakKind[] = []
+  const starts: number[] = []
+
+  for (let i = 0; i < segmentation.len; i++) {
+    const text = segmentation.texts[i]!
+    const kind = segmentation.kinds[i]!
+
+    if (
+      kind === 'text' &&
+      isNumericRunSegment(text) &&
+      segmentContainsDecimalDigit(text)
+    ) {
+      let mergedText = text
+      let j = i + 1
+      while (
+        j < segmentation.len &&
+        segmentation.kinds[j] === 'text' &&
+        isNumericRunSegment(segmentation.texts[j]!)
+      ) {
+        mergedText += segmentation.texts[j]!
+        j++
+      }
+
+      texts.push(mergedText)
+      isWordLike.push(true)
+      kinds.push('text')
+      starts.push(segmentation.starts[i]!)
+      i = j - 1
+      continue
+    }
+
+    texts.push(text)
+    isWordLike.push(segmentation.isWordLike[i]!)
+    kinds.push(kind)
+    starts.push(segmentation.starts[i]!)
+  }
+
+  return {
+    len: texts.length,
+    texts,
+    isWordLike,
+    kinds,
+    starts,
+  }
+}
+
+function splitTimeRangeRuns(segmentation: MergedSegmentation): MergedSegmentation {
+  const texts: string[] = []
+  const isWordLike: boolean[] = []
+  const kinds: SegmentBreakKind[] = []
+  const starts: number[] = []
+
+  for (let i = 0; i < segmentation.len; i++) {
+    const text = segmentation.texts[i]!
+    const match = text.match(/^(\p{Nd}[\p{Nd}:]*-)(\p{Nd}[\p{Nd}:]*)$/u)
+    if (
+      segmentation.kinds[i] === 'text' &&
+      match !== null &&
+      match[1]!.includes(':') &&
+      match[2]!.includes(':')
+    ) {
+      texts.push(match[1]!)
+      isWordLike.push(true)
+      kinds.push('text')
+      starts.push(segmentation.starts[i]!)
+
+      texts.push(match[2]!)
+      isWordLike.push(true)
+      kinds.push('text')
+      starts.push(segmentation.starts[i]! + match[1]!.length)
+      continue
+    }
+
+    texts.push(text)
+    isWordLike.push(segmentation.isWordLike[i]!)
+    kinds.push(segmentation.kinds[i]!)
+    starts.push(segmentation.starts[i]!)
+  }
+
+  return {
+    len: texts.length,
     texts,
     isWordLike,
     kinds,
@@ -812,6 +993,19 @@ function buildMergedSegmentation(normalized: string): MergedSegmentation {
     }
   }
 
+  for (let i = 1; i < mergedLen; i++) {
+    if (
+      mergedKinds[i] === 'text' &&
+      !mergedWordLike[i]! &&
+      isEscapedQuoteClusterSegment(mergedTexts[i]!) &&
+      mergedKinds[i - 1] === 'text'
+    ) {
+      mergedTexts[i - 1] += mergedTexts[i]!
+      mergedWordLike[i - 1] = mergedWordLike[i - 1]! || mergedWordLike[i]!
+      mergedTexts[i] = ''
+    }
+  }
+
   for (let i = mergedLen - 2; i >= 0; i--) {
     if (mergedKinds[i] === 'text' && !mergedWordLike[i]! && isForwardStickyClusterSegment(mergedTexts[i]!)) {
       let j = i + 1
@@ -849,7 +1043,7 @@ function buildMergedSegmentation(normalized: string): MergedSegmentation {
     kinds: mergedKinds,
     starts: mergedStarts,
   })
-  const withMergedUrls = mergeUrlLikeRuns(compacted)
+  const withMergedUrls = splitTimeRangeRuns(mergeNumericRuns(mergeUrlQueryRuns(mergeUrlLikeRuns(compacted))))
 
   for (let i = 0; i < withMergedUrls.len - 1; i++) {
     const split = splitLeadingSpaceAndMarks(withMergedUrls.texts[i]!)
@@ -1080,17 +1274,15 @@ type InternalLayoutLine = {
 }
 
 function countPreparedLines(prepared: PreparedText, maxWidth: number): number {
-  const { widths, kinds, breakableWidths, discretionaryHyphenWidth } = prepared
+  const { widths, kinds, breakableWidths } = prepared
   if (widths.length === 0) return 0
+  if (kinds.includes('soft-hyphen')) {
+    return walkPreparedLines(prepared, maxWidth)
+  }
 
   let lineCount = 0
   let lineW = 0
   let hasContent = false
-  let pendingSoftBreakWidth = -1
-
-  function clearPendingSoftBreak(): void {
-    pendingSoftBreakWidth = -1
-  }
 
   function placeOnFreshLine(segmentIndex: number): void {
     const w = widths[segmentIndex]!
@@ -1118,18 +1310,8 @@ function countPreparedLines(prepared: PreparedText, maxWidth: number): number {
     const w = widths[i]!
     const kind = kinds[i]!
 
-    if (kind === 'soft-hyphen') {
-      if (hasContent) {
-        pendingSoftBreakWidth = lineW + discretionaryHyphenWidth
-      }
-      continue
-    }
-
     if (!hasContent) {
       placeOnFreshLine(i)
-      if (kind === 'space' || kind === 'zero-width-break') {
-        clearPendingSoftBreak()
-      }
       continue
     }
 
@@ -1137,30 +1319,13 @@ function countPreparedLines(prepared: PreparedText, maxWidth: number): number {
 
     if (newW > maxWidth + lineFitEpsilon) {
       if (isCollapsibleSpaceKind(kind)) {
-        clearPendingSoftBreak()
         continue
       }
-
-      if (pendingSoftBreakWidth >= 0 && pendingSoftBreakWidth <= maxWidth + lineFitEpsilon) {
-        lineW = 0
-        hasContent = false
-        clearPendingSoftBreak()
-        placeOnFreshLine(i)
-        if (kind === 'space' || kind === 'zero-width-break') {
-          clearPendingSoftBreak()
-        }
-        continue
-      }
-
-      clearPendingSoftBreak()
       lineW = 0
       hasContent = false
       placeOnFreshLine(i)
     } else {
       lineW = newW
-      if (kind === 'space' || kind === 'zero-width-break') {
-        clearPendingSoftBreak()
-      }
     }
   }
 
@@ -1243,8 +1408,12 @@ function walkPreparedLines(
   }
 
   function appendBreakableSegment(segmentIndex: number): void {
+    appendBreakableSegmentFrom(segmentIndex, 0)
+  }
+
+  function appendBreakableSegmentFrom(segmentIndex: number, startGraphemeIndex: number): void {
     const gWidths = breakableWidths[segmentIndex]!
-    for (let g = 0; g < gWidths.length; g++) {
+    for (let g = startGraphemeIndex; g < gWidths.length; g++) {
       const gw = gWidths[g]!
 
       if (!hasContent) {
@@ -1266,6 +1435,35 @@ function walkPreparedLines(
       lineEndSegmentIndex = segmentIndex + 1
       lineEndGraphemeIndex = 0
     }
+  }
+
+  function continueSoftHyphenBreakableSegment(segmentIndex: number): boolean {
+    const gWidths = breakableWidths[segmentIndex]!
+    if (gWidths === null) return false
+
+    let fitCount = 0
+    let fittedWidth = lineW
+    while (fitCount < gWidths.length && fittedWidth + gWidths[fitCount]! <= maxWidth + lineFitEpsilon) {
+      fittedWidth += gWidths[fitCount]!
+      fitCount++
+    }
+
+    if (fitCount === 0) return false
+
+    lineW = fittedWidth
+    lineEndSegmentIndex = segmentIndex
+    lineEndGraphemeIndex = fitCount
+    clearPendingSoftBreak()
+
+    if (fitCount === gWidths.length) {
+      lineEndSegmentIndex = segmentIndex + 1
+      lineEndGraphemeIndex = 0
+      return true
+    }
+
+    emitCurrentLine()
+    appendBreakableSegmentFrom(segmentIndex, fitCount)
+    return true
   }
 
   for (let i = 0; i < widths.length; i++) {
@@ -1299,6 +1497,10 @@ function walkPreparedLines(
     if (newW > maxWidth + lineFitEpsilon) {
       if (isCollapsibleSpaceKind(kind)) {
         clearPendingSoftBreak()
+        continue
+      }
+
+      if (pendingSoftBreakSegmentIndex >= 0 && continueSoftHyphenBreakableSegment(i)) {
         continue
       }
 

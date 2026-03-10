@@ -140,13 +140,24 @@ describe('prepare invariants', () => {
     expect(wide.lineCount).toBe(1)
     expect(wide.lines.map(line => line.text)).toEqual(['transatlantic'])
 
+    const prefixed = prepareWithSegments('foo trans\u00ADatlantic', FONT)
     const softBreakWidth = Math.max(
-      prepared.widths[0]! + prepared.discretionaryHyphenWidth,
-      prepared.widths[2]!,
+      prefixed.widths[0]! + prefixed.widths[1]! + prefixed.widths[2]! + prefixed.discretionaryHyphenWidth,
+      prefixed.widths[4]!,
     ) + 0.1
-    const narrow = layoutWithLines(prepared, softBreakWidth, LINE_HEIGHT)
+    const narrow = layoutWithLines(prefixed, softBreakWidth, LINE_HEIGHT)
     expect(narrow.lineCount).toBe(2)
-    expect(narrow.lines.map(line => line.text)).toEqual(['trans-', 'atlantic'])
+    expect(narrow.lines.map(line => line.text)).toEqual(['foo trans-', 'atlantic'])
+    expect(layout(prefixed, softBreakWidth, LINE_HEIGHT).lineCount).toBe(narrow.lineCount)
+
+    const continuePastSoftBreakWidth =
+      prepared.widths[0]! +
+      prepared.breakableWidths[2]![0]! +
+      prepared.breakableWidths[2]![1]! +
+      0.1
+    const continued = layoutWithLines(prepared, continuePastSoftBreakWidth, LINE_HEIGHT)
+    expect(continued.lines.map(line => line.text)).toEqual(['transat', 'lantic'])
+    expect(layout(prepared, continuePastSoftBreakWidth, LINE_HEIGHT).lineCount).toBe(continued.lineCount)
   })
 
   test('keeps closing punctuation attached to the preceding word', () => {
@@ -204,15 +215,32 @@ describe('prepare invariants', () => {
     expect(prepared.segments).toEqual(['said', ' ', '"hello"', ' ', 'there'])
   })
 
+  test('treats escaped ascii quote clusters as opening and closing glue by context', () => {
+    const text = String.raw`say \"hello\" there`
+    const prepared = prepareWithSegments(text, FONT)
+    expect(prepared.segments).toEqual(['say', ' ', String.raw`\"hello\"`, ' ', 'there'])
+  })
+
   test('keeps URL-like runs together as one breakable segment', () => {
     const prepared = prepareWithSegments('see https://example.com/reports/q3?lang=ar&mode=full now', FONT)
     expect(prepared.segments).toEqual([
       'see',
       ' ',
-      'https://example.com/reports/q3?lang=ar&mode=full',
+      'https://example.com/reports/q3?',
+      'lang=ar&mode=full',
       ' ',
       'now',
     ])
+  })
+
+  test('keeps numeric time ranges together', () => {
+    const prepared = prepareWithSegments('window 7:00-9:00 only', FONT)
+    expect(prepared.segments).toEqual(['window', ' ', '7:00-', '9:00', ' ', 'only'])
+  })
+
+  test('keeps unicode-digit numeric expressions together', () => {
+    const prepared = prepareWithSegments('यह २४×७ सपोर्ट है', FONT)
+    expect(prepared.segments).toEqual(['यह', ' ', '२४×७', ' ', 'सपोर्ट', ' ', 'है'])
   })
 
   test('does not attach opening punctuation to following whitespace', () => {
