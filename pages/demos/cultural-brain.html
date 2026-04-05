@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="The Extended Cultural Brain Synthesis — A cybernetic textual wiring demo using pretext to visually map the intersection of neurology and culture.">
+  <title>The Extended Cultural Brain Synthesis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@100;300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      color-scheme: dark;
+      --bg: #090a0c;
+      --ink: #cfdacd;
+      --ink-dim: #6c756b;
+      --cyan: #30d5c8;
+      --cyan-glow: rgba(48, 213, 200, 0.4);
+      --red: #e44d5c;
+      --red-glow: rgba(228, 77, 92, 0.4);
+      --green: #83c166;
+      --panel-bg: rgba(14, 16, 18, 0.85);
+
+      --ui-font: 'JetBrains Mono', 'SF Mono', monospace;
+      --body-font: 'Cormorant Garamond', Georgia, serif;
+    }
+
+    html {
+      height: 100%;
+      background: var(--bg);
+      /* Cybernetic grid */
+      background-image: 
+        linear-gradient(rgba(48,213,200,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(48,213,200,0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      overflow-x: hidden;
+    }
+
+    body {
+      min-height: 100%;
+      color: var(--ink);
+      font-family: var(--ui-font);
+      display: flex;
+    }
+
+    /* ── Floating Data Particles ── */
+    #ambient-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ── Left Control Panel ── */
+    aside.control-panel {
+      position: fixed;
+      top: 0; 
+      left: 0;
+      width: 380px;
+      height: 100vh;
+      background: var(--panel-bg);
+      border-right: 1px solid rgba(48, 213, 200, 0.15);
+      backdrop-filter: blur(12px);
+      padding: 32px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .panel-header {
+      margin-bottom: 40px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      box-shadow: 0 0 10px var(--cyan-glow) inset;
+    }
+
+    h1 {
+      font-family: var(--ui-font);
+      font-weight: 300;
+      font-size: 26px;
+      line-height: 1.1;
+      color: #fff;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+    }
+
+    /* ── Controls ── */
+    .control-group {
+      margin-top: auto;
+      padding-top: 32px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+    }
+
+    .slider-val {
+      color: var(--cyan);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      background: rgba(48, 213, 200, 0.1);
+      height: 2px;
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--cyan);
+      border-radius: 50%;
+      cursor: ew-resize;
+      box-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    /* ── Main Text Canvas ── */
+    main.text-arena {
+      margin-left: 380px;
+      padding: 64px;
+      position: relative;
+      min-height: 100vh;
+      z-index: 10;
+      flex: 1;
+    }
+
+    /* SVG Overlay for Connections */
+    #wiring-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .connection-path {
+      fill: none;
+      stroke: var(--cyan);
+      stroke-width: 1px;
+      opacity: 0.6;
+      stroke-dasharray: 4 4;
+      animation: dash-flow 20s linear infinite;
+    }
+
+    .connection-path--strong {
+      stroke: var(--red);
+      stroke-width: 1.5px;
+      opacity: 0.8;
+      stroke-dasharray: none;
+      animation: none;
+      filter: drop-shadow(0 0 6px var(--red-glow));
+    }
+
+    @keyframes dash-flow {
+      to { stroke-dashoffset: -200; }
+    }
+
+    /* Container for Pretext lines */
+    #document-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+    }
+
+    .text-line {
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      user-select: text;
+      left: 0;
+      /* Font details injected by JS, but general styling here */
+      color: var(--ink);
+    }
+
+    .text-line--manifesto {
+      font-family: var(--ui-font);
+      color: #9ab09a;
+      letter-spacing: -0.02em;
+    }
+
+    .text-line--geertz {
+      font-family: var(--body-font);
+      color: #dfdfdf;
+    }
+
+    .para-mark {
+      position: absolute;
+      left: 0;
+      width: 12px;
+      height: 1px;
+      background: var(--ink-dim);
+      opacity: 0.5;
+    }
+
+    /* Highlight Spans injected into HTML strings */
+    .kw {
+      position: relative;
+      display: inline-block;
+      color: var(--cyan);
+      font-weight: 500;
+      text-shadow: 0 0 8px var(--cyan-glow);
+      cursor: crosshair;
+      transition: color 200ms ease;
+    }
+
+    .kw--culture { color: var(--green); text-shadow: 0 0 8px rgba(131,193,102,0.4); }
+    .kw--brain { color: var(--red); text-shadow: 0 0 8px var(--red-glow); }
+
+    .kw::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: currentColor;
+      opacity: 0.5;
+    }
+
+    .kw:hover {
+      color: #fff !important;
+      text-shadow: 0 0 12px rgba(255,255,255,0.8) !important;
+    }
+
+    /* ── Data Points on left column ── */
+    .pillar-box {
+      margin-top: 32px;
+      padding: 16px;
+      border: 1px dashed rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.3);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--ink-dim);
+    }
+    .pillar-box h3 {
+      font-size: 10px;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1000px) {
+      body { flex-direction: column; }
+      aside.control-panel { 
+        position: relative; 
+        width: 100%; 
+        height: auto; 
+        border-right: none;
+        border-bottom: 1px solid rgba(48, 213, 200, 0.15);
+      }
+      main.text-arena { margin-left: 0; padding: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient background canvas for slow particles -->
+  <canvas id="ambient-canvas"></canvas>
+
+  <aside class="control-panel">
+    <div class="panel-header">
+      <span class="status-badge">Active Hyperstition</span>
+      <h1>The Extended Cultural Brain</h1>
+      <p class="subtitle">
+        A synthetic cartography where physical neural pathways and cultural artifacts are rendered as a single, co-evolved landscape. 
+        Dismantling the Cartesian university through cybernetic textual alignment.
+      </p>
+    </div>
+
+    <!-- Data extraction boxes -->
+    <div class="pillar-box">
+      <h3>The Reality Bridge</h3>
+      <p>Conversion path: Theoretical proposition → Interdisciplinary matrix formation → Specialized funding streams → Clinical/pedagogical deployment.</p>
+    </div>
+    
+    <div class="pillar-box">
+      <h3>The Memetic Engine</h3>
+      <p>Transmissibility hooks: The death of Cartesian dualism / The skull is not a boundary / The end of the blank slate.</p>
+    </div>
+
+    <!-- Interactive Controls -->
+    <div class="control-group">
+      <div class="slider-wrap">
+        <div class="slider-header">
+          <span>Target Column Width</span>
+          <span class="slider-val" id="val-width">600px</span>
+        </div>
+        <input type="range" id="param-width" min="300" max="800" value="600" step="10">
+      </div>
+
+      <div class="slider-wrap">
+        <div class="slider-header">
+          <span>Boundary Tension (Gap)</span>
+          <span class="slider-val" id="val-gap">80px</span>
+        </div>
+        <input type="range" id="param-gap" min="20" max="150" value="80" step="5">
+      </div>
+    </div>
+  </aside>
+
+  <main class="text-arena">
+    <!-- SVG overlay for connecting the marked keywords -->
+    <svg id="wiring-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    <!-- Pretext container -->
+    <div id="document-container"></div>
+  </main>
+
+  <script type="module" src="./cultural-brain.ts"></script>
+</body>
+</html>

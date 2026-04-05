@@ -3,140 +3,396 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pretext Demos</title>
+<title>Pretext — Demos</title>
+<meta name="description" content="Interactive demos showcasing Pretext's text layout engine: from core measurement to immersive 3D text environments.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    color-scheme: light;
-    --page: #f5f1ea;
-    --panel: #fffdf8;
-    --ink: #201b18;
-    --muted: #6d645d;
-    --rule: #d8cec3;
-    --accent: #955f3b;
+    --bg: #0a0b0e;
+    --surface: #111318;
+    --surface-raised: #181b22;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-hover: rgba(255, 255, 255, 0.14);
+    --text: #e8e6e1;
+    --text-muted: #7a7872;
+    --text-dim: #4a4842;
+    --accent: #c89b5e;
+    --accent-glow: rgba(200, 155, 94, 0.15);
+    --cyan: #5ec8b8;
+    --rose: #c85e7a;
+    --violet: #8e7ac8;
+    --sans: 'Inter', -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Crimson Pro', Georgia, serif;
   }
+
+  html { scroll-behavior: smooth; }
+
   body {
-    margin: 0;
     min-height: 100vh;
-    background: linear-gradient(180deg, #fbf7f0 0%, var(--page) 100%);
-    color: var(--ink);
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
   }
-  .page {
-    width: min(940px, calc(100vw - 32px));
+
+  /* ── Grain overlay ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ── Header ── */
+  .header {
+    position: relative;
+    padding: 80px 0 56px;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .container {
+    width: min(1080px, calc(100vw - 48px));
     margin: 0 auto;
-    padding: 32px 0 48px;
   }
+
   .eyebrow {
-    margin: 0 0 8px;
-    font: 12px/1.2 "SF Mono", ui-monospace, monospace;
-    letter-spacing: 0.08em;
+    font: 300 11px/1 var(--mono);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--accent);
+    margin-bottom: 12px;
+    opacity: 0.8;
   }
+
   h1 {
-    margin: 0;
-    font: 700 34px/1.08 Georgia, "Times New Roman", serif;
+    font: 600 42px/1 var(--sans);
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--text) 0%, var(--text-muted) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
-  .intro {
-    margin: 10px 0 0;
-    max-width: 62ch;
-    line-height: 1.5;
-    color: var(--muted);
+
+  .subtitle {
+    margin: 14px 0 0;
+    max-width: 60ch;
+    font: 300 16px/1.65 var(--sans);
+    color: var(--text-muted);
   }
+
+  /* ── Section ── */
+  .section {
+    padding: 0 0 56px;
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font: 500 13px/1 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .section-count {
+    font: 300 11px/1 var(--mono);
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+
+  /* ── Grid ── */
   .grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-    margin-top: 28px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
   }
+  .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* ── Card ── */
   .card {
-    display: block;
-    padding: 18px;
-    border: 1px solid var(--rule);
-    border-radius: 20px;
-    background: color-mix(in srgb, var(--panel) 94%, white 6%);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 22px 22px 20px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
     color: inherit;
     text-decoration: none;
-    box-shadow: 0 18px 40px rgb(54 40 23 / 0.08);
-    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    transition: background 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 280ms ease;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 280ms ease;
+    pointer-events: none;
   }
   .card:hover {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--rule) 65%);
-    box-shadow: 0 22px 44px rgb(54 40 23 / 0.12);
+    background: var(--surface-raised);
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   }
+  .card:hover::before {
+    opacity: 1;
+  }
+
+  .card-tag {
+    display: inline-block;
+    align-self: flex-start;
+    font: 400 9px/1 var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+  .tag-layout     { color: var(--cyan);   background: rgba(94, 200, 184, 0.08); }
+  .tag-type       { color: var(--accent); background: rgba(200, 155, 94, 0.08); }
+  .tag-immersive  { color: var(--rose);   background: rgba(200, 94, 122, 0.08); }
+  .tag-theory     { color: var(--violet); background: rgba(142, 122, 200, 0.08); }
+
   .card h2 {
-    margin: 0;
-    font: 600 20px/1.2 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font: 500 17px/1.25 var(--sans);
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
   }
   .card p {
-    margin: 10px 0 0;
-    line-height: 1.5;
-    color: var(--muted);
+    font: 300 13px/1.55 var(--sans);
+    color: var(--text-muted);
+    flex: 1;
   }
-  @media (max-width: 760px) {
-    .page {
-      width: min(100vw - 20px, 940px);
-      padding-top: 22px;
-    }
-    .grid {
-      grid-template-columns: 1fr;
-    }
+  .card-arrow {
+    margin-top: 14px;
+    font: 400 12px/1 var(--mono);
+    color: var(--text-dim);
+    transition: color 180ms ease, transform 180ms ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card:hover .card-arrow {
+    color: var(--accent);
+    transform: translateX(3px);
+  }
+
+  /* ── Featured card (hero demos) ── */
+  .card-featured {
+    grid-column: span 2;
+    padding: 28px;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-raised) 100%);
+  }
+  .card-featured::before {
+    background: linear-gradient(135deg, var(--accent-glow) 0%, transparent 60%);
+  }
+  .card-featured h2 {
+    font-size: 22px;
+  }
+  .card-featured p {
+    font-size: 14px;
+    max-width: 52ch;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 32px 0 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .footer-text {
+    font: 300 12px/1.5 var(--mono);
+    color: var(--text-dim);
+  }
+  .footer-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 160ms;
+  }
+  .footer-link:hover { color: var(--accent); }
+
+  /* ── Responsive ── */
+  @media (max-width: 860px) {
+    .header { padding: 52px 0 40px; }
+    h1 { font-size: 32px; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .card-featured { grid-column: span 2; }
+  }
+  @media (max-width: 560px) {
+    .container { width: calc(100vw - 32px); }
+    .header { padding: 40px 0 32px; }
+    h1 { font-size: 26px; }
+    .subtitle { font-size: 14px; }
+    .grid, .grid-2 { grid-template-columns: 1fr; }
+    .card-featured { grid-column: span 1; }
+    .section { padding-bottom: 40px; }
   }
 </style>
 </head>
 <body>
-  <main class="page">
-    <p class="eyebrow">Pretext</p>
+<div class="container">
+
+  <!-- ─── Header ─── -->
+  <header class="header">
+    <p class="eyebrow">Pretext · Layout Engine</p>
     <h1>Demos</h1>
-    <p class="intro">
-      Small browser demos for the kinds of layout work Pretext unlocks: text
-      height without DOM measurement in the hot path, manual line routing, and
-      width-tight multiline UI.
+    <p class="subtitle">
+      Text height without DOM measurement, manual line routing, width-tight
+      multiline UI, and immersive typographic environments — all powered by a
+      single <code style="font-family:var(--mono);color:var(--accent);font-size:0.9em">prepare() → layout()</code> pipeline.
     </p>
+  </header>
 
-    <section class="grid" aria-label="Demo list">
-      <a class="card" href="/demos/accordion">
-        <h2>Accordion</h2>
-        <p>Expand and collapse sections whose text heights are calculated from Pretext.</p>
-      </a>
+  <!-- ═══════════════════════════════════════════
+       SECTION 1 — Core Layout
+       ═══════════════════════════════════════════ -->
+  <section class="section" id="core">
+    <div class="section-header">
+      <span class="section-title">Core Layout</span>
+      <span class="section-count">5 demos</span>
+    </div>
+    <div class="grid">
 
-      <a class="card" href="/demos/bubbles">
-        <h2>Bubbles</h2>
-        <p>Tight multiline message bubbles that keep the same line count with less wasted area.</p>
-      </a>
-
-      <a class="card" href="/demos/dynamic-layout">
+      <a class="card card-featured" href="/demos/dynamic-layout" id="demo-dynamic-layout">
+        <span class="card-tag tag-layout">Layout</span>
         <h2>Dynamic Layout</h2>
-        <p>A fixed-height editorial spread with obstacle-aware title routing and continuous flow.</p>
+        <p>A fixed-height editorial spread with obstacle-aware title routing, continuous two-column flow, and live logo-driven reflow. The flagship demonstration of variable-width line routing.</p>
+        <span class="card-arrow">Open →</span>
       </a>
 
-      <a class="card" href="/demos/variable-typographic-ascii">
-        <h2>Variable Typographic ASCII</h2>
-        <p>Particle-driven ASCII art comparing proportional measured glyphs against a monospace version.</p>
+      <a class="card" href="/demos/accordion" id="demo-accordion">
+        <span class="card-tag tag-layout">Layout</span>
+        <h2>Accordion</h2>
+        <p>Expand and collapse sections whose text heights are predicted from Pretext — no DOM measurement in the animation hot path.</p>
+        <span class="card-arrow">Open →</span>
       </a>
 
-      <a class="card" href="/demos/editorial-engine">
-        <h2>Editorial Engine</h2>
-        <p>Animated orbs, live text reflow, pull quotes, and multi-column flow with zero DOM measurements.</p>
+      <a class="card" href="/demos/bubbles" id="demo-bubbles">
+        <span class="card-tag tag-layout">Layout</span>
+        <h2>Bubbles</h2>
+        <p>Width-tight multiline message bubbles that shrinkwrap with less wasted area. Demonstrates <code style="font-family:var(--mono);font-size:0.85em;color:var(--cyan)">walkLineRanges()</code>.</p>
+        <span class="card-arrow">Open →</span>
       </a>
 
-      <a class="card" href="/demos/justification-comparison">
-        <h2>Justification Comparison</h2>
-        <p>CSS justification, greedy hyphenation, and Knuth-Plass paragraph layout shown side by side to reveal rivers and spacing tradeoffs.</p>
-      </a>
-
-      <a class="card" href="/demos/rich-note">
+      <a class="card" href="/demos/rich-note" id="demo-rich-note">
+        <span class="card-tag tag-layout">Layout</span>
         <h2>Rich Text</h2>
-        <p>Rich inline text, code spans, links, and chips laid out together, with pills staying whole while text keeps wrapping naturally.</p>
+        <p>Inline code spans, links, and pills laid out together — keeping chips whole while text wraps naturally around them.</p>
+        <span class="card-arrow">Open →</span>
       </a>
 
-      <a class="card" href="/demos/masonry">
+      <a class="card" href="/demos/masonry" id="demo-masonry">
+        <span class="card-tag tag-layout">Layout</span>
         <h2>Masonry</h2>
-        <p>A text-card occlusion demo where height prediction comes from Pretext instead of DOM reads.</p>
+        <p>Text-card masonry where each card's height is predicted from Pretext instead of DOM reads, enabling instant layout with no reflow.</p>
+        <span class="card-arrow">Open →</span>
       </a>
-    </section>
-  </main>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 2 — Typographic Systems
+       ═══════════════════════════════════════════ -->
+  <section class="section" id="systems">
+    <div class="section-header">
+      <span class="section-title">Typographic Systems</span>
+      <span class="section-count">3 demos</span>
+    </div>
+    <div class="grid">
+
+      <a class="card card-featured" href="/demos/editorial-engine" id="demo-editorial-engine">
+        <span class="card-tag tag-type">Typographic</span>
+        <h2>Editorial Engine</h2>
+        <p>Animated orbs, live text reflow, pull quotes, and multi-column flow — a full editorial page compositor with zero DOM measurements in the render loop.</p>
+        <span class="card-arrow">Open →</span>
+      </a>
+
+      <a class="card" href="/demos/justification-comparison" id="demo-justification">
+        <span class="card-tag tag-type">Typographic</span>
+        <h2>Justification Comparison</h2>
+        <p>CSS justification, greedy hyphenation, and Knuth–Plass paragraph layout shown side by side to reveal rivers and spacing tradeoffs.</p>
+        <span class="card-arrow">Open →</span>
+      </a>
+
+      <a class="card" href="/demos/variable-typographic-ascii" id="demo-ascii">
+        <span class="card-tag tag-type">Typographic</span>
+        <h2>Variable Typographic ASCII</h2>
+        <p>Particle-driven ASCII art comparing proportional measured glyphs against a monospace version. Variable-width type as visual texture.</p>
+        <span class="card-arrow">Open →</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 3 — The Cave (link to index-cave)
+       ═══════════════════════════════════════════ -->
+  <section class="section" id="cave">
+    <div class="section-header">
+      <span class="section-title">Immersive &amp; Experimental</span>
+      <span class="section-count">11 environments</span>
+    </div>
+    <a class="card card-cave" href="/demos/index-cave" id="demo-cave-link" style="
+      display: block;
+      padding: 32px 28px;
+      background: linear-gradient(135deg, var(--surface) 0%, #0f1118 50%, var(--surface) 100%);
+      border: 1px solid rgba(200,155,94,0.10);
+      position: relative;
+      overflow: hidden;
+    ">
+      <div style="
+        position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 600px 300px at 70% 40%, rgba(200,94,122,0.06) 0%, transparent 60%),
+                    radial-gradient(ellipse 400px 250px at 30% 60%, rgba(94,200,184,0.04) 0%, transparent 50%);
+      "></div>
+      <div style="position:relative;">
+        <span class="card-tag" style="color:var(--rose);background:rgba(200,94,122,0.08);">The Cave</span>
+        <h2 style="font-size:24px;margin-bottom:10px;">Immersive Environments &amp; Consciousness Experiments</h2>
+        <p style="max-width:56ch;font-size:14px;">
+          3D raycasting, echolocation, consciousness modes, the Cartesian Breach, lunar arc layout —
+          11 typographic environments that push text into spatial, interactive, and perceptual architectures.
+        </p>
+        <span class="card-arrow" style="margin-top:16px;">Enter the Cave →</span>
+      </div>
+    </a>
+  </section>
+
+  <!-- ─── Footer ─── -->
+  <footer class="footer">
+    <span class="footer-text">Pretext — JS text layout without DOM measurement</span>
+    <a class="footer-link footer-text" href="https://github.com/nicebyte/pretext" target="_blank" rel="noopener">GitHub ↗</a>
+  </footer>
+
+</div>
 </body>
 </html>

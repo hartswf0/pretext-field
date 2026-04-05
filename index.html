@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pretext :: Deep Field Experiments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000000; /* Deep absolute black */
+    --fg: #ffffff; /* Improved Contrast */
+    --accent: #ff8c00;
+    --border: #1e1b18;
+    --border-hover: #332d29;
+    --cyan: #00ffcc;
+    --rose: #f43f5e;
+    --pink: #e024c3;
+    --violet: #8b5cf6;
+    --amber: #fbbf24;
+    --blue: #3b82f6;
+    --surface: #111111;
+    --surface-hover: #110f0e;
+    --card-radius: 12px;
+    --mono: 'JetBrains Mono', 'Menlo', monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── Animated background ── */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,140,0,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(0,255,204,0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 100px;
+  }
+
+  /* ── Header ── */
+  header {
+    margin-bottom: 56px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .header-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--cyan);
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.03em;
+  }
+
+  .subtitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--cyan);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 4px 0 0;
+  }
+
+  p.description {
+    color: #a0a0a0; /* Brighter for contrast */
+    font-size: 15px;
+    margin-top: 16px;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  /* ── Section headers ── */
+  .category-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    margin: 40px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .cat-count {
+    font-weight: 400;
+    color: #888; /* Brighter */
+    margin-left: auto;
+  }
+
+  /* ── Grid ── */
+  .grid {
+    display: grid;
+    gap: 10px;
+  }
+
+  .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 600px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .container { padding: 30px 16px 60px; }
+  }
+
+  /* ── Cards ── */
+  .link-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid #333;
+    border-radius: var(--card-radius);
+    padding: 18px 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .link-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    box-shadow: inset 0 0 0 1px var(--card-accent, var(--accent));
+    opacity: 0;
+    border-radius: var(--card-radius);
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .link-card:hover {
+    transform: translateY(-2px);
+    background: var(--surface-hover);
+    border-color: var(--border-hover);
+  }
+
+  .link-card:hover::before {
+    opacity: 0.4;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .card-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-title .arrow {
+    color: var(--card-accent, var(--cyan));
+    font-weight: 400;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    transform: translateX(-4px);
+  }
+
+  .link-card:hover .card-title .arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .card-family {
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .card-desc {
+    font-size: 13px;
+    color: #a0a0a0;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* ── Card accent colors ── */
+  .accent-amber  { --card-accent: var(--amber); }
+  .accent-cyan   { --card-accent: var(--cyan); }
+  .accent-rose   { --card-accent: var(--rose); }
+  .accent-pink   { --card-accent: var(--pink); }
+  .accent-violet { --card-accent: var(--violet); }
+  .accent-blue   { --card-accent: var(--blue); }
+  .accent-orange { --card-accent: var(--accent); }
+
+  /* ── featured card ── */
+  .link-card.featured {
+    border-color: var(--border-hover);
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(255,140,0,0.03) 100%);
+  }
+
+  /* ── Divider ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0 8px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #777;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  footer a {
+    color: var(--cyan);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  footer a:hover {
+    color: var(--fg);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-top">
+      <span class="header-badge">v0.0.3</span>
+    </div>
+    <h1>Pretext</h1>
+    <p class="subtitle">Deep Field Experiments</p>
+    <p class="description">A compilation of advanced text-layout physics engines, echolocation sonifications, genomic content systems, and ML-inspired navigation vectors.</p>
+  </header>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- COMMAND CENTER                              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--cyan);">
+    <span class="cat-dot" style="background: var(--cyan);"></span>
+    Command Center
+    <span class="cat-count">2</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./gene-main/test-iframes.html" class="link-card featured accent-cyan" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <span class="card-icon">📡</span>
+        <h2 class="card-title">Iframe Test — All Pages <span class="arrow">→</span></h2>
+        <span class="card-family" style="color: var(--cyan); background: rgba(0,255,204,0.1);">LIVE</span>
+      </div>
+      <p class="card-desc">Every page in the entire repo rendered side-by-side in filterable iframes. The system-level visual stress test.</p>
+    </a>
+    <a href="./gene-main/registry.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">🧬</span>
+        <h2 class="card-title">GENOMA Registry <span class="arrow">→</span></h2>
+        <span class="card-family" style="color: var(--rose); background: rgba(244,63,94,0.1);">GENOME</span>
+      </div>
+      <p class="card-desc">Visual genome browser with force-directed ancestry graph, full codon sequences, and inter-genome connections.</p>
+    </a>
+    <a href="./gene-main.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">🧪</span>
+        <h2 class="card-title">GENOMA Hub <span class="arrow">→</span></h2>
+        <span class="card-family" style="color: var(--rose); background: rgba(244,63,94,0.1);">GENOME</span>
+      </div>
+      <p class="card-desc">Core workflow, ontology, and entry points for the generative content system.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- DYNAMIC NAVIGATION                          -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--accent);">
+    <span class="cat-dot" style="background: var(--accent);"></span>
+    Dynamic Navigation
+    <span class="cat-count">5</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./aidar.html" class="link-card accent-orange">
+      <div class="card-header">
+        <span class="card-icon">🦇</span>
+        <h2 class="card-title">AIDAR Labyrinth <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Autonomous A*/Greedy/ML potential field echolocation with WebTTS synthesis.</p>
+    </a>
+    <a href="./WORD-ENGINE/orcadar.html" class="link-card accent-orange">
+      <div class="card-header">
+        <span class="card-icon">🔊</span>
+        <h2 class="card-title">ORCA LiDAR <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Top-down sonic exploration where text fills the exact bounds of real-time raycasted cones.</p>
+    </a>
+    <a href="./WORD-ENGINE/walldar.html" class="link-card accent-orange">
+      <div class="card-header">
+        <span class="card-icon">🧱</span>
+        <h2 class="card-title">WallDAR <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Wolfenstein-style pseudo-3D traversal. Read poetry painted directly onto volumetric walls.</p>
+    </a>
+    <a href="./claudar.html" class="link-card accent-orange">
+      <div class="card-header">
+        <span class="card-icon">🧠</span>
+        <h2 class="card-title">Claudar <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">BAT-MIND echolocation with Claude-powered spatial reasoning.</p>
+    </a>
+    <a href="./jumpar.html" class="link-card accent-orange">
+      <div class="card-header">
+        <span class="card-icon">⚡</span>
+        <h2 class="card-title">Jumpar <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">ENGRAM jump-routing engine for nonlinear text navigation.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- THE CAVE                                    -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--pink);">
+    <span class="cat-dot" style="background: var(--pink);"></span>
+    The Cave — Pretext Demos
+    <span class="cat-count">11</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./pages/demos/bat.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🦇</span>
+        <h2 class="card-title">Bat <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Deep generative ambient radar space triggering procedurally fragmented poetry.</p>
+    </a>
+    <a href="./pages/demos/bat-echo.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🔈</span>
+        <h2 class="card-title">Bat Echo <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Sonic echo variant with waveform-driven text reveal.</p>
+    </a>
+    <a href="./pages/demos/spotlight.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🔦</span>
+        <h2 class="card-title">Spotlight <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Reveal text under a user-controlled spotlight sweeping across the canvas.</p>
+    </a>
+    <a href="./pages/demos/lantern.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🏮</span>
+        <h2 class="card-title">Lantern <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Atmospheric lantern-lit text exploration.</p>
+    </a>
+    <a href="./pages/demos/power-of-a-moon.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🌙</span>
+        <h2 class="card-title">Power of a Moon <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Typography orbits and reshapes itself around illuminated crescent phases.</p>
+    </a>
+    <a href="./pages/demos/cartesian-breach.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">📐</span>
+        <h2 class="card-title">Cartesian Breach <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Erode vertical disciplinary boundaries with Gage spikes to trigger cross-sectional text flow.</p>
+    </a>
+    <a href="./pages/demos/cartesian-breach-v2.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">📐</span>
+        <h2 class="card-title">Cartesian Breach v2 <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Second iteration with refined breach geometry.</p>
+    </a>
+    <a href="./pages/demos/orca-lidar.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">📡</span>
+        <h2 class="card-title">ORCA LiDAR (Cave) <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">The in-cave ORCA LiDAR engine.</p>
+    </a>
+    <a href="./pages/demos/cultural-brain.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🧠</span>
+        <h2 class="card-title">Cultural Brain <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Culture-Mind-Brain interactive neural mapping.</p>
+    </a>
+    <a href="./pages/demos/wordar.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">📝</span>
+        <h2 class="card-title">Wordar <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Word-level radar visualization engine.</p>
+    </a>
+    <a href="./pages/demos/voabar.html" class="link-card accent-pink">
+      <div class="card-header">
+        <span class="card-icon">🎤</span>
+        <h2 class="card-title">Voabar <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Voice-activated bar visualization.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYOUT ENGINES                              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--cyan);">
+    <span class="cat-dot" style="background: var(--cyan);"></span>
+    Layout Engines
+    <span class="cat-count">5</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./pages/demos/dynamic-layout.html" class="link-card accent-cyan">
+      <div class="card-header">
+        <span class="card-icon">📰</span>
+        <h2 class="card-title">Dynamic Layout <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Fixed-height editorial spread with continuous two-column flow and obstacle-aware reflow.</p>
+    </a>
+    <a href="./pages/demos/bubbles.html" class="link-card accent-cyan">
+      <div class="card-header">
+        <span class="card-icon">🫧</span>
+        <h2 class="card-title">Bubbles <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Bubble shrinkwrap demo using the rich non-materializing line-range walker.</p>
+    </a>
+    <a href="./pages/demos/accordion.html" class="link-card accent-cyan">
+      <div class="card-header">
+        <span class="card-icon">🪗</span>
+        <h2 class="card-title">Accordion <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Expandable/collapsible text sections with smooth layout transitions.</p>
+    </a>
+    <a href="./pages/demos/rich-note.html" class="link-card accent-cyan">
+      <div class="card-header">
+        <span class="card-icon">📝</span>
+        <h2 class="card-title">Rich Note <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Rich text note-taking engine powered by pretext layout.</p>
+    </a>
+    <a href="./pages/demos/masonry.html" class="link-card accent-cyan">
+      <div class="card-header">
+        <span class="card-icon">🧱</span>
+        <h2 class="card-title">Masonry <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Pinterest-style masonry layout with dynamically sized text blocks.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- TYPOGRAPHIC                                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--amber);">
+    <span class="cat-dot" style="background: var(--amber);"></span>
+    Typographic Studies
+    <span class="cat-count">3</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./pages/demos/editorial-engine.html" class="link-card accent-amber">
+      <div class="card-header">
+        <span class="card-icon">✒️</span>
+        <h2 class="card-title">Editorial Engine <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Full editorial typesetting engine with professional constraints.</p>
+    </a>
+    <a href="./pages/demos/justification-comparison.html" class="link-card accent-amber">
+      <div class="card-header">
+        <span class="card-icon">📏</span>
+        <h2 class="card-title">Justification Comparison <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Side-by-side comparison of justification algorithms.</p>
+    </a>
+    <a href="./pages/demos/variable-typographic-ascii.html" class="link-card accent-amber">
+      <div class="card-header">
+        <span class="card-icon">🔤</span>
+        <h2 class="card-title">ASCII Typographic <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Variable-width ASCII typographic exploration.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- INSTRUMENTS                                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--violet);">
+    <span class="cat-dot" style="background: var(--violet);"></span>
+    Instruments
+    <span class="cat-count">2</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./cognitive-lanes.html" class="link-card accent-violet">
+      <div class="card-header">
+        <span class="card-icon">🛤️</span>
+        <h2 class="card-title">Cognitive Lanes <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">3-Lane Parallel Reading Interface with toll-booth attention taxation.</p>
+    </a>
+    <a href="./ORCA/orca-shield-18.html" class="link-card accent-violet">
+      <div class="card-header">
+        <span class="card-icon">🛡️</span>
+        <h2 class="card-title">ORCA Shield 18 <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">ORCA protection layer with 18-node sentinel shield.</p>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- GENOMA                                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: var(--rose);">
+    <span class="cat-dot" style="background: var(--rose);"></span>
+    Genoma System
+    <span class="cat-count">4</span>
+  </div>
+  <div class="grid grid-2">
+    <a href="./gene-main/editor.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">🧬</span>
+        <h2 class="card-title">GENOMA Editor <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Drag-and-drop codon editor with live phenotype preview.</p>
+    </a>
+    <a href="./gene-main/scope.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">🔬</span>
+        <h2 class="card-title">GENOMA Scope <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Advanced genome scope with structural visualization tools.</p>
+    </a>
+    <a href="./gene-main/docs.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">📖</span>
+        <h2 class="card-title">GENOMA Docs <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">Full documentation for the GENOMA system theory and capabilities.</p>
+    </a>
+    <a href="./MAP-BUCKET/onyx-abs-26.html" class="link-card accent-rose">
+      <div class="card-header">
+        <span class="card-icon">🗺️</span>
+        <h2 class="card-title">Onyx Abstractions 26 <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">MAP-BUCKET abstraction layer for spatial context mapping.</p>
+    </a>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- INDEX PAGES                                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="category-label" style="color: #666;">
+    <span class="cat-dot" style="background: #555;"></span>
+    Indexes
+  </div>
+  <div class="grid grid-2">
+    <a href="./pages/demos.html" class="link-card">
+      <div class="card-header">
+        <span class="card-icon">📋</span>
+        <h2 class="card-title">Original Pretext Demos <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">The core layout demo index — Bubbles, Spotlight, Accordions, and baseline logic.</p>
+    </a>
+    <a href="./pages/demos/index-cave.html" class="link-card">
+      <div class="card-header">
+        <span class="card-icon">🦇</span>
+        <h2 class="card-title">Cave Index <span class="arrow">→</span></h2>
+      </div>
+      <p class="card-desc">The Cave demo collection landing page.</p>
+    </a>
+  </div>
+
+  <footer>
+    <span>Pretext v0.0.3 · @chenglou/pretext</span>
+    <a href="https://github.com/chenglou/pretext">GitHub →</a>
+  </footer>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Lane Parallel Reading Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
+
+        :root {
+            --bg-color: #f4f3ed;
+            --text-main: #4a4a42;
+            --border-color: #dcdacd;
+            --accent-blue: #0066ff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .serif-text {
+            font-family: 'Lora', serif;
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100px;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 0 2px white, 0 0 0 4px var(--accent-blue);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e0ded5;
+            border-radius: 2px;
+        }
+
+        /* Focus line indicator */
+        .focal-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.05) 20%, rgba(0, 0, 0, 0.05) 80%, transparent 100%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .row-container {
+            position: absolute;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transform-origin: center center;
+            will-change: transform, opacity;
+        }
+
+        .word-cell {
+            flex: 1;
+            text-align: center;
+            font-size: 1.5rem;
+            position: relative;
+        }
+
+        .toll-booth-badge {
+            position: absolute;
+            font-size: 0.55rem;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.1em;
+            color: #777;
+            text-transform: uppercase;
+            bottom: 4px;
+            margin-left: 12px;
+            white-space: nowrap;
+        }
+
+        .flash-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 0, 0, 0.05);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 50;
+        }
+
+        .flash-active {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8 flex flex-col h-screen text-xs md:text-sm">
+
+    <!-- Header / System Status -->
+    <header class="mb-6 space-y-2 uppercase tracking-wide opacity-80 z-10">
+        <div class="flex flex-wrap gap-4 md:gap-8">
+            <span id="status-autoplay" class="font-bold text-green-700">[AUTOPLAY: ON]</span>
+            <span id="status-speech">[SPEECH_SYNTHESIS: INACTIVE]</span>
+            <span>[ROUTING_MODE: 3-LANE PARALLEL]</span>
+        </div>
+        <div id="status-congestion">[CONGESTION_STATUS: LOW - FLUID MOVEMENT]</div>
+    </header>
+
+    <!-- Main 3-Lane Interface -->
+    <main
+        class="flex-1 relative border border-[#dcdacd] rounded-xl overflow-hidden bg-[#f7f6f2] flex flex-col shadow-sm">
+        <div id="flash-overlay" class="flash-overlay"></div>
+
+        <!-- Lane Headers -->
+        <div
+            class="flex border-b border-[#dcdacd] bg-[#efeede] text-[#666] uppercase tracking-widest text-[10px] md:text-xs z-10">
+            <div class="flex-1 py-3 text-center border-r border-dashed border-[#dcdacd]">LANE 1 . LEFT FOCUS</div>
+            <div class="flex-1 py-3 text-center border-r border-dashed border-[#dcdacd]">LANE 2 . CENTER FOCUS</div>
+            <div class="flex-1 py-3 text-center">LANE 3 . RIGHT FOCUS</div>
+        </div>
+
+        <!-- Flow Container -->
+        <div id="flow-container" class="flex-1 relative overflow-hidden">
+            <!-- Background Dividers -->
+            <div class="absolute inset-0 flex pointer-events-none">
+                <div class="flex-1 border-r border-dashed border-[#dcdacd] opacity-50"></div>
+                <div class="flex-1 border-r border-dashed border-[#dcdacd] opacity-50"></div>
+                <div class="flex-1"></div>
+            </div>
+
+            <!-- Focal Center Line -->
+            <div class="focal-line"></div>
+
+            <!-- Dynamic Text Rows injected here via JS -->
+        </div>
+    </main>
+
+    <!-- Footer Controls -->
+    <footer class="mt-6 flex flex-wrap items-center gap-4 z-10">
+        <button id="btn-pause"
+            class="flex items-center gap-2 px-4 py-2 bg-white border border-[#dcdacd] rounded-lg shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                fill="currentColor" class="text-gray-700">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
+            <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                fill="currentColor" class="text-gray-700 hidden">
+                <path d="M8 5v14l11-7z" />
+            </svg>
+            <span id="label-pause" class="font-bold tracking-wide">PAUSE</span>
+        </button>
+
+        <button id="btn-speech"
+            class="flex items-center gap-2 px-4 py-2 bg-white border border-[#dcdacd] rounded-lg shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="text-gray-700">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            <span id="label-speech" class="font-bold tracking-wide">SPEECH: OFF</span>
+        </button>
+
+        <div class="ml-auto flex items-center gap-4 bg-white px-4 py-2 border border-[#dcdacd] rounded-lg shadow-sm">
+            <span class="tracking-widest text-[#666]">FLOW</span>
+            <input type="range" id="slider-flow" min="0.2" max="3" step="0.1" value="0.5">
+            <span id="label-flow-status" class="tracking-widest text-[#666] w-8 text-right">LOW</span>
+        </div>
+    </footer>
+
+    <script>
+        // --- TEXT CORPUS (The 3-Lane Narrative) ---
+        const corpus = [
+            ["a", "silent", "room"],
+            ["of", "yellow", "once"],
+            ["thought", "once", "food", true], // true = Toll Booth marker
+            ["once", "stares", "for"],
+            ["i", "with", "i"],
+            ["cannot", "see", "the"],
+            ["shape", "the", "edge"],
+            ["moving", "center", "moving"],
+            ["too", "fast", "now"],
+            ["breathe", "in", "breathe"],
+            ["the", "light", "fades"],
+            ["return", "to", "start"]
+        ];
+
+        // --- STATE ---
+        const state = {
+            isPlaying: true,
+            isTollBoothPaused: false,
+            speechEnabled: false,
+            speed: 0.5, // pixels per frame
+            baseSpacing: 100, // pixels between rows
+            focalY: 0,
+            containerHeight: 0
+        };
+
+        const activeRows = []; // { id, dom, y, data, hasSpoken, isToll, hasTollTriggered }
+        let rowIdCounter = 0;
+        let corpusIndex = 0;
+        let animationFrameId;
+
+        // --- DOM ELEMENTS ---
+        const flowContainer = document.getElementById('flow-container');
+        const btnPause = document.getElementById('btn-pause');
+        const iconPause = document.getElementById('icon-pause');
+        const iconPlay = document.getElementById('icon-play');
+        const labelPause = document.getElementById('label-pause');
+        const statusAutoplay = document.getElementById('status-autoplay');
+
+        const btnSpeech = document.getElementById('btn-speech');
+        const labelSpeech = document.getElementById('label-speech');
+        const statusSpeech = document.getElementById('status-speech');
+
+        const sliderFlow = document.getElementById('slider-flow');
+        const labelFlowStatus = document.getElementById('label-flow-status');
+        const statusCongestion = document.getElementById('status-congestion');
+        const flashOverlay = document.getElementById('flash-overlay');
+
+        // --- INITIALIZATION ---
+        function init() {
+            updateDimensions();
+            window.addEventListener('resize', updateDimensions);
+
+            // Initial seed of rows to fill screen
+            let currentY = state.containerHeight + 50;
+            while (currentY > -100) {
+                spawnRow(currentY);
+                currentY -= state.baseSpacing;
+            }
+
+            // Event Listeners
+            btnPause.addEventListener('click', togglePause);
+            btnSpeech.addEventListener('click', toggleSpeech);
+            sliderFlow.addEventListener('input', handleFlowChange);
+
+            // Start Loop
+            animationFrameId = requestAnimationFrame(engineLoop);
+        }
+
+        function updateDimensions() {
+            state.containerHeight = flowContainer.clientHeight;
+            state.focalY = state.containerHeight / 2;
+        }
+
+        // --- ENGINE LOOP ---
+        function engineLoop() {
+            if (state.isPlaying && !state.isTollBoothPaused) {
+                moveRows();
+                checkTollBooths();
+                checkSpeechTriggers();
+                cleanupRows();
+                checkSpawning();
+            }
+            renderRows();
+            animationFrameId = requestAnimationFrame(engineLoop);
+        }
+
+        // --- LOGIC ---
+        function moveRows() {
+            activeRows.forEach(row => {
+                row.y -= state.speed;
+            });
+        }
+
+        function spawnRow(yPosition) {
+            const dataRow = corpus[corpusIndex];
+            const isToll = dataRow.length > 3 ? dataRow[3] : false;
+
+            const dom = document.createElement('div');
+            dom.className = 'row-container serif-text';
+
+            let html = '';
+            for (let i = 0; i < 3; i++) {
+                let wordHtml = `<span class="relative">${dataRow[i]}`;
+                // Add Toll Booth UI to Lane 3 if flagged
+                if (isToll && i === 2) {
+                    wordHtml += `<span class="toll-booth-badge">TOLL BOOTH</span>`;
+                }
+                wordHtml += `</span>`;
+                html += `<div class="word-cell">${wordHtml}</div>`;
+            }
+            dom.innerHTML = html;
+
+            flowContainer.appendChild(dom);
+
+            activeRows.push({
+                id: rowIdCounter++,
+                dom: dom,
+                y: yPosition,
+                data: dataRow,
+                hasSpoken: false,
+                isToll: isToll,
+                hasTollTriggered: false
+            });
+
+            corpusIndex = (corpusIndex + 1) % corpus.length;
+        }
+
+        function cleanupRows() {
+            for (let i = activeRows.length - 1; i >= 0; i--) {
+                if (activeRows[i].y < -50) {
+                    // Remove from DOM
+                    flowContainer.removeChild(activeRows[i].dom);
+                    // Remove from array
+                    activeRows.splice(i, 1);
+                }
+            }
+        }
+
+        function checkSpawning() {
+            // Find the lowest row
+            let highestY = -Infinity;
+            activeRows.forEach(row => {
+                if (row.y > highestY) highestY = row.y;
+            });
+
+            // If the bottom-most row has moved up enough, spawn a new one below it
+            if (highestY < state.containerHeight - state.baseSpacing + 50) {
+                spawnRow(highestY + state.baseSpacing);
+            }
+        }
+
+        function renderRows() {
+            // Opacity fade threshold (distance from center before fading starts)
+            const fadeZone = state.containerHeight * 0.4;
+
+            activeRows.forEach(row => {
+                row.dom.style.transform = `translateY(${row.y}px)`;
+
+                // Calculate opacity based on distance from focal center
+                const distFromCenter = Math.abs(row.y - state.focalY);
+                let opacity = 1;
+
+                if (distFromCenter > (fadeZone * 0.2)) {
+                    // Start fading out
+                    opacity = 1 - ((distFromCenter - (fadeZone * 0.2)) / fadeZone);
+                }
+
+                // Keep a minimum opacity so it's always barely visible
+                opacity = Math.max(0.08, Math.min(1, opacity));
+
+                // Slight blur for items far from focal point (Depth of Field effect)
+                let blur = 0;
+                if (opacity < 0.6) {
+                    blur = (0.6 - opacity) * 4;
+                }
+
+                row.dom.style.opacity = opacity;
+                row.dom.style.filter = `blur(${blur}px)`;
+
+                // Make the exact focal row slightly bolder
+                if (opacity > 0.95) {
+                    row.dom.style.fontWeight = '500';
+                    row.dom.style.color = '#333';
+                } else {
+                    row.dom.style.fontWeight = '400';
+                    row.dom.style.color = 'var(--text-main)';
+                }
+            });
+        }
+
+        // --- LESSON: TEXTWORLD COGNITIVE THRESHOLDS ---
+
+        function checkTollBooths() {
+            // <TollBoothFrictionRule>
+            activeRows.forEach(row => {
+                if (row.isToll && !row.hasTollTriggered) {
+                    // If it crosses the focal center
+                    if (row.y <= state.focalY + 5 && row.y >= state.focalY - 5) {
+                        row.hasTollTriggered = true;
+                        triggerAttentionTax();
+                    }
+                }
+            });
+        }
+
+        function triggerAttentionTax() {
+            // Simulates <TriggerPauseOverride> event from the model
+            state.isTollBoothPaused = true;
+            flashOverlay.classList.add('flash-active');
+
+            // Temporarily update status
+            const originalStatus = statusAutoplay.innerText;
+            const originalColor = statusAutoplay.className;
+
+            statusAutoplay.innerText = "[AUTOPLAY: STRUCTURAL HALT]";
+            statusAutoplay.className = "font-bold text-red-600";
+
+            setTimeout(() => {
+                state.isTollBoothPaused = false;
+                flashOverlay.classList.remove('flash-active');
+
+                if (state.isPlaying) {
+                    statusAutoplay.innerText = "[AUTOPLAY: ON]";
+                    statusAutoplay.className = "font-bold text-green-700";
+                } else {
+                    statusAutoplay.innerText = "[AUTOPLAY: OFF]";
+                    statusAutoplay.className = "font-bold text-gray-500";
+                }
+            }, 1200); // Stop for 1.2 seconds to force "cognitive tax"
+        }
+
+        function checkSpeechTriggers() {
+            if (!state.speechEnabled) return;
+
+            activeRows.forEach(row => {
+                if (!row.hasSpoken && row.y <= state.focalY + (state.speed * 2)) {
+                    row.hasSpoken = true;
+                    speakWord(row.data[1]); // Read Center Lane
+                }
+            });
+        }
+
+        function speakWord(text) {
+            if ('speechSynthesis' in window) {
+                // Cancel ongoing speech to prevent backlog if scrolling fast
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+
+                // Adjust speech rate based on flow speed
+                let rate = 1.0;
+                if (state.speed > 1.5) rate = 1.5;
+                if (state.speed > 2.5) rate = 2.0;
+
+                utterance.rate = rate;
+                utterance.pitch = 0.9;
+                utterance.volume = 0.6;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- EVENT HANDLERS ---
+
+        function togglePause() {
+            state.isPlaying = !state.isPlaying;
+            if (state.isPlaying) {
+                iconPlay.classList.add('hidden');
+                iconPause.classList.remove('hidden');
+                labelPause.innerText = 'PAUSE';
+                statusAutoplay.innerText = '[AUTOPLAY: ON]';
+                statusAutoplay.className = "font-bold text-green-700";
+            } else {
+                iconPause.classList.add('hidden');
+                iconPlay.classList.remove('hidden');
+                labelPause.innerText = 'PLAY';
+                statusAutoplay.innerText = '[AUTOPLAY: OFF]';
+                statusAutoplay.className = "font-bold text-gray-500";
+            }
+        }
+
+        function toggleSpeech() {
+            state.speechEnabled = !state.speechEnabled;
+            if (state.speechEnabled) {
+                labelSpeech.innerText = 'SPEECH: ON';
+                statusSpeech.innerText = '[SPEECH_SYNTHESIS: ACTIVE]';
+                statusSpeech.className = 'font-bold text-blue-600';
+            } else {
+                labelSpeech.innerText = 'SPEECH: OFF';
+                statusSpeech.innerText = '[SPEECH_SYNTHESIS: INACTIVE]';
+                statusSpeech.className = '';
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                }
+            }
+
+            // Reset spoken flags so it doesn't speak old items when turned back on
+            activeRows.forEach(row => row.hasSpoken = (row.y <= state.focalY));
+        }
+
+        function handleFlowChange(e) {
+            const val = parseFloat(e.target.value);
+            state.speed = val;
+
+            // Adjust row spacing slightly based on speed to maintain density
+            state.baseSpacing = 100 + (val * 10);
+
+            // <CongestionOverload> logic
+            let label = "LOW";
+            let statusText = "[CONGESTION_STATUS: LOW - FLUID MOVEMENT]";
+
+            if (val >= 2.0) {
+                label = "HIGH";
+                statusText = "[CONGESTION_STATUS: HIGH - SACCADE OVERLOAD]";
+                statusCongestion.className = "text-red-600 font-bold";
+            } else if (val >= 1.0) {
+                label = "MOD";
+                statusText = "[CONGESTION_STATUS: MODERATE - ACCELERATED]";
+                statusCongestion.className = "text-yellow-700 font-bold";
+            } else {
+                statusCongestion.className = "";
+            }
+
+            labelFlowStatus.innerText = label;
+            statusCongestion.innerText = statusText;
+        }
+
+        // Run
+        window.onload = init;
+    </script>
+</body>
+
+</html>

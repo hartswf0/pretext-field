@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power of a Moon — Pretext</title>
+  <meta name="description" content="An immersive lunar reading experience. Narrative fragments orbit the moon, flowing into its illuminated surface via Pretext's real-time layout engine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;400&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #060810;
+      --silver: #c8cad4;
+      --bone: #f0e8d8;
+      --luna: #e8e4d6;
+      --crater: #9a9690;
+      --glow: #ffeebb;
+      --theia: #ff6b3d;
+      --anomaly: #3dffe8;
+      --colony: #6eb5ff;
+      --independence: #c850c8;
+      --fusion: #50c8a0;
+      --serif: 'Crimson Pro', 'Cormorant Garamond', Georgia, serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--void);
+      font-family: var(--serif);
+      color: var(--bone);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: crosshair;
+    }
+
+    #moon-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    #title-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: linear-gradient(180deg, rgba(6,8,16,0.9) 0%, rgba(6,8,16,0.0) 100%);
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    #title-bar h1 {
+      font: 300 12px var(--mono);
+      color: var(--glow);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    #phase-label {
+      font: 300 11px var(--mono);
+      color: var(--silver);
+      opacity: 0.6;
+      text-align: right;
+    }
+
+    #instructions {
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      font: 300 12px var(--mono);
+      color: rgba(200,202,212,0.35);
+      text-align: center;
+      z-index: 100;
+      transition: opacity 2s ease;
+      pointer-events: none;
+    }
+
+    #epoch-indicator {
+      position: fixed;
+      bottom: 20px; right: 24px;
+      font: 300 10px var(--mono);
+      color: rgba(200,202,212,0.3);
+      z-index: 100;
+      text-align: right;
+      line-height: 1.8;
+      pointer-events: none;
+    }
+    #epoch-indicator .dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+      opacity: 0.6;
+    }
+    #epoch-indicator .active .dot { opacity: 1; }
+    #epoch-indicator .active { color: rgba(200,202,212,0.7); }
+
+    @media (max-width: 600px) {
+      #title-bar { padding: 0 12px; height: 36px; }
+      #title-bar h1 { font-size: 10px; letter-spacing: 2px; }
+      #epoch-indicator { display: none; }
+      #instructions { font-size: 10px; bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="moon-canvas"></canvas>
+
+  <div id="title-bar">
+    <h1>Power of a Moon</h1>
+    <span id="phase-label">NEW MOON</span>
+  </div>
+
+  <div id="instructions">
+    CLICK TO CYCLE MOON PHASES · MOVE MOUSE TO SHIFT GRAVITY
+  </div>
+
+  <div id="epoch-indicator">
+    <div class="active"><span class="dot" style="background:var(--colony)"></span>BIODOME</div>
+    <div><span class="dot" style="background:var(--anomaly)"></span>ANOMALY</div>
+    <div><span class="dot" style="background:var(--independence)"></span>INDEPENDENCE</div>
+    <div><span class="dot" style="background:var(--fusion)"></span>FUSION</div>
+    <div><span class="dot" style="background:var(--theia)"></span>THEIA</div>
+  </div>
+
+  <script type="module" src="./power-of-a-moon.ts"></script>
+</body>
+</html>

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="ORCA LiDAR Engine — Geometric exploration">
+    <title>ORCA // ARCHIVE DECRYPT</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦇</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@100;400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            color-scheme: dark;
+            --bg: #050403;
+            --amber: #ff8c00;
+            --cyan: #00ffcc;
+            --pink: #e024c3;
+            --ui-font: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: var(--ui-font);
+            color: var(--amber);
+            cursor: crosshair;
+            touch-action: none;
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* ── Cinematic Boot Screen ── */
+        #boot-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            padding: 20px;
+        }
+
+        .boot-title {
+            font-size: 28px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: var(--amber);
+            text-shadow: 0 0 20px rgba(255, 140, 0, 0.5);
+            text-align: center;
+            opacity: 0;
+            animation: bootFadeIn 2s 0.5s forwards;
+        }
+
+        .boot-sub {
+            font-size: 12px;
+            color: rgba(255, 140, 0, 0.5);
+            letter-spacing: 2px;
+            line-height: 1.8;
+            text-align: center;
+            min-height: 80px;
+        }
+
+        .boot-btn {
+            margin-top: 20px;
+            background: transparent;
+            border: 1px solid var(--amber);
+            color: var(--amber);
+            padding: 14px 36px;
+            font-family: var(--ui-font);
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .boot-btn:hover {
+            background: var(--amber);
+            color: #000;
+            box-shadow: 0 0 15px rgba(255, 140, 0, 0.6);
+        }
+
+        @keyframes bootFadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Cinematic Flash Overlay */
+        #flash-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--cyan);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.5s cubic-bezier(0.2, 1, 0.3, 1);
+        }
+
+        /* ── Main Canvas ── */
+        #game-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* ── CRT Overlay ── */
+        .crt {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 100;
+            background:
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
+            background-size: 100% 3px, 3px 100%;
+            opacity: 0.12;
+        }
+
+        /* ── HUD ── */
+        .hud {
+            position: fixed;
+            z-index: 200;
+            pointer-events: none;
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-shadow: 1px 1px 2px #000;
+            transition: opacity 2s ease;
+        }
+
+        .hud-tl {
+            top: 16px;
+            left: 16px;
+        }
+
+        .hud-tr {
+            top: 16px;
+            right: 16px;
+            text-align: right;
+        }
+
+        .hud-bl {
+            bottom: 16px;
+            left: 16px;
+        }
+
+        .hud-label {
+            color: rgba(255, 140, 0, 0.6);
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .hud-value {
+            color: var(--amber);
+            margin-top: 2px;
+        }
+
+        .hud-scan {
+            color: var(--cyan);
+            margin-top: 6px;
+            max-width: 300px;
+            font-size: 11px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            text-shadow: 0 0 5px rgba(0, 255, 204, 0.3);
+        }
+
+        /* ── Progress UI ── */
+        #progress-ui {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            text-align: center;
+            pointer-events: none;
+            transition: opacity 2s ease;
+        }
+
+        .progress-text {
+            color: rgba(255, 140, 0, 0.8);
+            font-size: 10px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .progress-dots {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .progress-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 140, 0, 0.2);
+            border: 1px solid rgba(255, 140, 0, 0.3);
+            transition: all 0.5s ease;
+        }
+
+        .progress-dot.active {
+            background: var(--cyan);
+            border-color: var(--cyan);
+            box-shadow: 0 0 8px var(--cyan);
+            transform: scale(1.2);
+        }
+
+        /* ── Collected Poem UI ── */
+        #collected-poem {
+            position: fixed;
+            top: 50%;
+            right: 40px;
+            transform: translateY(-50%);
+            z-index: 150;
+            pointer-events: none;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 20px;
+            font-weight: 400;
+            font-style: italic;
+            color: rgba(255, 140, 0, 0.95);
+            text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 140, 0, 0.4);
+            text-align: right;
+            line-height: 1.8;
+            max-width: 400px;
+            transition: all 4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        #collected-poem.complete {
+            top: 50%;
+            right: 50%;
+            transform: translate(50%, -50%);
+            text-align: center;
+            font-size: 28px;
+            max-width: 800px;
+            line-height: 2.2;
+            background: radial-gradient(circle, rgba(5, 4, 3, 0.95) 0%, rgba(5, 4, 3, 0.8) 60%, rgba(5, 4, 3, 0) 100%);
+            padding: 60px;
+            border-radius: 20px;
+        }
+
+        .poem-line {
+            opacity: 0;
+            animation: fadeInPoem 2s forwards;
+            transition: color 4s ease, text-shadow 4s ease;
+            background: rgba(5, 4, 3, 0.4);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+
+        #collected-poem.complete .poem-line {
+            background: transparent;
+            color: var(--cyan);
+            text-shadow: 0 0 15px rgba(0, 255, 204, 0.8);
+            animation: algorithmicPulse 6s infinite alternate;
+        }
+
+        #collected-poem.complete .poem-line:nth-child(even) {
+            animation-delay: 1s;
+            color: #88ff00;
+            text-shadow: 0 0 15px rgba(136, 255, 0, 0.5);
+        }
+
+        @keyframes fadeInPoem {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes algorithmicPulse {
+            0% {
+                filter: hue-rotate(0deg);
+                opacity: 0.8;
+            }
+
+            100% {
+                filter: hue-rotate(40deg);
+                opacity: 1;
+            }
+        }
+
+        /* ── Controls hint ── */
+        .controls-hint {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            pointer-events: none;
+            font-size: 10px;
+            color: rgba(255, 140, 0, 0.5);
+            letter-spacing: 2px;
+            text-align: center;
+            transition: opacity 2s;
+            white-space: nowrap;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .mobile-hint {
+            display: none;
+        }
+
+        /* Mobile Overrides */
+        @media (max-width: 768px) {
+            .desktop-hint {
+                display: none;
+            }
+
+            .mobile-hint {
+                display: inline;
+            }
+
+            .boot-title {
+                font-size: 20px;
+            }
+
+            .hud-bl {
+                bottom: 85px;
+            }
+
+            /* Lifted higher to clear thumbs */
+            .controls-hint {
+                bottom: 25px;
+                font-size: 10px;
+                white-space: normal;
+                line-height: 1.6;
+            }
+
+            #collected-poem {
+                top: 0;
+                left: 0;
+                right: 0;
+                width: 100vw;
+                max-width: 100vw;
+                transform: none;
+                text-align: center;
+                font-size: 17px;
+                padding-top: 50px;
+                padding-bottom: 25px;
+                background: linear-gradient(to bottom, rgba(5, 4, 3, 0.95) 0%, rgba(5, 4, 3, 0.8) 70%, rgba(5, 4, 3, 0) 100%);
+            }
+
+            .poem-line {
+                background: transparent;
+                text-shadow: 0px 2px 5px rgba(0, 0, 0, 1), 0 0 8px rgba(255, 140, 0, 0.8);
+            }
+
+            #collected-poem.complete {
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 18px;
+                width: 95vw;
+                max-width: 100vw;
+                padding: 40px 10px;
+                text-align: center;
+            }
+
+            #progress-ui {
+                top: 15px;
+                z-index: 300;
+            }
+
+            .progress-text {
+                font-size: 8px;
+                letter-spacing: 2px;
+            }
+
+            .progress-dot {
+                width: 5px;
+                height: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="boot-screen">
+        <div class="boot-title">ENGRAM // ARCHIVE</div>
+        <div class="boot-sub" id="boot-text"></div>
+        <button class="boot-btn" id="boot-btn">Decrypt</button>
+    </div>
+
+    <div id="flash-overlay"></div>
+    <canvas id="game-canvas"></canvas>
+    <div class="crt"></div>
+
+    <div class="hud hud-tl">
+        <div class="hud-label">Material</div>
+        <div class="hud-value" id="hud-zone">UNKNOWN</div>
+    </div>
+    <div class="hud hud-tr">
+        <div class="hud-label">Position</div>
+        <div class="hud-value" id="hud-pos">0, 0</div>
+    </div>
+    <div class="hud hud-bl">
+        <div class="hud-label">Echolocation Data</div>
+        <div class="hud-scan" id="hud-scan">AWAITING PHOTONIC RETURN...</div>
+    </div>
+
+    <div id="progress-ui">
+        <div class="progress-text" id="progress-text">FRAGMENTS 0 / 12</div>
+        <div class="progress-dots" id="progress-dots"></div>
+    </div>
+
+    <div id="collected-poem"></div>
+
+    <div class="controls-hint" id="controls-hint">
+        <span class="desktop-hint">WASD: MOVE &nbsp; | &nbsp; MOUSE CLICK: SCAN</span>
+        <span class="mobile-hint">LEFT THUMB: DRAG TO MOVE<br>RIGHT THUMB: HOLD TO SCAN</span>
+    </div>
+
+    <script type="module" src="./jumpar.ts"></script>
+</body>
+
+</html>

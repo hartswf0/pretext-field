@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="ORCA LiDAR Text Wrap — Pretext-powered typographical exploration engine">
+    <title>ORCA // PRETEXT LIDAR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=JetBrains+Mono:wght@100;200;300;400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            color-scheme: dark;
+            --bg: #020101;
+            --amber: #ff8c00;
+            --cyan: #00ffcc;
+            --pink: #e024c3;
+            --ui-font: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: var(--ui-font);
+            color: var(--amber);
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* ── Boot Screen ── */
+        #boot-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            animation: bootFlicker 0.15s infinite alternate;
+        }
+
+        @keyframes bootFlicker {
+            0% {
+                opacity: 0.92;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .boot-title {
+            font-size: 28px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: var(--amber);
+            text-shadow: 0 0 20px rgba(255, 140, 0, 0.5);
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .boot-sub {
+            font-size: 12px;
+            color: rgba(255, 140, 0, 0.5);
+            letter-spacing: 2px;
+            line-height: 1.8;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .boot-btn {
+            margin-top: 20px;
+            background: transparent;
+            border: 1px solid var(--amber);
+            color: var(--amber);
+            padding: 14px 36px;
+            font-family: var(--ui-font);
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .boot-btn:hover {
+            background: var(--amber);
+            color: #000;
+        }
+
+        /* ── Main Canvas ── */
+        #game-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* ── Crosshair ── */
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--cyan);
+            font-size: 16px;
+            pointer-events: none;
+            z-index: 150;
+            opacity: 0.5;
+        }
+
+        /* ── CRT Overlay ── */
+        .crt {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 100;
+            background:
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
+            background-size: 100% 3px, 3px 100%;
+            opacity: 0.15;
+        }
+
+        /* ── HUD ── */
+        .hud {
+            position: fixed;
+            z-index: 200;
+            pointer-events: none;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .hud-tl {
+            top: 16px;
+            left: 16px;
+        }
+
+        .hud-tr {
+            top: 16px;
+            right: 16px;
+            text-align: right;
+        }
+
+        .hud-bl {
+            bottom: 16px;
+            left: 16px;
+            right: 160px;
+            /* leave space for minimap */
+        }
+
+        .hud-label {
+            color: rgba(255, 140, 0, 0.4);
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .hud-value {
+            color: var(--amber);
+            margin-top: 2px;
+        }
+
+        .hud-scan {
+            color: var(--cyan);
+            margin-top: 6px;
+            font-size: 10px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        /* ── Collected Poem UI ── */
+        #collected-poem {
+            position: fixed;
+            top: 50%;
+            right: 160px;
+            /* Keep away from minimap */
+            transform: translateY(-50%);
+            z-index: 150;
+            pointer-events: none;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 20px;
+            font-weight: 400;
+            font-style: italic;
+            color: rgba(224, 36, 195, 0.9);
+            text-shadow: 0 0 10px rgba(224, 36, 195, 0.5);
+            text-align: right;
+            line-height: 1.8;
+            max-width: 350px;
+        }
+
+        .poem-line {
+            opacity: 0;
+            animation: fadeInPoem 2s forwards;
+        }
+
+        @keyframes fadeInPoem {
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ── Minimap ── */
+        #minimap {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            width: 120px;
+            height: 120px;
+            border: 1px solid rgba(255, 140, 0, 0.3);
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            image-rendering: pixelated;
+            pointer-events: none;
+        }
+
+        /* ── Controls hint ── */
+        .controls-hint {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            pointer-events: none;
+            font-size: 10px;
+            color: rgba(255, 140, 0, 0.5);
+            letter-spacing: 2px;
+            transition: opacity 2s;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 12px;
+            border: 1px solid rgba(255, 140, 0, 0.2);
+        }
+
+        /* ── Mobile UI Overlay ── */
+        #mobile-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 180;
+            pointer-events: none;
+            display: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .mobile-zone {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px dashed rgba(255, 140, 0, 0.1);
+        }
+
+        .mobile-zone:last-child {
+            border-right: none;
+        }
+
+        .zone-text {
+            color: rgba(255, 140, 0, 0.3);
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-align: center;
+            line-height: 2;
+        }
+
+        @media (max-width: 800px) {
+            .controls-hint {
+                display: none;
+            }
+
+            #minimap {
+                width: 90px;
+                height: 90px;
+                bottom: 8px;
+                right: 8px;
+            }
+
+            .hud-bl {
+                right: 100px;
+                bottom: 8px;
+                left: 8px;
+            }
+
+            .hud-tl {
+                top: 8px;
+                left: 8px;
+            }
+
+            .hud-tr {
+                top: 8px;
+                right: 8px;
+            }
+
+            #collected-poem {
+                top: 60px;
+                transform: none;
+                right: 16px;
+                left: 16px;
+                text-align: center;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="boot-screen">
+        <div class="boot-title">CULTURE // MIND // BRAIN</div>
+        <div class="boot-sub">
+            LOADING DISCIPLINARY MATRICES...<br>
+            CALIBRATING SOMATIC MARKERS...<br>
+            INITIALIZING AUDIO SENSORY PROTOCOLS...<br>
+            BREACHING CARTESIAN BOUNDARY...
+        </div>
+        <button class="boot-btn" id="boot-btn">Enter the Extended Mind</button>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+    <div id="crosshair">+</div>
+    <div class="crt"></div>
+
+    <!-- Mobile specific instructional overlay -->
+    <div id="mobile-overlay">
+        <div class="mobile-zone">
+            <div class="zone-text">DRAG TO<br>MOVE</div>
+        </div>
+        <div class="mobile-zone">
+            <div class="zone-text">SWIPE TO LOOK<br><br>TAP TO PULSE</div>
+        </div>
+    </div>
+
+    <div class="hud hud-tl">
+        <div class="hud-label">Objective</div>
+        <div class="hud-value" id="hud-zone">SEEK THE RESONANCE</div>
+    </div>
+    <div class="hud hud-tr">
+        <div class="hud-label">Position</div>
+        <div class="hud-value" id="hud-pos">0, 0</div>
+    </div>
+    <div class="hud hud-bl">
+        <div class="hud-label">LiDAR Scanner</div>
+        <div class="hud-scan" id="hud-scan">STANDBY... AWAITING PULSE</div>
+    </div>
+
+    <div id="collected-poem"></div>
+
+    <canvas id="minimap" width="140" height="140"></canvas>
+
+    <div class="controls-hint" id="controls-hint">
+        WASD: MOVE &nbsp;|&nbsp; MOUSE: AIM &nbsp;|&nbsp; CLICK: FIRE PULSE
+    </div>
+
+    <script type="module" src="walldar.ts"></script>
+</body>
+
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pretext — The Cave</title>
+<meta name="description" content="Immersive typographic environments and consciousness experiments built on Pretext's real-time layout engine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --void: #050608;
+    --cave: #0c0e14;
+    --stone: #15181f;
+    --stone-lit: #1c2028;
+    --edge: rgba(255,255,255,0.04);
+    --edge-hover: rgba(255,255,255,0.10);
+    --bone: #d4cfc6;
+    --ash: #6a645c;
+    --ember: #c89b5e;
+    --ember-glow: rgba(200,155,94,0.12);
+    --amber: #ff8c00;
+    --cyan: #00e8c0;
+    --rose: #e05498;
+    --violet: #8866cc;
+    --luna: #c4c0b6;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Crimson Pro', Georgia, serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    min-height: 100vh;
+    background: var(--void);
+    color: var(--bone);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Ambient texture ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 800px 500px at 50% 0%, rgba(200,155,94,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 400px 600px at 80% 60%, rgba(0,232,192,0.015) 0%, transparent 50%),
+      radial-gradient(ellipse 400px 600px at 20% 80%, rgba(224,84,152,0.015) 0%, transparent 50%);
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    width: min(900px, calc(100vw - 48px));
+    margin: 0 auto;
+    padding: 72px 0 64px;
+  }
+
+  /* ── Header ── */
+  .header {
+    margin-bottom: 48px;
+  }
+  .breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 200 10px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ash);
+    margin-bottom: 20px;
+    text-decoration: none;
+    transition: color 200ms;
+  }
+  .breadcrumb:hover { color: var(--ember); }
+  .breadcrumb svg {
+    width: 12px; height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+  }
+
+  h1 {
+    font: 300 44px/1.05 var(--serif);
+    letter-spacing: -0.01em;
+    color: var(--bone);
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--ember);
+  }
+
+  .lead {
+    margin-top: 14px;
+    max-width: 54ch;
+    font: 300 17px/1.7 var(--serif);
+    color: var(--ash);
+  }
+
+  /* ── Section groups ── */
+  .group {
+    margin-bottom: 48px;
+  }
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--edge);
+  }
+  .group-icon {
+    width: 16px; height: 16px;
+    opacity: 0.35;
+  }
+  .group-label {
+    font: 300 10px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ash);
+  }
+  .group-count {
+    font: 200 10px/1 var(--mono);
+    color: var(--ash);
+    opacity: 0.4;
+    margin-left: auto;
+  }
+
+  /* ── Entry list ── */
+  .entries {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 24px;
+    padding: 18px 20px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    text-decoration: none;
+    transition: background 180ms ease, border-color 180ms ease;
+  }
+  .entry:hover {
+    background: var(--stone);
+    border-color: var(--edge-hover);
+  }
+
+  .entry-title {
+    font: 400 18px/1.3 var(--serif);
+    color: var(--bone);
+    margin-bottom: 5px;
+    transition: color 180ms;
+  }
+  .entry:hover .entry-title { color: #fff; }
+
+  .entry-desc {
+    font: 300 13.5px/1.6 var(--serif);
+    color: var(--ash);
+    max-width: 52ch;
+  }
+
+  .entry-tag {
+    flex-shrink: 0;
+    font: 300 9px/1 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+  .tag-echo       { color: var(--cyan);   background: rgba(0,232,192,0.06); }
+  .tag-conscious  { color: var(--violet); background: rgba(136,102,204,0.06); }
+  .tag-breach     { color: var(--rose);   background: rgba(224,84,152,0.06); }
+  .tag-celestial  { color: var(--luna);   background: rgba(196,192,182,0.06); }
+  .tag-neural     { color: var(--amber);  background: rgba(255,140,0,0.06); }
+  .tag-lidar      { color: var(--ember);  background: rgba(200,155,94,0.06); }
+
+  /* ── Arrow indicator ── */
+  .entry-arrow {
+    display: none;
+    font: 300 12px/1 var(--mono);
+    color: var(--ember);
+    margin-top: 3px;
+  }
+  .entry:hover .entry-arrow { display: block; }
+
+  /* ── Footer ── */
+  .cave-footer {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--edge);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cave-footer-text {
+    font: 200 11px/1 var(--mono);
+    color: var(--ash);
+    opacity: 0.5;
+    letter-spacing: 0.05em;
+  }
+  .footer-back {
+    font: 300 11px/1 var(--mono);
+    color: var(--ash);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 200ms;
+  }
+  .footer-back:hover { color: var(--ember); }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .page { width: calc(100vw - 32px); padding: 48px 0 48px; }
+    h1 { font-size: 32px; }
+    .lead { font-size: 15px; }
+    .entry { grid-template-columns: 1fr; gap: 8px; padding: 14px 16px; }
+    .entry-tag { align-self: flex-start; }
+    .entry-arrow { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ─── Header ─── -->
+  <header class="header">
+    <a class="breadcrumb" href="index.html">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      All Demos
+    </a>
+    <h1>The <em>Cave</em></h1>
+    <p class="lead">
+      Immersive typographic environments and consciousness experiments.
+      Each demo uses Pretext's real-time layout engine to flow text into
+      spatial, interactive, and perceptual architectures.
+    </p>
+  </header>
+
+  <!-- ═══════════════════════════════════════
+       ECHOLOCATION & RAYCASTING
+       ═══════════════════════════════════════ -->
+  <section class="group">
+    <div class="group-header">
+      <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="3"/><path d="M5.5 5.5a10 10 0 0 1 13 0"/><path d="M8 8a6 6 0 0 1 8 0"/>
+      </svg>
+      <span class="group-label">Echolocation &amp; Raycasting</span>
+      <span class="group-count">5</span>
+    </div>
+    <div class="entries">
+
+      <a class="entry" href="orca-lidar.html" id="cave-orca-lidar">
+        <div>
+          <div class="entry-title">ORCA // Pretext LiDAR</div>
+          <div class="entry-desc">Top-down textual exploration engine. Pretext's layoutNextLine() flows Appalachian lore into the exact geometric bounds of a real-time 2D raycasted light cone.</div>
+        </div>
+        <span class="entry-tag tag-lidar">LiDAR</span>
+      </a>
+
+      <a class="entry" href="voabar.html" id="cave-voabar">
+        <div>
+          <div class="entry-title">ORCA // Voabar</div>
+          <div class="entry-desc">Self-contained 3D raycasted text environment with spatial audio, CRT aesthetics, and a collectible poem system. First-person echolocation through the culture–mind–brain lattice.</div>
+        </div>
+        <span class="entry-tag tag-echo">3D Echo</span>
+      </a>
+
+      <a class="entry" href="wordar.html" id="cave-wordar">
+        <div>
+          <div class="entry-title">ECHO // WORDAR</div>
+          <div class="entry-desc">A 3D raycasted exploration engine. Experience "Mind" in a Wolfenstein-style maze, physically typeset onto the walls via Pretext.</div>
+        </div>
+        <span class="entry-tag tag-echo">3D Echo</span>
+      </a>
+
+      <a class="entry" href="bat-echo.html" id="cave-bat-echo">
+        <div>
+          <div class="entry-title">Bat Echo</div>
+          <div class="entry-desc">Echolocate through a dark cave maze to find scattered fragments of a poem about yourself. Each line flows into the room width via Pretext. Find all 12.</div>
+        </div>
+        <span class="entry-tag tag-echo">Echo</span>
+      </a>
+
+      <a class="entry" href="bat.html" id="cave-bat">
+        <div>
+          <div class="entry-title">ECHO // BAT</div>
+          <div class="entry-desc">A calming, generative echolocation experience. Sequentially discover poem fragments mapped into a procedural cave, with algorithmically shifting crystalline audio.</div>
+        </div>
+        <span class="entry-tag tag-echo">Echo</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════
+       CONSCIOUSNESS MODES
+       ═══════════════════════════════════════ -->
+  <section class="group">
+    <div class="group-header">
+      <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="22"/>
+      </svg>
+      <span class="group-label">Consciousness Modes</span>
+      <span class="group-count">2</span>
+    </div>
+    <div class="entries">
+
+      <a class="entry" href="spotlight.html" id="cave-spotlight">
+        <div>
+          <div class="entry-title">Spotlight Consciousness</div>
+          <div class="entry-desc">A focused reading mode with tunnel-vision aesthetics. Mouse-driven spotlight dims peripheral text to simulate goal-directed "professor" attention.</div>
+        </div>
+        <span class="entry-tag tag-conscious">Spotlight</span>
+      </a>
+
+      <a class="entry" href="lantern.html" id="cave-lantern">
+        <div>
+          <div class="entry-title">Lantern Consciousness</div>
+          <div class="entry-desc">An open, associational reading mode. Floating marginalia and ambient particles encourage mind-wandering while text anchors your attention.</div>
+        </div>
+        <span class="entry-tag tag-conscious">Lantern</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════
+       CULTURE · MIND · BRAIN
+       ═══════════════════════════════════════ -->
+  <section class="group">
+    <div class="group-header">
+      <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+      <span class="group-label">Culture · Mind · Brain</span>
+      <span class="group-count">3</span>
+    </div>
+    <div class="entries">
+
+      <a class="entry" href="cultural-brain.html" id="cave-cultural-brain">
+        <div>
+          <div class="entry-title">Extended Cultural Brain Synthesis</div>
+          <div class="entry-desc">A cybernetic textual wiring demo connecting Geertz's "Culture, Mind, Brain" and interactive neurobiological manifesto elements mapped rapidly via Pretext.</div>
+        </div>
+        <span class="entry-tag tag-neural">Neural</span>
+      </a>
+
+      <a class="entry" href="cartesian-breach.html" id="cave-breach">
+        <div>
+          <div class="entry-title">The Cartesian Breach</div>
+          <div class="entry-desc">Drag the Gage spike to dissolve disciplinary walls. Geertz's text reflows across breached containers as Pretext re-layouts merged regions in real-time.</div>
+        </div>
+        <span class="entry-tag tag-breach">Breach</span>
+      </a>
+
+      <a class="entry" href="cartesian-breach-v2.html" id="cave-breach-v2">
+        <div>
+          <div class="entry-title">The Cartesian Breach V2</div>
+          <div class="entry-desc">A 2x2 grid representing 4 disciplines. Drag the Gage spike to dissolve the vertical and horizontal cross-walls, merging texts combinatorially in real-time.</div>
+        </div>
+        <span class="entry-tag tag-breach">Breach</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════
+       CELESTIAL
+       ═══════════════════════════════════════ -->
+  <section class="group">
+    <div class="group-header">
+      <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <span class="group-label">Celestial</span>
+      <span class="group-count">1</span>
+    </div>
+    <div class="entries">
+
+      <a class="entry" href="power-of-a-moon.html" id="cave-moon">
+        <div>
+          <div class="entry-title">Power of a Moon</div>
+          <div class="entry-desc">Narrative fragments orbit a luminous moon. Click to cycle phases — text flows into the illuminated crescent via Pretext's variable-width arc layout.</div>
+        </div>
+        <span class="entry-tag tag-celestial">Lunar</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ─── Footer ─── -->
+  <footer class="cave-footer">
+    <span class="cave-footer-text">11 environments</span>
+    <a class="footer-back" href="index.html">← All Demos</a>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENOMA - Documentation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #1a202c;
+            --card-bg: #2d3748;
+            --text-color: #e2e8f0;
+            --heading-color: #ffffff;
+            --border-color: #4a5568;
+            --code-bg: #0f131a;
+
+            /* Category Border Colors */
+            --border-core: #38b2ac;
+            --border-functional: #9f7aea;
+            --border-structural: #d69e2e;
+            --border-advanced: #f56565;
+
+            /* Accent Colors */
+            --accent-blue: #4299e1;
+            --accent-teal: #38b2ac;
+            --accent-orange: #ed8936;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin: 2rem 0 4rem 0;
+        }
+
+        .header h1 {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 2.5rem;
+            color: var(--heading-color);
+            margin: 0;
+        }
+
+        .header p {
+            font-size: 1.25rem;
+            color: var(--accent-teal);
+            margin-bottom: 1rem;
+        }
+        
+        .back-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-family: 'Roboto Mono', monospace;
+        }
+        .back-link:hover { text-decoration: underline; }
+
+        main {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .doc-nav {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem;
+        }
+        .doc-nav a { font-weight: 700; }
+
+        .doc-section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            scroll-margin-top: 2rem;
+        }
+
+        .doc-section h2 {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 1.75rem;
+            color: var(--heading-color);
+            border-bottom: 2px solid var(--accent-teal);
+            padding-bottom: 0.75rem;
+            margin: 0 0 2rem 0;
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .doc-section h2 svg { width: 28px; height: 28px; fill: var(--accent-teal); }
+        
+        .doc-section h3 {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 1.3rem;
+            color: var(--accent-orange);
+            margin: 2rem 0 1rem 0;
+        }
+
+        .doc-section p, .doc-section li {
+            line-height: 1.8;
+            font-size: 1.05rem;
+        }
+
+        .doc-section ul, .doc-section ol {
+            padding-left: 25px;
+        }
+
+        .key-term {
+            color: var(--accent-blue);
+            font-weight: 700;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .doc-section code {
+            font-family: 'Roboto Mono', monospace;
+            background-color: var(--code-bg);
+            color: var(--accent-orange);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+            border: 1px solid var(--border-color);
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 1.25rem;
+            border-radius: 6px;
+            font-family: 'Roboto Mono', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+
+        a { color: var(--accent-blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .codon-entry {
+            padding-left: 1.5rem;
+            margin: 2rem 0;
+        }
+        .codon-entry h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .codon-entry.core-media { border-left: 4px solid var(--border-core); }
+        .codon-entry.functional-genetic { border-left: 4px solid var(--border-functional); }
+        .codon-entry.structural-layout { border-left: 4px solid var(--border-structural); }
+
+        .codon-tag {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border-radius: 4px;
+            color: var(--bg-color);
+            vertical-align: middle;
+        }
+        .codon-tag.light-text {
+            color: var(--text-color);
+        }
+
+        /* Codon Tag Colors from ggg-welcome.html */
+        .type-txt { background-color: #48bb78; } /* Green */
+        .type-hdr { background-color: #38b2ac; } /* Teal */
+        .type-lnk { background-color: #4299e1; } /* Blue */
+        .type-img { background-color: #ed8936; } /* Orange */
+        .type-vid { background-color: #f56565; } /* Red */
+        .type-auc { background-color: #9f7aea; } /* Purple */
+        
+        .type-sty { background-color: #b794f4; } /* Light Purple */
+        .type-cde { background-color: #ed64a6; } /* Pink */
+        .type-brk { background-color: #9f7aea; } /* Purple */
+        .type-cmt { background-color: #9f7aea; } /* Purple */
+
+        .type-exon { background-color: #e2e8f0; }
+        .type-intron { background-color: #718096; } /* Slate */
+
+        .type-row { background-color: #f6e05e; } /* Yellow */
+        .type-col { background-color: #ecc94b; } /* Lighter Yellow */
+        .type-end { background-color: #d69e2e; } /* Darker Yellow */
+
+        /* Example Styles */
+        .example-block {
+            background: var(--card-bg);
+            border-left: 4px solid var(--border-structural);
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .example-block h5 {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 1.1rem;
+            margin: 0 0 1rem 0;
+            color: var(--heading-color);
+        }
+        .example-preview {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+        .example-preview .row {
+            display: flex;
+            gap: 1rem;
+            border: 1px dashed var(--accent-teal);
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        .example-preview .col {
+            flex: 1;
+            border: 1px dashed var(--accent-orange);
+            padding: 1rem;
+            border-radius: 4px;
+            background-color: rgba(255,255,255,0.05);
+            text-align: center;
+            color: var(--text-color);
+        }
+        .example-preview p {
+            margin: 0 0 1rem 0;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        /* Diagram Styles */
+        .diagram {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .diagram-strand {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.9rem;
+            white-space: pre;
+        }
+        .diagram-strand .crossover {
+            background-color: var(--border-advanced);
+            color: var(--bg-color);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .diagram-strand .highlight {
+            background-color: rgba(245, 101, 101, 0.2);
+            border-bottom: 2px solid var(--border-advanced);
+        }
+        .diagram-result {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 2px dashed var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>GENOMA Documentation</h1>
+        <p>A deep dive into the theory and capabilities of the system.</p>
+        <a href="ggg-welcome.html" class="back-link">&larr; Back to Welcome Page</a>
+    </header>
+
+    <main>
+        <nav class="doc-nav">
+            <a href="#introduction">Introduction</a>
+            <a href="#core-concepts">Core Concepts</a>
+            <a href="#codon-reference">Codon Reference</a>
+            <a href="#editor-guide">Editor Guide</a>
+            <a href="#advanced-features">Advanced Features & FAQ</a>
+            <a href="#import-export">Import/Export</a>
+        </nav>
+
+        <section id="introduction" class="doc-section">
+            <h2><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>Introduction</h2>
+            <p>Welcome to the official documentation for GENOMA. This project is an experimental, generative content system built on a powerful metaphor: <span class="key-term">digital genetics</span>. Instead of writing a static document, you assemble a <span class="key-term">genome</span> from a sequence of <span class="key-term">codons</span>. This genome acts as a dynamic blueprint that can be <span class="key-term">expressed</span> to create a rich, interactive <span class="key-term">phenotype</span> (the final HTML output).</p>
+            <p>This approach cleanly separates the underlying data structure from its visual presentation, enabling complex behaviors like mutation and recombination. This guide provides a comprehensive overview of the core concepts, the information ontology (codons), and the advanced features of the GENOMA editor.</p>
+        </section>
+
+        <section id="core-concepts" class="doc-section">
+            <h2><svg viewBox="0 0 24 24"><path d="M12.01 4.01a2 2 0 0 0-1.74 1.02l-4.25 7.5a2 2 0 0 0 1.74 2.97h8.5a2 2 0 0 0 1.74-2.97l-4.25-7.5a2 2 0 0 0-1.74-1.02zM12 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>Core Concepts</h2>
+            <h3>The Genome: Digital DNA</h3>
+            <p>The <span class="key-term">genome</span> is the central data structure in GENOMA. It is an ordered list of codons, stored as a JSON object. Think of it as the digital DNA for your content—it contains all the information needed to construct the final output, but it is not the output itself. This abstraction is what makes advanced genetic operations possible.</p>
+            
+            <h3>The Codon: Unit of Information</h3>
+            <p>A <span class="key-term">codon</span> is the smallest functional unit in a genome. Each codon is an object with a specific <code>type</code> (e.g., <code>TXT</code> for text, <code>IMG</code> for image), a <code>payload</code> containing its data, and some metadata. Codons are the building blocks you manipulate in the editor to construct the phenotype.</p>
+
+            <h3>The Phenotype: Expressed Form</h3>
+            <p>The <span class="key-term">phenotype</span> is the visible, rendered output of a genome. It is the result of the <span class="key-term">expression</span> process. In technical terms, it's the HTML document generated by the GENOMA engine based on the genome's sequence of codons.</p>
+
+            <h3>Expression: From Code to Content</h3>
+            <p><span class="key-term">Expression</span> is the one-way process of translating a genome into its phenotype. When you click the "Express" button, the engine iterates through the genome's active codons (exons) and renders the corresponding HTML elements in the output panel. This allows for a powerful separation of concerns between data and presentation.</p>
+        </section>
+
+        <section id="codon-reference" class="doc-section">
+            <h2><svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zm0-12v2h14V7H7z"/></svg>Codon Reference</h2>
+                
+            <h3>Core & Media</h3>
+            <p>The fundamental building blocks for content and media embedding.</p>
+            <div class="codon-entry core-media" id="codon-txt"><h3><code class="codon-tag type-txt">TXT</code> Text Block</h3><p>The most fundamental codon. It holds a string of plain text that will be rendered as a paragraph.</p><h4>Example Payload:</h4><pre>Any string of text, like "The future is layered."</pre></div>
+            <div class="codon-entry core-media" id="codon-hdr"><h3><code class="codon-tag type-hdr">HDR</code> Header</h3><p>Used for creating section titles. The payload is the text of the header.</p><h4>Example Payload:</h4><pre>A string for the title, e.g., "Chapter 1: Introduction".</pre></div>
+            <div class="codon-entry core-media" id="codon-lnk"><h3><code class="codon-tag type-lnk">LNK</code> Hyperlink</h3><p>Creates a hyperlink. The payload should be a valid URL.</p><h4>Example Payload:</h4><pre>A full URL, like "https://en.wikipedia.org/wiki/Information_theory".</pre></div>
+            <div class="codon-entry core-media" id="codon-img"><h3><code class="codon-tag type-img">IMG</code> Image</h3><p>Embeds an image. The payload can be a URL or a base64-encoded data URI.</p><h4>Example Payload:</h4><pre>A URL: "https://picsum.photos/seed/future/400/200"
+Or a Data URI: "data:image/png;base64,iVBORw..."</pre></div>
+            <div class="codon-entry core-media" id="codon-vid"><h3><code class="codon-tag type-vid light-text">VID</code> Video</h3><p>Embeds a video. The payload should be a URL to a video file.</p><h4>Example Payload:</h4><pre>A URL to a video file, e.g., "/media/intro.mp4".</pre></div>
+            <div class="codon-entry core-media" id="codon-auc"><h3><code class="codon-tag type-auc light-text">AUC</code> Audio Clip</h3><p>Embeds an audio file. The payload should be a URL to an audio file.</p><h4>Example Payload:</h4><pre>A URL to an audio file, e.g., "/media/soundscape.mp3".</pre></div>
+
+            <h3>Functional & Genetic</h3>
+            <p>Codons that apply styles, run code, and manage genetic expression.</p>
+            <div class="codon-entry functional-genetic" id="codon-sty"><h3><code class="codon-tag type-sty">STY</code> Style Block</h3><p>Injects a block of CSS into the phenotype for custom styling.</p><h4>Example Payload:</h4><pre>A string of valid CSS code, e.g., "body { background: #111; }"</pre></div>
+            <div class="codon-entry functional-genetic" id="codon-cde"><h3><code class="codon-tag type-cde light-text">CDE</code> Code Snippet</h3><p>Injects a block of JavaScript into the phenotype for custom interactivity.</p><h4>Example Payload:</h4><pre>A string of valid JavaScript, e.g., "document.body.addEventListener('click', () => console.log('Body clicked!'));"</pre></div>
+            <div class="codon-entry functional-genetic" id="codon-brk"><h3><code class="codon-tag type-brk light-text">BRK</code> Break</h3><p>Inserts a thematic break or horizontal rule (`&lt;hr&gt;`). It has no payload.</p><h4>Example Payload:</h4><pre>None required.</pre></div>
+            <div class="codon-entry functional-genetic" id="codon-cmt"><h3><code class="codon-tag type-cmt light-text">CMT</code> Commentary</h3><p>An editor-only note, not visible in the final output.</p><h4>Example Payload:</h4><pre>Any string of text, e.g., "TODO: Find a better image."</pre></div>
+            <div class="codon-entry functional-genetic" id="codon-exon"><h3><code class="codon-tag type-exon">EXON</code> Expressed Codon</h3><p>An active, expressed codon included in the final phenotype. This is the default state.</p><h4>Example Payload:</h4><pre>This is a state, not a type. Any codon can be an exon.</pre></div>
+            <div class="codon-entry functional-genetic" id="codon-intron"><h3><code class="codon-tag type-intron light-text">INTRON</code> Unexpressed Codon</h3><p>A dormant codon ignored during expression but saved in the genome.</p><h4>Example Payload:</h4><pre>This is a state, not a type. Any codon can be an intron.</pre></div>
+
+            <h3>Structural & Layout</h3>
+            <p>Codons for creating structural containers like rows and columns. These are essential for building complex, responsive layouts. All structural codons must be properly nested and closed with an `END` codon.</p>
+
+            <!-- ROW Codon -->
+            <div class="codon-entry structural-layout" id="codon-row">
+                <h3><code class="codon-tag type-row">ROW</code> Row Start</h3>
+                <p>Begins a horizontal flex container (a row). All `COL` codons should be placed inside a `ROW`. It can also accept a payload for custom CSS styles (e.g., `gap: 30px;`).</p>
+            </div>
+
+            <!-- COL Codon -->
+            <div class="codon-entry structural-layout" id="codon-col">
+                <h3><code class="codon-tag type-col">COL</code> Column Start</h3>
+                <p>Begins a vertical container (a column) inside a `ROW`. It can accept a payload to define its size (e.g., `flex: 2;`) or other CSS styles.</p>
+            </div>
+
+            <!-- END Codon -->
+            <div class="codon-entry structural-layout" id="codon-end">
+                <h3><code class="codon-tag type-end">END</code> Structure End</h3>
+                <p>Closes the most recently opened `ROW` or `COL` container. Proper nesting is crucial.</p>
+            </div>
+
+            <h4>Layout Examples</h4>
+
+            <!-- Example 1: Simple Two-Column Layout -->
+            <div class="example-block">
+                <h5>Example 1: Simple Two-Column Layout</h5>
+                <p>This is the most common use case: creating two equal-width columns side-by-side.</p>
+                
+                <p><strong>Codon Sequence:</strong></p>
+                <pre><code>ROW
+  COL
+    TXT: "This is the first column."
+  END
+  COL
+    TXT: "This is the second column."
+  END
+END</code></pre>
+
+                <p><strong>Visual Preview:</strong></p>
+                <div class="example-preview">
+                    <div class="row">
+                        <div class="col">Column 1</div>
+                        <div class="col">Column 2</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Example 2: Sized Columns -->
+            <div class="example-block">
+                <h5>Example 2: Sized Columns (1/3 and 2/3)</h5>
+                <p>You can control column widths by passing a `flex` value in the `COL` payload. Here, the second column will be twice as wide as the first.</p>
+                
+                <p><strong>Codon Sequence:</strong></p>
+                <pre><code>ROW
+  COL
+    TXT: "This column takes up 1 part of the space."
+  END
+  COL: "flex: 2;"
+    TXT: "This column is twice as wide."
+  END
+END</code></pre>
+
+                <p><strong>Visual Preview:</strong></p>
+                <div class="example-preview">
+                    <div class="row">
+                        <div class="col" style="flex: 1;">Column 1 (flex: 1)</div>
+                        <div class="col" style="flex: 2;">Column 2 (flex: 2)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Example 3: Nested Layout -->
+            <div class="example-block">
+                <h5>Example 3: Nested Layout</h5>
+                <p>You can nest `ROW`s inside `COL`s to create more complex grid structures.</p>
+                
+                <p><strong>Codon Sequence:</strong></p>
+                <pre><code>ROW
+  COL: "flex: 1;"
+    TXT: "Outer Column 1"
+  END
+  COL: "flex: 2;"
+    TXT: "Outer Column 2"
+    ROW
+      COL
+        TXT: "Nested Column A"
+      END
+      COL
+        TXT: "Nested Column B"
+      END
+    END
+  END
+END</code></pre>
+
+                <p><strong>Visual Preview:</strong></p>
+                <div class="example-preview">
+                    <div class="row">
+                        <div class="col" style="flex: 1;">Outer Column 1</div>
+                        <div class="col" style="flex: 2; display: flex; flex-direction: column; gap: 1rem;">
+                            <p>Outer Column 2</p>
+                            <div class="row">
+                                <div class="col">Nested A</div>
+                                <div class="col">Nested B</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="editor-guide" class="doc-section">
+                <h2><svg viewBox="0 0 24 24"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg>Editor Guide</h2>
+                <p>This guide explains how to use the editor's interface and powerful features to create, modify, and evolve your digital genomes.</p>
+
+                <h3>The Interface</h3>
+                <p>The editor is split into two main panels:</p>
+                <ul>
+                    <li><strong>Genome Editor (Left):</strong> This is your primary workspace. It displays the sequence of codons that make up the currently loaded genome.</li>
+                    <li><strong>Expression Engine (Right):</strong> This panel shows the rendered <span class="key-term">phenotype</span> after you click "Express". It is a live preview of what your genetic code produces.</li>
+                </ul>
+
+                <h3>Basic Operations</h3>
+                <h4>Adding a Codon</h4>
+                <p>To add a new codon, hover over the space between existing codons. A <code>(+)</code> button will appear. Clicking it opens the <strong>Codon Palette</strong>, where you can select the codon type and enter its payload. For media codons (<code>IMG</code>, <code>VID</code>, <code>AUC</code>), you will be prompted to select a file directly.</p>
+                
+                <h4>Editing a Codon</h4>
+                <p>Simply click on a codon's payload text in the Genome Editor to make it editable. Press <code>Enter</code> or click outside the input field to save your changes.</p>
+            </section>
+
+            <section id="advanced-features" class="doc-section">
+                <h2><svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>Advanced Features & FAQ</h2>
+                <p>GENOMA includes several powerful features for advanced users, allowing for genetic manipulation, phenotype capture, and more.</p>
+
+                <div class="example-block" style="border-left-color: var(--border-advanced);">
+                    <h5>Capture Phenotype</h5>
+                    <p>This feature, powered by the <code>html2canvas</code> library, allows you to export the current rendered phenotype as a self-contained HTML file. It captures the exact visual output, including all styles and layout, and packages it for easy sharing or archiving. Click the <strong>Capture Phenotype</strong> button in the main controls to use it.</p>
+                </div>
+
+                <div class="example-block" style="border-left-color: var(--border-advanced);">
+                    <h5>Example: Recombination</h5>
+                    <p>Recombination creates a new genome by combining two parent strands at a specified <strong>crossover point</strong>. The new genome takes the beginning of Strand A and the end of Strand B.</p>
+                    <div class="diagram">
+                        <p><strong>Before:</strong></p>
+                        <div class="diagram-strand"><strong>Strand A:</strong> [TXT] [IMG] <span class="crossover">[STY]</span> [ROW] [END]</div>
+                        <div class="diagram-strand"><strong>Strand B:</strong> [HDR] <span class="crossover">[VID]</span> [TXT] [CDE] [END]</div>
+                        <div class="diagram-result">
+                            <p><strong>After Recombination:</strong></p>
+                            <div class="diagram-strand"><strong>New Genome:</strong> [TXT] [IMG] <span class="highlight">[VID] [TXT] [CDE] [END]</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="example-block" style="border-left-color: var(--border-advanced);">
+                    <h5>Example: Mutation Types</h5>
+                    <p>Mutations introduce random changes into a genome. Here are the three types:</p>
+                    
+                    <h6>Point Mutation (Changes a codon)</h6>
+                    <div class="diagram">
+                        <div class="diagram-strand"><strong>Before:</strong> [TXT] [IMG] [STY]</div>
+                        <div class="diagram-result">
+                            <div class="diagram-strand"><strong>After:</strong>  [TXT] <span class="highlight">[VID]</span> [STY]</div>
+                        </div>
+                    </div>
+
+                    <h6 style="margin-top: 1.5rem;">Insertion (Duplicates a codon)</h6>
+                    <div class="diagram">
+                        <div class="diagram-strand"><strong>Before:</strong> [TXT] [IMG] [STY]</div>
+                        <div class="diagram-result">
+                            <div class="diagram-strand"><strong>After:</strong>  [TXT] [IMG] <span class="highlight">[IMG]</span> [STY]</div>
+                        </div>
+                    </div>
+
+                    <h6 style="margin-top: 1.5rem;">Deletion (Removes a codon)</h6>
+                    <div class="diagram">
+                        <div class="diagram-strand"><strong>Before:</strong> [TXT] [IMG] [STY]</div>
+                        <div class="diagram-result">
+                            <div class="diagram-strand"><strong>After:</strong>  [TXT] <span class="highlight">[STY]</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Frequently Asked Questions</h3>
+                <div class="codon-entry">
+                    <p><strong>Q: Is my genome saved automatically?</strong></p>
+                    <p>A: Yes, the last active genome is automatically saved to your browser's local storage. This ensures your work is not lost between sessions.</p>
+                </div>
+                <div class="codon-entry">
+                    <p><strong>Q: Can I share a genome with someone else?</strong></p>
+                    <p>A: Yes. Use the <strong>Export</strong> button to save the active genome as a `.json` file. You can then send this file to someone else, and they can use the <strong>Import</strong> button to load it into their editor.</p>
+                </div>
+            </section>
+        </main>
+    </body>
+</html>

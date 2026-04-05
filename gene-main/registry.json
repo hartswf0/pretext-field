@@ -1,0 +1,434 @@
+{
+  "version": "genoma-registry-v1",
+  "generated": "2026-04-04",
+  "description": "Complete genome registry for the Pretext world text engine. Every significant entity in the repository cataloged as a genome with full codon sequences, family taxonomy, and inter-genome connections.",
+
+  "codon_legend": {
+    "TXT": "Text content — prose, poetry, corpus data, narrative payload",
+    "HDR": "Header/title — identity marker, naming, classification",
+    "LNK": "Link/reference — import, dependency, URL, cross-reference",
+    "IMG": "Visual element — canvas, SVG, image, screenshot",
+    "FN":  "Function/algorithm — core logic, computation, transformation",
+    "VAR": "Variable/state — configuration, parameters, mutable state",
+    "CTRL": "Control flow — event handling, routing, lifecycle management",
+    "EVT": "Event/interaction — user input, touch, keyboard, mouse",
+    "SND": "Sound/audio — Web Audio, Tone.js, sonification",
+    "GFX": "Graphics/rendering — canvas 2D, WebGL, raycasting, particles",
+    "DAT": "Data structure — JSON, arrays, maps, typed arrays",
+    "DOC": "Documentation — README, comments, annotations, companion papers",
+    "CSS": "Styling — visual design system, layout, animation, theming",
+    "DOM": "DOM manipulation — element creation, classList, innerHTML",
+    "NET": "Network — fetch, WebSocket, import, module loading",
+    "TST": "Testing — assertions, accuracy checks, benchmarks",
+    "BLD": "Build/infrastructure — scripts, packaging, CI"
+  },
+
+  "families": {
+    "ORCA": {
+      "name": "ORCA Echolocation Family",
+      "description": "Raycaster-based text exploration engines. Share a common DNA of CRT overlay aesthetics, amber/cyan palette, LiDAR scanning mechanics, Web Audio echolocation, WASD navigation, and poem-collection gameplay. The Appalachian physics narrative thread runs through the elder members.",
+      "color": "#ff8c00",
+      "icon": "🦇",
+      "members": ["instr-claudar", "instr-aidar", "instr-jumpar", "sub-orca-shield", "sub-word-orcadar", "sub-word-walldar"]
+    },
+    "CAVE": {
+      "name": "The Cave — Immersive Environments",
+      "description": "Pretext-powered 3D text environments exploring consciousness, perception, and spatial typography. All consume the core layout engine via prepare()/layout() and render text in immersive canvas-based worlds. The Cave is the phenomenological laboratory.",
+      "color": "#e024c3",
+      "icon": "🕳️",
+      "members": ["cave-bat", "cave-bat-echo", "cave-spotlight", "cave-lantern", "cave-moon", "cave-cartesian-v1", "cave-cartesian-v2", "cave-orca-lidar", "cave-cultural-brain", "cave-wordar", "cave-voabar"]
+    },
+    "LAYOUT": {
+      "name": "Layout Demonstrations",
+      "description": "Pure demonstrations of the prepare() → layout() pipeline for practical UI patterns. No DOM measurement in the render loop. Proves the engine works for real product scenarios: chat bubbles, accordions, masonry grids, rich text, editorial spreads.",
+      "color": "#5ec8b8",
+      "icon": "📐",
+      "members": ["demo-dynamic-layout", "demo-accordion", "demo-bubbles", "demo-rich-note", "demo-masonry"]
+    },
+    "TYPOGRAPHIC": {
+      "name": "Typographic Systems",
+      "description": "Explorations of typography as a system: justification algorithms, particle-driven ASCII art, and full editorial page composition. These push beyond layout into the aesthetics and mathematics of typesetting.",
+      "color": "#c89b5e",
+      "icon": "✦",
+      "members": ["demo-editorial", "demo-justification", "demo-ascii"]
+    },
+    "ENGINE": {
+      "name": "Core Engine",
+      "description": "The DNA backbone. These are the source-of-truth TypeScript modules that implement the text layout algorithm: segmentation, measurement, line breaking, bidi metadata. Everything else in the repo ultimately depends on this family.",
+      "color": "#3b82f6",
+      "icon": "⚙",
+      "members": ["core-layout", "core-analysis", "core-measurement", "core-line-break", "core-bidi", "core-test-data", "core-tests"]
+    },
+    "INSTRUMENT": {
+      "name": "Pedagogical Instruments",
+      "description": "Standalone interactive tools for exploring cognitive, perceptual, and textual phenomena. Not strictly demos of the layout engine — these are experimental interfaces that treat text as a medium for investigating attention, reading, and consciousness.",
+      "color": "#fbbf24",
+      "icon": "🔬",
+      "members": ["instr-cognitive-lanes", "cave-cultural-brain", "cave-wordar"]
+    },
+    "GENOMA": {
+      "name": "The Genome System",
+      "description": "The meta-system itself. The GENOMA editor, scope, docs, and this registry. Software that describes software. The ouroboros.",
+      "color": "#f43f5e",
+      "icon": "🧬",
+      "members": ["gene-index", "gene-editor", "gene-scope", "gene-docs", "gene-registry"]
+    },
+    "RESEARCH": {
+      "name": "Research & Documentation",
+      "description": "Companion papers, development notes, research documents, and the CULTURE-MIND-BRAIN scholarly corpus. The intellectual substrate that gives the code its theoretical gravity.",
+      "color": "#8b5cf6",
+      "icon": "📜",
+      "members": ["doc-readme", "doc-agents", "doc-development", "doc-research", "doc-todo", "doc-status", "doc-changelog", "doc-blurred-genre", "doc-cmb", "doc-preface", "doc-thoughts", "cmb-note-00", "cmb-note-01", "cmb-note-02", "cmb-note-03", "cmb-note-04", "cmb-note-05", "cmb-note-06"]
+    }
+  },
+
+  "genomes": [
+    {
+      "id": "core-layout",
+      "name": "Layout Engine",
+      "family": "ENGINE",
+      "category": "core-engine",
+      "status": "active",
+      "path": "src/layout.ts",
+      "description": "The heart. Exports prepare(), prepareWithSegments(), layout(), layoutWithLines(), layoutNextLine(), walkLineRanges(), setLocale(), clearCache(). The resize hot path: no DOM reads, no canvas calls, no string work. Everything else in this repo exists to feed or consume this module.",
+      "sequence": [
+        {"codon": "FN", "payload": "prepare() — opaque fast-path handle from text + font → prepared object", "state": "active"},
+        {"codon": "FN", "payload": "layout() — resize hot path: prepared + width + lineHeight → { height, lineCount }", "state": "active"},
+        {"codon": "FN", "payload": "layoutWithLines() — rich path: returns line boundaries with text, width, start/end cursors", "state": "active"},
+        {"codon": "FN", "payload": "layoutNextLine() — streaming escape hatch for variable-width userland layout", "state": "active"},
+        {"codon": "FN", "payload": "walkLineRanges() — batch geometry API: no string materialization, browser-like widths", "state": "active"},
+        {"codon": "FN", "payload": "prepareWithSegments() — rich path with segment arrays and bidi metadata", "state": "active"},
+        {"codon": "FN", "payload": "setLocale() — retargets word segmenter, clears caches", "state": "active"},
+        {"codon": "FN", "payload": "clearCache() — resets segment metrics cache", "state": "active"},
+        {"codon": "VAR", "payload": "Segment metrics cache: Map<font, Map<segment, metrics>>", "state": "active"},
+        {"codon": "LNK", "payload": "imports from ./analysis.js, ./measurement.js, ./line-break.js, ./bidi.js", "state": "active"}
+      ],
+      "connections": ["core-analysis", "core-measurement", "core-line-break", "core-bidi"]
+    },
+    {
+      "id": "core-analysis",
+      "name": "Text Analysis",
+      "family": "ENGINE",
+      "category": "core-engine",
+      "status": "active",
+      "path": "src/analysis.ts",
+      "description": "The preprocessing brain. Normalization, Intl.Segmenter-based word segmentation, glue rules (NBSP, NNBSP, WJ), soft hyphen handling, tab/hard-break detection, CJK grapheme splitting with kinsoku merging, Arabic no-space punctuation clusters, URL-like run detection, contextual escaped quote clusters, numeric/time-range runs.",
+      "sequence": [
+        {"codon": "FN", "payload": "Text normalization and segmentation pipeline", "state": "active"},
+        {"codon": "FN", "payload": "8 break kinds: normal, collapsible-space, preserved-space, tab, NBSP-glue, ZWSP, soft-hyphen, hard-break", "state": "active"},
+        {"codon": "FN", "payload": "CJK grapheme splitting + kinsoku prohibited punctuation merging", "state": "active"},
+        {"codon": "FN", "payload": "Arabic no-space punctuation clusters and mark handling", "state": "active"},
+        {"codon": "FN", "payload": "URL-like run detection: path through query introducer, then query string", "state": "active"},
+        {"codon": "FN", "payload": "Contextual escaped quote clusters: \\\"word\\\"", "state": "active"},
+        {"codon": "FN", "payload": "Numeric/time-range runs: 7:00-9:00, २४×७", "state": "active"},
+        {"codon": "VAR", "payload": "Word and grapheme segmenters hoisted at module scope", "state": "active"},
+        {"codon": "DAT", "payload": "Segment model with break-kind enum", "state": "active"}
+      ],
+      "connections": ["core-layout"]
+    },
+    {
+      "id": "core-measurement",
+      "name": "Canvas Measurement",
+      "family": "ENGINE",
+      "category": "core-engine",
+      "status": "active",
+      "path": "src/measurement.ts",
+      "description": "The sensory organ. Canvas-based text measurement runtime. Manages the shared segment metrics cache (Map<font, Map<segment, metrics>>). Handles emoji correction (auto-detected per font size, constant per emoji grapheme, effectively font-independent). Engine-profile shims for browser-specific tolerance: 0.005 for Chromium/Gecko, 1/64 for Safari/WebKit.",
+      "sequence": [
+        {"codon": "FN", "payload": "Canvas measureText() wrapper with caching", "state": "active"},
+        {"codon": "FN", "payload": "Emoji correction: auto-detected per font size", "state": "active"},
+        {"codon": "FN", "payload": "Engine-profile shims: Chromium 0.005, Safari 1/64 tolerance", "state": "active"},
+        {"codon": "VAR", "payload": "Segment metrics cache: Map<font, Map<segment, {width, graphemeWidths}>>", "state": "active"},
+        {"codon": "DAT", "payload": "Grapheme widths lazily populated", "state": "active"},
+        {"codon": "LNK", "payload": "system-ui unsafe: canvas and DOM resolve different fonts on macOS", "state": "dormant"}
+      ],
+      "connections": ["core-layout", "core-analysis"]
+    },
+    {
+      "id": "core-line-break",
+      "name": "Line Break Walker",
+      "family": "ENGINE",
+      "category": "core-engine",
+      "status": "active",
+      "path": "src/line-break.ts",
+      "description": "The rhythm section. Internal line-walking core shared by the rich layout APIs and the hot-path line counter. Handles word-boundary wrapping, grapheme-boundary fallback for narrow widths, soft hyphen breaking with visible trailing hyphen, and the whitespace mode split (normal vs pre-wrap).",
+      "sequence": [
+        {"codon": "FN", "payload": "Line-walking core: advances through segments fitting to width", "state": "active"},
+        {"codon": "FN", "payload": "Word-boundary wrapping with grapheme-boundary fallback", "state": "active"},
+        {"codon": "FN", "payload": "Soft hyphen: invisible when unbroken, visible trailing '-' when broken", "state": "active"},
+        {"codon": "FN", "payload": "Pre-wrap mode: preserved spaces, tabs (default tab stops), hard breaks", "state": "active"},
+        {"codon": "VAR", "payload": "CSS target: white-space:normal, word-break:normal, overflow-wrap:break-word", "state": "active"}
+      ],
+      "connections": ["core-layout", "core-analysis", "core-measurement"]
+    },
+    {
+      "id": "core-bidi",
+      "name": "Bidi Metadata",
+      "family": "ENGINE",
+      "category": "core-engine",
+      "status": "active",
+      "path": "src/bidi.ts",
+      "description": "The directional compass. Simplified bidi metadata helper for the rich prepareWithSegments() path. Bidi levels stay as custom-rendering metadata only — the opaque fast prepare() handle does not pay for bidi metadata that layout() does not consume. Line breaking itself does not read levels.",
+      "sequence": [
+        {"codon": "FN", "payload": "Bidi level assignment for segments", "state": "active"},
+        {"codon": "VAR", "payload": "Levels on rich path only, not on fast path", "state": "active"},
+        {"codon": "DOC", "payload": "Custom-rendering metadata, not consumed by layout()", "state": "active"}
+      ],
+      "connections": ["core-layout"]
+    },
+    {
+      "id": "instr-claudar",
+      "name": "BAT-MIND // Claudar",
+      "family": "ORCA",
+      "category": "instrument",
+      "status": "active",
+      "path": "claudar.html",
+      "description": "The eldest ORCA instrument. A 26×26 maze raycaster where walls are textured with Pretext-wrapped lines of Richard Wilbur's 'Mind'. Uses prepareWithSegments() + layoutNextLine() to generate wall textures. Full spatial audio engine with convolution reverb simulating cave acoustics, echolocation delay line modulated by closest wall distance, and distance-aware low-pass beacon filter. Poem fragments are scattered as collectible spatial objects.",
+      "sequence": [
+        {"codon": "HDR", "payload": "ORCA // BAT-MIND — A CAVE OF COGNITION", "state": "active"},
+        {"codon": "GFX", "payload": "Raycaster engine: 26×26 map, DDA ray-wall intersection, textured columns", "state": "active"},
+        {"codon": "FN", "payload": "prepareWithSegments() + layoutNextLine() → wall texture lines from Wilbur corpus", "state": "active"},
+        {"codon": "LNK", "payload": "import { prepareWithSegments, layoutNextLine } from './dist/layout.js'", "state": "active"},
+        {"codon": "SND", "payload": "Convolution reverb (5s cave impulse), echolocation delay line (0.035-0.58s modulated by wall distance)", "state": "active"},
+        {"codon": "SND", "payload": "Distance-aware low-pass beacon filter: far=350Hz, close=3500Hz with harmonic partials", "state": "active"},
+        {"codon": "SND", "payload": "Rhythmic proximity pulse: square wave tick accelerates near target", "state": "active"},
+        {"codon": "SND", "payload": "Finale: harmonic field (A3 major 9th), delay opens to 1.8s, space dissolves", "state": "active"},
+        {"codon": "EVT", "payload": "WASD + pointer lock (desktop), dual-zone touch (mobile), SPACE to scan", "state": "active"},
+        {"codon": "GFX", "payload": "CRT scanline overlay (3px pitch, 0.18 opacity), crosshair, pulse ring VFX", "state": "active"},
+        {"codon": "GFX", "payload": "Minimap: 120×120 canvas, discovered cells revealed progressively", "state": "active"},
+        {"codon": "TXT", "payload": "Richard Wilbur — 'Mind': 13 lines scattered as spatial poem nodes", "state": "active"},
+        {"codon": "CSS", "payload": "Amber (#ff8c00) / Cyan (#00ffcc) / Pink (#e024c3) palette, JetBrains Mono + Cormorant Garamond", "state": "active"},
+        {"codon": "DOM", "payload": "Boot screen with ORCA branding, HUD (surface/bearing/echo-return/progress)", "state": "active"}
+      ],
+      "connections": ["core-layout", "sub-word-walldar", "instr-aidar", "instr-jumpar", "cave-bat"]
+    },
+    {
+      "id": "instr-aidar",
+      "name": "ORCA // Aidar",
+      "family": "ORCA",
+      "category": "instrument",
+      "status": "active",
+      "path": ["aidar.html", "aidar.ts"],
+      "description": "The autonomous ORCA variant. Same LiDAR geometry scanner as orcadar but with an AUTO-PILOT mode that navigates the world automatically, seeking poem fragments without human input. Features progress dots UI showing collection state. External TypeScript module for the engine.",
+      "sequence": [
+        {"codon": "HDR", "payload": "ORCA // GEOMETRY SCANNER with AUTO-PILOT", "state": "active"},
+        {"codon": "GFX", "payload": "2D top-down LiDAR scanner with 360° ray fan", "state": "active"},
+        {"codon": "FN", "payload": "Autopilot pathfinding: autonomous navigation toward nearest uncollected fragment", "state": "active"},
+        {"codon": "EVT", "payload": "WASD movement + mouse/touch scan, autopilot toggle", "state": "active"},
+        {"codon": "SND", "payload": "Web Audio echolocation pings with stereo panning", "state": "active"},
+        {"codon": "TXT", "payload": "12 poem fragments scattered in procedural maze", "state": "active"},
+        {"codon": "GFX", "payload": "CRT overlay, amber/cyan palette, Cormorant Garamond poem display", "state": "active"},
+        {"codon": "CSS", "payload": "Progress dots UI: 12 dots showing collection progress", "state": "active"},
+        {"codon": "LNK", "payload": "aidar.ts — external TypeScript engine module", "state": "active"}
+      ],
+      "connections": ["sub-word-orcadar", "instr-claudar", "instr-jumpar"]
+    },
+    {
+      "id": "instr-jumpar",
+      "name": "ENGRAM // Archive Decrypt",
+      "family": "ORCA",
+      "category": "instrument",
+      "status": "active",
+      "path": ["jumpar.html", "jumpar.ts"],
+      "description": "The cinematic ORCA variant. Branded as 'ENGRAM // ARCHIVE' with a dramatic boot sequence featuring typewriter text and a flash-white transition. Same LiDAR core but with cryptographic/archival theming. Desktop/mobile-aware hint system.",
+      "sequence": [
+        {"codon": "HDR", "payload": "ENGRAM // ARCHIVE DECRYPT", "state": "active"},
+        {"codon": "GFX", "payload": "2D LiDAR with cinematic flash overlay transition (cyan→fade)", "state": "active"},
+        {"codon": "FN", "payload": "Typewriter boot sequence with staged text reveal", "state": "active"},
+        {"codon": "EVT", "payload": "Responsive: desktop WASD + click, mobile split-touch with thumb regions", "state": "active"},
+        {"codon": "TXT", "payload": "12 poem fragments (same Wilbur corpus), archival/decrypt framing", "state": "active"},
+        {"codon": "CSS", "payload": "Bat emoji favicon, mobile-first poem overlay with gradient fade", "state": "active"},
+        {"codon": "LNK", "payload": "jumpar.ts — external TypeScript engine module", "state": "active"}
+      ],
+      "connections": ["instr-aidar", "instr-claudar", "sub-word-orcadar"]
+    },
+    {
+      "id": "sub-orca-shield",
+      "name": "ORCA Shield 18 // Holler Optics",
+      "family": "ORCA",
+      "category": "sub-project",
+      "status": "active",
+      "path": "ORCA/orca-shield-18.html",
+      "description": "The patriarch. A 2470-line standalone Appalachian physics engine. Dual-layer architecture: a top-down topo grid (32×32) with 5 terrain zones (Shack, Creek, Ridge, Puddle, Cave) AND a first-person raycaster LIDAR mode. Features a forensic Crime Scene Processing Report ontology with 10 evidence items. Uses Tone.js for audio. The deepest lore in the repo.",
+      "sequence": [
+        {"codon": "HDR", "payload": "ORCA // BLUE_HOUR_LIDAR_v18 — HOLLER OPTICS // SYSTEM_18", "state": "active"},
+        {"codon": "GFX", "payload": "Dual-layer: 32×32 topo grid (canvas) + first-person raycaster (canvas)", "state": "active"},
+        {"codon": "GFX", "payload": "3 flashlight modes: WIDE, PRISM, LASER with different spread patterns", "state": "active"},
+        {"codon": "DAT", "payload": "MOUNTAIN_LORE: 5 zone narratives (shack, creek, ridge, puddle, cave)", "state": "active"},
+        {"codon": "DAT", "payload": "EVIDENCE_ONTOLOGY: 10 items (PRISM, GLASSES, LAMBCHOP, ANTLER, GLOW-BALL, OIL, HUBCAP, SHADOW, COLLAR, DOG HOUSE)", "state": "active"},
+        {"codon": "FN", "payload": "CSPR Forensic Report generator with ASCII art borders", "state": "active"},
+        {"codon": "FN", "payload": "collectEvidence() / getCSPRReport() evidence management system", "state": "active"},
+        {"codon": "SND", "payload": "Tone.js: triangle synth + sine drone, zone-specific pitch mapping", "state": "active"},
+        {"codon": "EVT", "payload": "Dual-zone mobile joysticks (MOVE + LOOK), D-pad arrows, teleport landmarks", "state": "active"},
+        {"codon": "GFX", "payload": "CRT scanline overlay, minimap (100×100), LIDAR minimap (150×150)", "state": "active"},
+        {"codon": "CSS", "payload": "Holler palette: Moonshine Gold, Rust, Steel Blue, Peru, Indigo, Dark Slate Gray", "state": "active"},
+        {"codon": "TXT", "payload": "Appalachian physics narrative: Grandpa's quantum optics, Edgar the missing hound", "state": "active"},
+        {"codon": "LNK", "payload": "ripple-ai.js — external AI helper script", "state": "active"}
+      ],
+      "connections": ["sub-word-orcadar", "sub-word-walldar", "instr-claudar"]
+    },
+    {
+      "id": "sub-word-orcadar",
+      "name": "WORD-ENGINE // Orcadar",
+      "family": "ORCA",
+      "category": "sub-project",
+      "status": "active",
+      "path": "WORD-ENGINE/orcadar.html",
+      "description": "The open-world ORCA. A massive 400×400 grid (4800×4800px world) 2D LiDAR scanner. No raycaster — instead a persistent 'LiDAR map' canvas accumulates discovered geometry over time. Full Web Audio engine with convolution reverb, echolocation delay line, and spatial beacon system. Floor text canvas renders Wilbur's poem in Cormorant Garamond revealed only by LiDAR sweeps.",
+      "sequence": [
+        {"codon": "HDR", "payload": "ORCA // GEOMETRY SCANNER — open-world LiDAR", "state": "active"},
+        {"codon": "GFX", "payload": "400×400 grid (4800×4800 world), persistent map canvas accumulator", "state": "active"},
+        {"codon": "GFX", "payload": "Floor text canvas: poem lines rendered in Cormorant Garamond at 24px, revealed by LiDAR", "state": "active"},
+        {"codon": "GFX", "payload": "Procedural maze: 600 random walls (10-40 length, 1-3 thickness), poem clearings", "state": "active"},
+        {"codon": "SND", "payload": "Full Web Audio: convolution reverb (4s), delay line (0.05-0.6s), stereo panning", "state": "active"},
+        {"codon": "SND", "payload": "Algorithmic beat: distance-ratio-driven tick rate, only fires when target illuminated", "state": "active"},
+        {"codon": "SND", "payload": "Beacon pings: E major pentatonic (329-554 Hz), octave shifts by line index", "state": "active"},
+        {"codon": "FN", "payload": "Collision detection, procedural world generation, poem node placement with min-distance", "state": "active"},
+        {"codon": "EVT", "payload": "WASD + mouse (desktop), dual-touch joystick (mobile)", "state": "active"},
+        {"codon": "TXT", "payload": "Richard Wilbur — 'Mind' (12 lines), completion state with algorithmic pulse animation", "state": "active"},
+        {"codon": "CSS", "payload": "Completion: poem centers, Cormorant Garamond 26px, hue-rotate pulse, cyan/green alternating", "state": "active"}
+      ],
+      "connections": ["sub-orca-shield", "instr-aidar", "instr-claudar"]
+    },
+    {
+      "id": "sub-word-walldar",
+      "name": "WORD-ENGINE // Walldar",
+      "family": "ORCA",
+      "category": "sub-project",
+      "status": "active",
+      "path": ["WORD-ENGINE/walldar.html", "WORD-ENGINE/walldar.ts"],
+      "description": "The Culture//Mind//Brain raycaster. Branded as 'Enter the Extended Mind' — explicitly themed around the Cartesian Breach and disciplinary matrices. Uses Pretext's layout engine via external walldar.ts module. JetBrains Mono + Cormorant Garamond dual font system. LiDAR scanner HUD with minimap.",
+      "sequence": [
+        {"codon": "HDR", "payload": "CULTURE // MIND // BRAIN — Enter the Extended Mind", "state": "active"},
+        {"codon": "GFX", "payload": "Raycaster with Pretext-wrapped wall textures", "state": "active"},
+        {"codon": "FN", "payload": "walldar.ts: Pretext layout integration for wall text generation", "state": "active"},
+        {"codon": "TXT", "payload": "Disciplinary matrices, somatic markers, Cartesian boundary theming", "state": "active"},
+        {"codon": "EVT", "payload": "WASD + mouse aim + click pulse, mobile drag/swipe/tap zones", "state": "active"},
+        {"codon": "GFX", "payload": "Crosshair (+), minimap (120×120), CRT overlay", "state": "active"},
+        {"codon": "CSS", "payload": "JetBrains Mono UI + Cormorant Garamond poem, amber/cyan/pink palette", "state": "active"},
+        {"codon": "LNK", "payload": "walldar.ts module (type='module')", "state": "active"}
+      ],
+      "connections": ["core-layout", "instr-claudar", "sub-orca-shield", "doc-cmb"]
+    },
+    {
+      "id": "instr-cognitive-lanes",
+      "name": "Cognitive Lanes",
+      "family": "INSTRUMENT",
+      "category": "instrument",
+      "status": "active",
+      "path": "cognitive-lanes.html",
+      "description": "A 3-lane parallel reading interface. Text flows vertically in three synchronized columns with focal-point depth-of-field blur. Features a Toll Booth friction mechanism that forces structural pauses at marked rows, simulating cognitive load thresholds. Speech synthesis reads the center lane. Flow speed slider maps to congestion status levels (LOW/MODERATE/HIGH).",
+      "sequence": [
+        {"codon": "HDR", "payload": "3-Lane Parallel Reading Interface", "state": "active"},
+        {"codon": "FN", "payload": "Focal-point rendering: distance-from-center → opacity + blur (depth of field)", "state": "active"},
+        {"codon": "FN", "payload": "Toll Booth friction: structural halt for 1.2s at marked rows (attention tax)", "state": "active"},
+        {"codon": "FN", "payload": "Speech synthesis: center lane auto-spoken at focal crossing, rate scales with flow speed", "state": "active"},
+        {"codon": "EVT", "payload": "Flow speed slider (0.2–3.0), pause/play toggle, speech toggle", "state": "active"},
+        {"codon": "DAT", "payload": "12-row corpus: [left, center, right] word triples, toll booth flags", "state": "active"},
+        {"codon": "CSS", "payload": "Parchment palette (#f4f3ed), Lora serif + JetBrains Mono, TailwindCSS", "state": "active"},
+        {"codon": "DOM", "payload": "Dynamic row spawning/cleanup, flash overlay for toll booth events", "state": "active"},
+        {"codon": "CTRL", "payload": "Congestion status levels: LOW (fluid) → MODERATE (accelerated) → HIGH (saccade overload)", "state": "active"}
+      ],
+      "connections": ["doc-cmb", "cave-cultural-brain"]
+    },
+    {
+      "id": "demo-dynamic-layout",
+      "name": "Dynamic Layout",
+      "family": "LAYOUT",
+      "category": "demo-layout",
+      "status": "active",
+      "path": ["pages/demos/dynamic-layout.html", "pages/demos/dynamic-layout.ts"],
+      "description": "The flagship layout demo. A fixed-height editorial spread with obstacle-aware title routing, continuous two-column flow, and live logo-driven reflow. The real consumer of the rich line API (layoutNextLine).",
+      "sequence": [
+        {"codon": "HDR", "payload": "Dynamic Layout — editorial spread with variable-width line routing", "state": "active"},
+        {"codon": "FN", "payload": "layoutNextLine() for variable-width obstacle-aware line stepping", "state": "active"},
+        {"codon": "FN", "payload": "Continuous two-column flow with title routing around obstacles", "state": "active"},
+        {"codon": "FN", "payload": "Live logo-driven reflow: dragging the logo recalculates column widths", "state": "active"},
+        {"codon": "LNK", "payload": "imports from ../../src/layout.ts", "state": "active"}
+      ],
+      "connections": ["core-layout", "page-demos-index"]
+    },
+    {
+      "id": "demo-bubbles",
+      "name": "Bubbles",
+      "family": "LAYOUT",
+      "category": "demo-layout",
+      "status": "active",
+      "path": ["pages/demos/bubbles.html", "pages/demos/bubbles.ts"],
+      "description": "Width-tight multiline message bubbles using walkLineRanges(). Less wasted area than standard text-width boxes. The shrinkwrap demo.",
+      "sequence": [
+        {"codon": "HDR", "payload": "Bubbles — width-tight multiline chat bubbles", "state": "active"},
+        {"codon": "FN", "payload": "walkLineRanges() for shrinkwrap width calculation without string materialization", "state": "active"},
+        {"codon": "FN", "payload": "Optimal bubble width: max(lineWidths) instead of container width", "state": "active"},
+        {"codon": "LNK", "payload": "imports from ../../src/layout.ts", "state": "active"}
+      ],
+      "connections": ["core-layout", "page-demos-index"]
+    },
+    {
+      "id": "gene-editor",
+      "name": "GENOMA Editor",
+      "family": "GENOMA",
+      "category": "gene-system",
+      "status": "active",
+      "path": "gene-main/editor.html",
+      "description": "The genome manipulation interface. Create, edit, mutate, recombine, and express genomes. Codon management with type/payload/state. JSON import/export. Phenotype expression engine renders genomes as live HTML. Mutation (random codon swap) and recombination (splice two genomes) operations.",
+      "sequence": [
+        {"codon": "HDR", "payload": "GENOMA v2 — Genome Editor", "state": "active"},
+        {"codon": "FN", "payload": "Codon CRUD: add, edit, delete, reorder codon sequences", "state": "active"},
+        {"codon": "FN", "payload": "Phenotype expression: translateGenome() → rendered HTML from codons", "state": "active"},
+        {"codon": "FN", "payload": "Mutation: random codon state swap (active/dormant/silent)", "state": "active"},
+        {"codon": "FN", "payload": "Recombination: splice two genomes at random crossover point", "state": "active"},
+        {"codon": "FN", "payload": "JSON import/export: loadGenomeFromJSON(), exportGenome()", "state": "active"},
+        {"codon": "FN", "payload": "Phenotype capture: html2canvas screenshot of expressed genome", "state": "active"},
+        {"codon": "DAT", "payload": "Codon types: TXT, HDR, LNK, IMG, FN, VAR, EVT, CSS, GFX, SND, CTRL, DOM, DAT, DOC", "state": "active"},
+        {"codon": "CSS", "payload": "Dark theme with rose accent (#f43f5e), glassmorphism panels", "state": "active"}
+      ],
+      "connections": ["gene-index", "gene-scope", "gene-docs", "gene-registry"]
+    },
+    {
+      "id": "gene-scope",
+      "name": "GENOMA Scope",
+      "family": "GENOMA",
+      "category": "gene-system",
+      "status": "active",
+      "path": "gene-main/scope.html",
+      "description": "The genome browser. High-level visualization of multiple genomes simultaneously. Translates each genome's spliced sequence into a rendered HTML phenotype preview. Search, filter, inspect.",
+      "sequence": [
+        {"codon": "HDR", "payload": "GENOMA Scope — multi-genome visual browser", "state": "active"},
+        {"codon": "FN", "payload": "_translate(): spliced codon sequence → rendered HTML phenotype", "state": "active"},
+        {"codon": "FN", "payload": "loadData(): initializes genome collection with event bindings", "state": "active"},
+        {"codon": "DOM", "payload": "Card grid with phenotype previews, click-to-inspect", "state": "active"},
+        {"codon": "CSS", "payload": "Dark theme, genome cards with codon count badges", "state": "active"}
+      ],
+      "connections": ["gene-editor", "gene-index", "gene-docs", "gene-registry"]
+    }
+  ],
+
+  "edges": [
+    {"from": "core-layout", "to": "core-analysis", "type": "imports", "label": "analysis phase"},
+    {"from": "core-layout", "to": "core-measurement", "type": "imports", "label": "measurement phase"},
+    {"from": "core-layout", "to": "core-line-break", "type": "imports", "label": "line walking"},
+    {"from": "core-layout", "to": "core-bidi", "type": "imports", "label": "bidi metadata"},
+    {"from": "instr-claudar", "to": "core-layout", "type": "imports", "label": "prepareWithSegments + layoutNextLine"},
+    {"from": "sub-word-walldar", "to": "core-layout", "type": "imports", "label": "Pretext layout via walldar.ts"},
+    {"from": "demo-dynamic-layout", "to": "core-layout", "type": "imports", "label": "layoutNextLine"},
+    {"from": "demo-bubbles", "to": "core-layout", "type": "imports", "label": "walkLineRanges"},
+    {"from": "instr-claudar", "to": "sub-word-walldar", "type": "sibling", "label": "shared raycaster DNA"},
+    {"from": "instr-claudar", "to": "instr-aidar", "type": "sibling", "label": "shared ORCA DNA"},
+    {"from": "instr-claudar", "to": "instr-jumpar", "type": "sibling", "label": "shared ORCA DNA"},
+    {"from": "instr-aidar", "to": "sub-word-orcadar", "type": "sibling", "label": "shared 2D scanner DNA"},
+    {"from": "sub-orca-shield", "to": "sub-word-orcadar", "type": "ancestor", "label": "Holler → open world"},
+    {"from": "sub-orca-shield", "to": "instr-claudar", "type": "ancestor", "label": "Holler → bat-mind"},
+    {"from": "instr-cognitive-lanes", "to": "doc-cmb", "type": "research", "label": "cognitive theory"},
+    {"from": "sub-word-walldar", "to": "doc-cmb", "type": "research", "label": "Culture-Mind-Brain theming"},
+    {"from": "gene-editor", "to": "gene-scope", "type": "sibling", "label": "shared genome system"},
+    {"from": "gene-editor", "to": "gene-registry", "type": "sibling", "label": "shared genome system"},
+    {"from": "cave-bat", "to": "core-layout", "type": "imports", "label": "prepareWithSegments"},
+    {"from": "cave-bat-echo", "to": "core-layout", "type": "imports", "label": "prepareWithSegments"},
+    {"from": "cave-spotlight", "to": "core-layout", "type": "imports", "label": "prepare + layout"},
+    {"from": "cave-lantern", "to": "core-layout", "type": "imports", "label": "prepare + layout"},
+    {"from": "cave-moon", "to": "core-layout", "type": "imports", "label": "prepare + layout"},
+    {"from": "cave-cultural-brain", "to": "core-layout", "type": "imports", "label": "prepare + layout"},
+    {"from": "cave-orca-lidar", "to": "core-layout", "type": "imports", "label": "prepare + layout"}
+  ]
+}

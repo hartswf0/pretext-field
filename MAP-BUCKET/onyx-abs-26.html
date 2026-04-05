@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-olog-id="E0:Document">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ONTOLOGICAL ANCESTRY // FORENSIC RECONSTRUCTION</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='50' font-size='80' text-anchor='middle' fill='%23f43f5e'%3E◻%3C/text%3E%3C/svg%3E">
+    <style>
+        /* ── OLOG 1: COMPONENT C0.1 ── RootMarkup ── */
+        /* ── OLOG 2: ENTITY E0.C0 ── State Management System ── */
+        :root {
+            /* THEMING: OLOG 1 Feature F0.1, OLOG 2 Feature F13_VIEW_SWITCH */
+            --bg: #09090b;
+            --panel: #121214;
+            --surface: #18181b;
+            --border: #27272a;
+            --text-main: #e4e4e7;
+            --text-muted: #71717a;
+            --func: #f43f5e;
+            /* Rose: functions/classes */
+            --var: #2dd4bf;
+            /* Teal: variables */
+            --tag: #8b5cf6;
+            /* Violet: HTML tags */
+            --ctrl: #fbbf24;
+            /* Amber: control flow */
+            --focus: #ffffff;
+            --up: #3b82f6;
+            /* Blue: upstream/callers */
+            --down: #10b981;
+            /* Green: downstream/deps */
+            --font: 'JetBrains Mono', 'Menlo', monospace;
+            --lh: 20px;
+            --transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* STATIC COMPOSITION: OLOG 1 Composition Rule, OLOG 2 ENTITY E0 */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            height: 100dvh;
+            background: var(--bg);
+            color: var(--text-main);
+            font-family: var(--font);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── OLOG 1: ENTITY E3 (Block) ── DOMElement_C3.5 ── */
+        /* ── OLOG 2: ENTITY E0.C3.UI ── UI Subsystem ── */
+        .block {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        .block-icon {
+            font-size: 10px;
+            opacity: 0.4;
+            margin-bottom: 2px;
+        }
+
+        .block-label {
+            font-size: 6px;
+            opacity: 0.5;
+            max-width: 90%;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .port {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: var(--border);
+            border-radius: 50%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0.5;
+        }
+
+        .port.in {
+            top: -2px;
+        }
+
+        .port.out {
+            bottom: -2px;
+        }
+
+        /* DYNAMIC ONTOLOGY: OLOG 1 Feature F3.5, OLOG 2 Feature F4_XRAY */
+        .block:hover {
+            border-color: #fff;
+            background: var(--surface);
+            z-index: 100;
+            transform: scale(1.15);
+        }
+
+        .block.focus {
+            background: var(--focus);
+            border-color: var(--focus);
+            color: #000;
+            z-index: 200;
+            transform: scale(1.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .block.focus .block-icon,
+        .block.focus .block-label {
+            opacity: 1;
+            color: #000;
+            font-weight: 800;
+        }
+
+        .block.focus .port {
+            background: #000;
+        }
+
+        .block.up {
+            border-color: var(--up);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--up);
+            z-index: 50;
+        }
+
+        .block.down {
+            border-color: var(--down);
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--down);
+            z-index: 50;
+        }
+
+        .block.muted {
+            opacity: 0.1;
+            filter: grayscale(1);
+            transform: scale(0.95);
+        }
+
+        /* ── OLOG 1: ENTITY E4 (Wire) ── GeometricPath_C4.1 & StateClass_C4.2 ── */
+        .wire-canvas {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 20;
+            overflow: visible;
+        }
+
+        path.cable {
+            fill: none;
+            stroke: #333;
+            stroke-width: 1;
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+
+        path.cable.active {
+            opacity: 1;
+            stroke-width: 1.5;
+            filter: drop-shadow(0 0 2px currentColor);
+        }
+
+        path.cable.up {
+            stroke: var(--up);
+        }
+
+        path.cable.down {
+            stroke: var(--down);
+        }
+
+        /* ── HEADER: OLOG 1 Entity E3 (implicit), OLOG 2 UI Subsystem ── */
+        header {
+            height: 50px;
+            flex: 0 0 auto;
+            background: #000;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 140px 1fr 140px;
+            align-items: center;
+            padding: 0 12px;
+            gap: 12px;
+            z-index: 500;
+        }
+
+        .brand {
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .brand span {
+            color: var(--func);
+        }
+
+        /* ── OLOG 1: ENTITY E1 (Application) ── DOMRegistry_C1.2 ── */
+        /* ── OLOG 2: ENTITY E0.C3.UI ── Navigation Deck Component ── */
+        .nav-deck {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .nav-group {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-width: 60px;
+            max-width: 200px;
+        }
+
+        .nav-label {
+            font-size: 7px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+
+        .nav-val {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        #nav-focus {
+            color: var(--focus);
+        }
+
+        .chip-list {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            max-width: 100%;
+        }
+
+        .chip-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .chip {
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            font-size: 9px;
+            cursor: pointer;
+            color: var(--text-muted);
+            white-space: nowrap;
+            transition: 0.1s;
+        }
+
+        .chip:hover {
+            color: #fff;
+            border-color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .chip.up {
+            border-left: 2px solid var(--up);
+        }
+
+        .chip.down {
+            border-right: 2px solid var(--down);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            border-color: var(--func);
+            color: #fff;
+        }
+
+        .btn.active {
+            background: var(--func);
+            color: #000;
+            border-color: var(--func);
+        }
+
+        /* AUTOPLAY: OLOG 2 Feature F9_AUTOPLAY */
+        .btn.autoplay {
+            background: var(--ctrl);
+            color: #000;
+        }
+
+        .scene-select {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            font-family: var(--font);
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* ── GRID VIEWPORT: OLOG 1 Entity E2 (Grid) ── SpatialPartition_C2.1 ── */
+        /* ── OLOG 2: Entity E0.C2.RENDERER ── Grid Rendering Subsystem ── */
+        .viewport {
+            flex: 0 0 45vh;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .grid-lock {
+            height: 90%;
+            aspect-ratio: 1/1;
+            position: relative;
+            max-width: 95vw;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            gap: 2px;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* ── BRANCH BAR: OLOG 1 Entity E7 (BranchBar) ── PathArray_C7.1 ── */
+        /* ── OLOG 2: Feature F6_BRANCH_NAV ── */
+        .branch-bar {
+            height: 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 6px;
+            font-size: 10px;
+            color: var(--text-muted);
+            overflow-x: auto;
+        }
+
+        .branch-node {
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .branch-node:hover {
+            color: var(--func);
+            text-decoration: underline;
+        }
+
+        .branch-sep {
+            opacity: 0.5;
+            font-size: 8px;
+        }
+
+        /* ── EDITOR: OLOG 1 Entity E5 (Editor) ── TextLayer_C5.1 & VisualLayer_C5.2 ── */
+        /* ── OLOG 2: Feature F1_RENDER_CODE ── */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            background: var(--bg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .code-scroll {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+            scroll-behavior: smooth;
+        }
+
+        .code-editor {
+            display: block;
+            width: 100%;
+            min-height: 100%;
+            background: transparent;
+            color: transparent;
+            caret-color: #fff;
+            font-family: inherit;
+            font-size: 12px;
+            line-height: var(--lh);
+            padding: 20px 50px 100px 10px;
+            border: none;
+            outline: none;
+            resize: none;
+            white-space: pre;
+            overflow: hidden;
+            z-index: 2;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .visual-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100%;
+            padding: 20px 50px 100px 10px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .line {
+            display: flex;
+            height: var(--lh);
+            align-items: center;
+            border-left: 2px solid transparent;
+            padding-left: 8px;
+            cursor: pointer;
+        }
+
+        .line.active {
+            background: rgba(255, 255, 255, 0.08);
+            border-left-color: #fff;
+        }
+
+        .line.up {
+            background: rgba(59, 130, 246, 0.08);
+            border-left-color: var(--up);
+        }
+
+        .line.down {
+            background: rgba(16, 185, 129, 0.08);
+            border-left-color: var(--down);
+        }
+
+        .ln {
+            display: inline-block;
+            width: 30px;
+            text-align: right;
+            margin-right: 10px;
+            color: var(--text-muted);
+            font-size: 10px;
+            user-select: none;
+        }
+
+        .code-text {
+            color: var(--text-muted);
+            font-size: 12px;
+            white-space: pre;
+        }
+
+        /* SYNTAX: OLOG 1 Feature F3.1, OLOG 2 M5_SYNTAX_HIGHLIGHT */
+        .kwd {
+            color: var(--func);
+        }
+
+        /* functions, classes, control flow */
+        .def {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        /* definition names */
+        .var {
+            color: var(--var);
+        }
+
+        /* variables */
+        .tag {
+            color: var(--tag);
+        }
+
+        /* HTML tags */
+        .str {
+            color: #fcd34d;
+        }
+
+        /* strings */
+        .com {
+            color: #52525b;
+        }
+
+        /* comments */
+
+        /* ── PREVIEW: OLOG 1 Feature F8_PREVIEW, OLOG 2 F8_PREVIEW ── */
+        .preview-frame {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border: none;
+            display: none;
+            z-index: 50;
+        }
+
+        .preview-frame.visible {
+            display: block;
+        }
+
+        /* ── MINIMAP: OLOG 1 Entity E6 (Minimap) ── CanvasBuffer_C6.1 ── */
+        /* ── OLOG 2: Feature F2_MINIMAP & F10_MINIMAP ── */
+        .minimap-rail {
+            width: 48px;
+            border-left: 1px solid var(--border);
+            background: var(--panel);
+            position: relative;
+            z-index: 20;
+            flex-shrink: 0;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            display: block;
+        }
+
+        .mm-view {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            pointer-events: none;
+        }
+
+        /* ── SIDEBLADE: OLOG 1 Entity E8 (Sideblade) ── BladeState_C8.1 ── */
+        /* ── OLOG 2: Feature F12_BLADE ── */
+        .sideblade {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 280px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 999;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 10px 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .sideblade.open {
+            transform: translateX(0);
+        }
+
+        .blade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 900;
+            display: none;
+        }
+
+        .overlay.open {
+            display: block;
+        }
+
+        /* INGESTION: OLOG 1 Feature F8.2, OLOG 2 F11_INGEST */
+        textarea.ingest {
+            background: #000;
+            border: 1px solid var(--border);
+            color: #ccc;
+            height: 120px;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 10px;
+            resize: none;
+            width: 100%;
+        }
+
+        /* OLOG 2: Feature F9_AUTOPLAY ── Temporal Agency */
+        .autoplay-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--ctrl);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .autoplay-indicator.active {
+            opacity: 1;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+        }
+    </style>
+    <base target="_blank">
+</head>
+
+<body data-olog-entity="E0:Document" data-olog-component="RootMarkup_C0.1">
+
+    <!-- ── OLOG 1: Composition Rule ── Application_E1 ── -->
+    <!-- ── OLOG 2: ENTITY E0.C3.UI ── UI Subsystem ── -->
+    <header data-olog-entity="E3:Block" data-olog-component="DOMElement_C3.5">
+        <div class="brand" onclick="APP.UI.blade.toggle()" data-olog-morphism="M36_TOGGLE_BLADE">
+            <span data-olog-morphism="M3.1.1">◻</span> ANCESTOR
+        </div>
+
+        <div class="nav-deck" data-olog-component="DOMRegistry_C1.2" data-olog-id="els.navDeck">
+            <div class="nav-group" data-olog-feature="F3.5:InteractiveStateMachine">
+                <span class="nav-label">USED BY</span>
+                <div class="chip-list" id="nav-up" data-olog-morphism="M15_UPDATE_NAV"></div>
+            </div>
+
+            <div class="nav-group"
+                style="border-left:1px solid var(--border); border-right:1px solid var(--border); padding:0 12px;">
+                <span class="nav-label">FOCUS</span>
+                <span class="nav-val" id="nav-focus" data-olog-state="APP.STATE.ACTIVE">--</span>
+            </div>
+
+            <div class="nav-group">
+                <span class="nav-label">USES</span>
+                <div class="chip-list" id="nav-down" data-olog-morphism="M15_UPDATE_NAV"></div>
+            </div>
+        </div>
+
+        <div class="controls" data-olog-feature="F13_VIEW_SWITCH">
+            <select id="scene-picker" class="scene-select" title="Scene selector"></select>
+            <button class="btn active" id="btn-code" onclick="APP.UI.mode.switch('code')"
+                data-olog-morphism="M39_SWITCH_VIEW">CODE</button>
+            <button class="btn" id="btn-run" onclick="APP.UI.mode.switch('run')"
+                data-olog-morphism="M39_SWITCH_VIEW">RUN</button>
+            <button class="btn autoplay" onclick="APP.NAV.autoplay.toggle()"
+                data-olog-morphism="M28_TOGGLE_AUTO">AUTO</button>
+        </div>
+
+        <div class="autoplay-indicator" id="autoplay-indicator" data-olog-state="APP.STATE.AUTOPLAY"></div>
+    </header>
+
+    <!-- ── GRID: OLOG 1 Entity E2 (Grid) ── SpatialPartition_C2.1 ── -->
+    <!-- ── OLOG 2: Entity E0.C2.RENDERER + APP.STATE.BLOCKS (D1) ── -->
+    <div class="viewport" data-olog-entity="E2:Grid">
+        <div class="grid-lock" id="grid-lock" data-olog-component="ResizeObserver_C1.3">
+            <div class="grid" id="grid" data-olog-morphism="M9_RENDER_BLOCKS"></div>
+            <svg class="wire-canvas" id="wires" data-olog-morphism="M16_DRAW_WIRES"></svg>
+        </div>
+    </div>
+
+    <!-- ── BRANCH BAR: OLOG 1 Entity E7 ── PathArray_C7.1 ── -->
+    <!-- ── OLOG 2: Feature F6_BRANCH_NAV ── -->
+    <div class="branch-bar" id="branch-bar" data-olog-morphism="M19_UPDATE_BRANCH">
+        <span class="branch-node">ROOT</span>
+    </div>
+
+    <!-- ── EDITOR: OLOG 1 Entity E5 (Editor) ── TextLayer_C5.1 & VisualLayer_C5.2 ── -->
+    <!-- ── OLOG 2: Feature F1_RENDER_CODE, F7_SCROLL, F15_SCROLL_EVT ── -->
+    <div class="editor-container" data-olog-entity="E5:Editor">
+        <div class="code-scroll" id="scroller" data-olog-message="EVT1:Scroll">
+            <div class="visual-layer" id="visual-layer" data-olog-morphism="M4_RENDER_CODE"></div>
+            <textarea id="code-editor" class="code-editor" spellcheck="false" data-olog-message="EVT0:Input"></textarea>
+        </div>
+
+        <!-- PREVIEW: OLOG 1 Feature F8_PREVIEW, OLOG 2 F8_PREVIEW ── -->
+        <iframe id="preview-frame" class="preview-frame" data-olog-state="APP.STATE.PREVIEW"></iframe>
+
+        <!-- MINIMAP: OLOG 1 Entity E6 ── CanvasBuffer_C6.1 ── -->
+        <!-- OLOG 2: Feature F2_MINIMAP, F10_MINIMAP, F15_SCROLL_EVT ── -->
+        <div class="minimap-rail" data-olog-entity="E6:Minimap">
+            <canvas id="minimap" data-olog-morphism="M7_RENDER_MINIMAP" data-olog-message="EVT4:MinimapClick"></canvas>
+            <div class="mm-view" id="mm-view" data-olog-morphism="M8_UPDATE_VIEWPORT"></div>
+        </div>
+    </div>
+
+    <!-- ── SIDEBLADE: OLOG 1 Entity E8 ── BladeState_C8.1 ── -->
+    <!-- ── OLOG 2: Feature F12_BLADE ── -->
+    <div class="overlay" id="overlay" onclick="APP.UI.blade.toggle()" data-olog-morphism="M37_OVERLAY_CTL"></div>
+    <div class="sideblade" id="sideblade" data-olog-entity="E8:Sideblade" data-olog-component="C8.1:BladeState">
+        <div class="blade-header">
+            <span>ANCESTOR CONTROL</span>
+            <span style="cursor:pointer" onclick="APP.UI.blade.toggle()">✕</span>
+        </div>
+
+        <!-- INGESTION: OLOG 1 Feature F8.2, OLOG 2 F11_INGEST ── -->
+        <div data-olog-feature="F11_INGEST">
+            <div class="nav-label">INGESTION</div>
+            <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Mode:</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+                <button id="mode-summary" class="btn active" style="flex:1;padding:3px 6px;font-size:9px;"
+                    onclick="APP.UI.ingestMode.set('summary')">Summary</button>
+                <button id="mode-json" class="btn" style="flex:1;padding:3px 6px;font-size:9px;"
+                    onclick="APP.UI.ingestMode.set('json')">JSON</button>
+            </div>
+            <textarea class="ingest" id="paste-input" placeholder="// Paste code to replace reality..."
+                data-olog-component="C8.2:IngestionPort"></textarea>
+            <button class="btn" style="width:100%; margin-top:8px; border-color:var(--func); color:var(--func)"
+                onclick="APP.UI.ingest()" data-olog-morphism="M33_INGEST_CODE">LOAD</button>
+            <button class="btn" style="width:100%; margin-top:4px; font-size:9px;" onclick="APP.UI.loadDemo()">Load demo
+                JSON</button>
+            <button class="btn"
+                style="width:100%; margin-top:4px; font-size:9px; border-color:var(--accent); color:var(--accent);"
+                onclick="APP.UI.loadScenarioSeeds()">Load Scenario Seeds</button>
+        </div>
+
+        <!-- THEMING: OLOG 1 Feature F0.1, OLOG 2 F13_VIEW_SWITCH ── -->
+        <div data-olog-feature="F0.1:Theming">
+            <div class="nav-label">THEME</div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+                <button class="btn" onclick="APP.UI.theme.set('dark')" data-olog-morphism="M0.1.1">DARK</button>
+                <button class="btn" onclick="APP.UI.theme.set('parchment')" data-olog-morphism="M0.1.1">PAPER</button>
+                <button class="btn" onclick="APP.UI.theme.set('terminal')" data-olog-morphism="M0.1.1">CRT</button>
+            </div>
+        </div>
+
+        <!-- ONTOLOGICAL LOG: Self-documentation requirement ── -->
+        <div data-olog-feature="F18_SELF_LOG">
+            <div class="nav-label">FORENSIC LOG</div>
+            <div id="log-display"
+                style="font-size:8px; max-height:100px; overflow:auto; background:#000; padding:8px; border:1px solid var(--border);">
+            </div>
+        </div>
+    </div>
+
+    <!-- ── LIVERELOAD: OLOG 1 Entity E9, OLOG 2 E0.C6 ── WebSocketChannel_C9.1 ── -->
+    <script data-olog-entity="E9:LiveReload" data-olog-component="C9.1:WebSocketChannel"
+        data-olog-message="EVT3:WebSocket">
+            // OLOG 2 morphisms M48-M50 injected by live-server
+        </script>
+
+    <!-- FORENSIC OLOG TABLE: Structured mapping requirement -->
+    <script id="olog-forensic-table" type="application/json">
+    {
+      "olog1": {
+        "entities": ["E0:Document", "E1:Application", "E2:Grid", "E3:Block", "E4:Wire", "E5:Editor", "E6:Minimap", "E7:BranchBar", "E8:Sideblade", "E9:LiveReload"],
+        "components": ["C0.1:RootMarkup", "C1.1:StateContainer", "C1.2:DOMRegistry", "C1.3:ResizeObserver", "C2.1:SpatialPartition", "C2.2:BlockArray", "C2.3:WireCanvas", "C3.1:TypeProperty", "C3.2:NameProperty", "C3.3:DependencyVector", "C3.4:CallerVector", "C3.5:DOMElement", "C4.1:GeometricPath", "C4.2:StateClass", "C5.1:TextLayer", "C5.2:VisualLayer", "C5.3:ScrollDimension", "C6.1:CanvasBuffer", "C6.2:ViewportOverlay", "C7.1:PathArray", "C7.2:NodePresentation", "C8.1:BladeState", "C8.2:IngestionPort", "C9.1:WebSocketChannel"],
+        "features": ["F0.1:Theming", "F1.1:LiveCodeSync", "F1.2:FocusManagement", "F1.3:DirectManipulation", "F1.4:ResponsiveWiring", "F2.1:CodeSpaceMapping", "F2.2:EntityResolution", "F2.3:DependencyVisualization", "F3.1:SyntaxEncoding", "F3.2:SymbolResolution", "F3.3:DownstreamXray", "F3.4:UpstreamXray", "F3.5:InteractiveStateMachine", "F4.1:TopologicalDrawing", "F4.2:ConditionalHighlighting", "F5.1:DirectTextInput", "F5.2:SyntaxHighlighting", "F5.3:BidirectionalScrolling", "F6.1:ProportionalRendering", "F6.2:ScaledNavigation", "F7.1:ScopeChainResolution", "F7.2:SymbolicNavigation", "F8.1:TernaryExistance", "F8.2:RealityReplacement", "F9.1:HotRealitySwap"],
+        "morphisms": ["M0.1.1:setTheme", "M1.1.1:parse", "M1.1.2:render", "M1.2.1:xray", "M1.2.2:updateHUD", "M1.3.1:directAccess", "M1.4.1:drawWires", "M2.1.1:lpcCalc", "M2.2.1:priorityCompare", "M2.3.1:pathGen", "M3.1.1:iconSelect", "M3.2.1:defLookup", "M3.5.1:hoverXray", "M3.5.2:clickFocus", "M4.2.1:opacityToggle", "M5.2.1:syntaxHighlight", "M5.3.1:scroll", "M6.1.1:canvasFill", "M7.1.1:scopeStack", "M8.1.1:bladeToggle", "M8.2.1:ingest", "M9.1.1:reload"]
+      },
+      "olog2": {
+        "entities": ["E0:APP", "E0.C0:STATE", "E0.C1:PARSER", "E0.C2:RENDERER", "E0.C3:UI", "E0.C4:NAV", "E0.C5:EVENT", "E0.C6:LIVERELOAD"],
+        "components": ["D0:LINES", "D1:BLOCKS", "D2:EDGES", "D3:DEFS", "D4:SCOPES", "D5:ACTIVE", "D6:AUTOPLAY", "D7:PREVIEW", "D8:ELEMS"],
+        "features": ["F0_PARSE", "F1_RENDER_CODE", "F2_MINIMAP", "F3_RENDER_GRID", "F4_XRAY", "F5_RENDER_WIRES", "F6_BRANCH_NAV", "F7_SCROLL", "F8_PREVIEW", "F9_AUTOPLAY", "F10_MINIMAP", "F11_INGEST", "F12_VIEW_SWITCH", "F13_BLADE", "F14_RESIZE", "F15_SCROLL_EVT", "F16_CLICK", "F17_WEBSOCKET", "F18_SELF_LOG"],
+        "morphisms": ["M0_PARSE", "M1_EXTRACT_SYMBOLS", "M2_BUILD_DEPS", "M3_TRACK_SCOPES", "M4_RENDER_CODE", "M5_SYNTAX_HIGHLIGHT", "M6_ACTIVE_LINE", "M7_RENDER_MINIMAP", "M8_UPDATE_VIEWPORT", "M9_RENDER_BLOCKS", "M10_STYLE_BLOCK", "M11_FOCUS_BLOCK", "M12_XRAY", "M13_MUTE_BLOCKS", "M14_HIGHLIGHT_PATHS", "M15_UPDATE_NAV", "M16_DRAW_WIRES", "M17_COMPUTE_PATHS", "M18_STYLE_CABLES", "M19_UPDATE_BRANCH", "M20_BUILD_PATH", "M21_SCOPE_LOOKUP", "M22_SCROLL_TO_LINE", "M23_CALC_OFFSET", "M24_SMOOTH_SCROLL", "M25_SET_MODE", "M26_INJECT_IFRAME", "M27_HIGHLIGHT_DOM", "M28_TOGGLE_AUTO", "M29_CYCLE_BLOCKS", "M30_INTERVAL_CTL", "M31_CLICK_MINIMAP", "M32_UPDATE_VIEW", "M33_INGEST_CODE", "M34_SPLIT_LINES", "M35_REBOOT", "M36_TOGGLE_SIDE", "M37_OVERLAY_CTL", "M38_ANIMATE", "M39_SWITCH_VIEW", "M40_UPDATE_BUTTONS", "M41_REDRAW_WIRES", "M42_RECALCULATE", "M43_UPDATE_MINIMAP_VIEW", "M44_CALC_PERCENTAGE", "M45_BLOCK_CLICK", "M46_LINE_CLICK", "M47_CHIP_CLICK", "M48_CONNECT_WS", "M49_HANDLE_MSG", "M50_REFRESH_CSS"]
+      }
+    }
+  </script>
+
+    <script>
+        /* ── FORENSIC RECONSTRUCTION ── 
+           This script implements the common ancestor of both OLOGs.
+           All entities, components, features, and morphisms are present simultaneously.
+           Static composition: DOM hierarchy + CSS variables
+           Dynamic ontology: State mutations + classList toggles
+           Event messaging: Central dispatcher pattern
+        ── */
+
+        // ── OLOG 2: ENTITY E0.C0 ── State Management System ──
+        // ── OLOG 1: COMPONENT C1.1:StateContainer_C1.1 ──
+        const APP = {
+            // ── COMPONENTS D0-D8: OLOG 2 State Containers ──
+            STATE: {
+                D0: [], // LINES: string[] - OLOG 2 D0, OLOG 1 lines[]
+                D1: new Array(81).fill(null), // BLOCKS: Block[81] - OLOG 2 D1, OLOG 1 blocks
+                D2: [], // EDGES: Edge[] - OLOG 2 D2, OLOG 1 edges
+                D3: {}, // DEFS: {name: index} - OLOG 2 D3, OLOG 1 definitions
+                D4: [], // SCOPES: Scope[] - OLOG 2 D4, OLOG 1 scopes
+                D5: null, // ACTIVE: number|null - OLOG 2 D5, OLOG 1 activeIdx
+                D6: null, // AUTOPLAY: IntervalId|null - OLOG 2 D6, extended feature
+                D7: false, // PREVIEW: boolean - OLOG 2 D7, OLOG 1 preview mode
+                D8: {}, // ELEMS: DOM registry - OLOG 2 D8, OLOG 1 els
+                ingestMode: 'summary', // 'summary' or 'json'
+                sceneCollection: null, // Last loaded SceneCollection (from LEGOS or direct)
+                currentSceneIndex: 0 // Index into sceneCollection.scenes
+            },
+
+            // ── LEGOS / SceneCollection INGESTION ──
+            LEGOS: {
+                normalizeGrid(grid) {
+                    if (!Array.isArray(grid)) return new Array(81).fill(null);
+                    if (grid.length === 81) return grid;
+                    const out = new Array(81).fill(null);
+                    grid.forEach(cell => {
+                        if (!cell || typeof cell.row !== 'number' || typeof cell.col !== 'number') return;
+                        const r = Math.max(0, Math.min(8, cell.row));
+                        const c = Math.max(0, Math.min(8, cell.col));
+                        const idx = r * 9 + c;
+                        out[idx] = cell;
+                    });
+                    return out;
+                },
+
+                findCoreIndex(grid) {
+                    if (!Array.isArray(grid)) return -1;
+                    const explicit = grid.findIndex(cell => cell && cell.kind === 'Core');
+                    if (explicit !== -1) return explicit;
+
+                    const preferred = new Set(['Entity', 'Goal', 'Location', 'Obstacle', 'Morphism', 'Shift', 'Timepoint']);
+                    const centerR = 4;
+                    const centerC = 4;
+                    let bestIdx = -1;
+                    let bestDist = Infinity;
+
+                    grid.forEach((cell, idx) => {
+                        if (!cell || !preferred.has(cell.kind)) return;
+                        const r = typeof cell.row === 'number' ? cell.row : Math.floor(idx / 9);
+                        const c = typeof cell.col === 'number' ? cell.col : (idx % 9);
+                        const dr = r - centerR;
+                        const dc = c - centerC;
+                        const dist = dr * dr + dc * dc;
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestIdx = idx;
+                        }
+                    });
+
+                    return bestIdx;
+                },
+
+                multiChannelToSceneCollection(multi) {
+                    if (!multi || !Array.isArray(multi.channels)) {
+                        throw new Error('Expected LEGOS multi-channel JSON with channels[].');
+                    }
+
+                    const ROLE_MAP = {
+                        Location: 'Location',
+                        Entity: 'Entity',
+                        Goal: 'Goal',
+                        Obstacle: 'Obstacle',
+                        Morphism: 'Morphism',
+                        Shift: 'Shift',
+                        Timepoint: 'Timepoint',
+                        Scene: 'Scene',
+                        Story: 'Story'
+                    };
+
+                    function deriveTitle(channel) {
+                        const msgs = channel.messages || [];
+                        const sceneMsg = msgs.find(
+                            m => m && m.role === 'assistant' && typeof m.text === 'string' && m.text.includes('\n')
+                        );
+                        if (!sceneMsg) return channel.name || channel.id;
+                        return sceneMsg.text.split('\n')[0].trim() || channel.name || channel.id;
+                    }
+
+                    function deriveBeats(channel) {
+                        const beats = [];
+                        const msgs = channel.messages || [];
+                        let firstSceneBeatId = null;
+
+                        msgs.forEach((m, idx) => {
+                            if (!m || typeof m.text !== 'string') return;
+                            if (m.role === 'system' && m.text.startsWith('Composing scene')) return;
+
+                            let kind;
+                            if (m.role === 'assistant') kind = 'Scene';
+                            else if (m.role === 'user') kind = 'Narration';
+                            else if (m.role === 'system') kind = 'Instruction';
+                            else kind = 'Beat';
+
+                            const label = m.text.split('\n')[0].slice(0, 80);
+                            const beat = {
+                                id: m.id || `M${String(idx + 1).padStart(4, '0')}`,
+                                kind,
+                                label,
+                                text: m.text,
+                                cellIndex: -1,
+                                entityId: null,
+                                channelId: channel.id,
+                                ringEntryId: null,
+                                messageId: m.id || null,
+                                forkOfSceneId: null
+                            };
+
+                            beats.push(beat);
+                            if (kind === 'Scene' && firstSceneBeatId == null) firstSceneBeatId = beat.id;
+                        });
+
+                        if (firstSceneBeatId) {
+                            const centerIdx = 4 * 9 + 4; // R5 C5
+                            const b = beats.find(b => b.id === firstSceneBeatId);
+                            if (b) b.cellIndex = centerIdx;
+                        }
+
+                        return beats;
+                    }
+
+                    function buildGrid(channel) {
+                        const out = new Array(81).fill(null);
+                        const g = channel.grid || [];
+
+                        for (let r = 0; r < 9; r++) {
+                            const row = g[r] || [];
+                            for (let c = 0; c < 9; c++) {
+                                const raw = row[c] || null;
+                                if (!raw) continue;
+                                const idx = r * 9 + c;
+                                out[idx] = {
+                                    id: raw.id || `cell_${r}_${c}`,
+                                    kind: ROLE_MAP[raw.type] || raw.type || 'Entity',
+                                    label: raw.label || (raw.entity && raw.entity.name) || `Cell ${r + 1},${c + 1}`,
+                                    symbol: raw.symbol || null,
+                                    row: r,
+                                    col: c,
+                                    entityId: raw.entity && raw.entity.id ? raw.entity.id : null,
+                                    channelId: channel.id,
+                                    ringEntryId: null,
+                                    meta: raw.entity || null
+                                };
+                            }
+                        }
+                        return out;
+                    }
+
+                    const scenes = (multi.channels || []).map((ch, idx) => {
+                        const title = deriveTitle(ch);
+                        const beats = deriveBeats(ch);
+                        const grid = buildGrid(ch);
+
+                        return {
+                            id: ch.id,
+                            label: ch.name || ch.id,
+                            title,
+                            channelId: ch.id,
+                            storyId: ch.scenario || null,
+                            index: idx,
+                            parent: null,
+                            forkOrigin: null,
+                            grid,
+                            beats,
+                            meta: {
+                                channelColor: ch.channelColor || null,
+                                ringBinding: ch.ringBinding || null,
+                                symbolicId: ch.symbolicId || null
+                            }
+                        };
+                    });
+
+                    return {
+                        version: 'legos-onyx-9x9-v0',
+                        ontology: 'Auto-converted from LEGOS multi-channel export',
+                        scenes
+                    };
+                },
+
+                populateScenePicker() {
+                    const picker = APP.STATE.D8 && APP.STATE.D8.scenePicker;
+                    const col = APP.STATE.sceneCollection;
+                    if (!picker || !col || !Array.isArray(col.scenes) || !col.scenes.length) return;
+                    const scenes = col.scenes;
+                    const current = APP.STATE.currentSceneIndex || 0;
+                    picker.innerHTML = '';
+                    scenes.forEach((sc, idx) => {
+                        const opt = document.createElement('option');
+                        const title = sc.title || sc.label || sc.id || `Scene ${idx + 1}`;
+                        opt.value = String(idx);
+                        opt.textContent = `${String(idx + 1).padStart(2, '0')} · ${title}`;
+                        if (idx === current) opt.selected = true;
+                        picker.appendChild(opt);
+                    });
+                },
+
+                setScene(index) {
+                    const col = APP.STATE.sceneCollection;
+                    if (!col || !Array.isArray(col.scenes) || !col.scenes.length) return;
+                    const scenes = col.scenes;
+                    const idx = Math.max(0, Math.min(scenes.length - 1, Number(index) || 0));
+                    const scene = scenes[idx];
+                    if (!scene) return;
+                    APP.STATE.currentSceneIndex = idx;
+                    this.loadSceneIntoAbs(scene);
+                    this.populateScenePicker();
+                },
+
+                loadFromJson(obj) {
+                    let collection;
+                    if (obj && Array.isArray(obj.channels)) {
+                        collection = this.multiChannelToSceneCollection(obj);
+                    } else if (obj && Array.isArray(obj.scenes)) {
+                        collection = obj;
+                    } else {
+                        throw new Error('Not a LEGOS multi-channel or SceneCollection JSON.');
+                    }
+
+                    if (!collection.scenes || !collection.scenes.length) {
+                        throw new Error('SceneCollection has no scenes.');
+                    }
+
+                    // Cache for Abs + share with other ONYX tools (Head/Tail)
+                    APP.STATE.sceneCollection = collection;
+                    APP.STATE.currentSceneIndex = 0;
+                    try {
+                        localStorage.setItem('onyx_scene_collection', JSON.stringify(collection));
+                    } catch (e) {
+                        console.error('[LEGOS] Failed to persist SceneCollection for ONYX Studio:', e);
+                    }
+
+                    const scene = collection.scenes[0];
+                    // Editor contents depend on ingestMode
+                    if (APP.STATE.ingestMode === 'json' && obj) {
+                        const jsonText = JSON.stringify(obj, null, 2);
+                        APP.STATE.D0 = jsonText.split('\n');
+                        APP.STATE.D8.editor.value = jsonText;
+                    }
+
+                    this.loadSceneIntoAbs(scene);
+                    this.populateScenePicker();
+                },
+
+                loadSceneIntoAbs(scene) {
+                    const grid = this.normalizeGrid(scene.grid);
+                    const coreIdx = this.findCoreIndex(grid);
+
+                    const lines = [];
+                    const title = scene.title || scene.label || scene.id;
+                    lines.push(`// Scene: ${title}`);
+                    if (scene.channelId) lines.push(`// Channel: ${scene.channelId}`);
+                    lines.push('');
+
+                    grid.forEach((cell, idx) => {
+                        if (!cell) return;
+                        const r = Math.floor(idx / 9) + 1;
+                        const c = (idx % 9) + 1;
+                        const kind = cell.kind || 'Entity';
+                        const label = cell.label || cell.id || `Cell ${idx}`;
+                        lines.push(`[R${r},C${c}] ${kind}: ${label}`);
+                    });
+
+                    if (Array.isArray(scene.beats) && scene.beats.length) {
+                        lines.push('');
+                        lines.push('// Beats');
+                        scene.beats.forEach(b => {
+                            lines.push('');
+                            lines.push(`// ${b.id || b.kind || 'Beat'}: ${b.label || ''}`.trim());
+                            if (b.text) {
+                                b.text.split('\n').forEach(tl => lines.push(`// ${tl}`));
+                            }
+                        });
+                    }
+
+                    APP.STATE.D0 = lines;
+                    APP.STATE.D1 = new Array(81).fill(null);
+                    APP.STATE.D2 = [];
+                    APP.STATE.D3 = {};
+                    APP.STATE.D4 = [];
+                    APP.STATE.D5 = coreIdx >= 0 ? coreIdx : null;
+
+                    // Populate D1 from grid
+                    grid.forEach((cell, idx) => {
+                        if (!cell) return;
+                        const kind = cell.kind || 'Entity';
+                        const name = cell.label || cell.id || `Cell_${idx}`;
+                        APP.STATE.D1[idx] = {
+                            idx,
+                            type: kind.toLowerCase(),
+                            kind,
+                            name,
+                            line: idx,
+                            pri: 3,
+                            deps: [],
+                            callers: []
+                        };
+                        APP.STATE.D3[name] = idx;
+                    });
+
+                    // Build a loose index for relation lookup
+                    const idToIndex = new Map();
+                    grid.forEach((cell, idx) => {
+                        if (!cell) return;
+                        const keys = [];
+                        if (cell.entityId) keys.push(cell.entityId);
+                        if (cell.id) keys.push(cell.id);
+                        if (cell.label) keys.push(cell.label);
+                        keys.forEach(k => { if (k && !idToIndex.has(k)) idToIndex.set(k, idx); });
+                    });
+
+                    // Default connectionism + explicit relations
+                    const edges = [];
+                    grid.forEach((cell, idx) => {
+                        if (!cell) return;
+                        const r = Math.floor(idx / 9);
+                        const c = idx % 9;
+
+                        // Explicit relations from LEGOS meta if present
+                        const rels = (cell.meta && Array.isArray(cell.meta.relations))
+                            ? cell.meta.relations
+                            : (Array.isArray(cell.relations) ? cell.relations : []);
+                        rels.forEach(rel => {
+                            if (!rel) return;
+                            const key = rel.targetId || rel.entityId || rel.id || rel.label || rel.target;
+                            if (!key) return;
+                            const tIdx = idToIndex.get(key);
+                            if (tIdx == null || tIdx === idx) return;
+                            edges.push({ from: idx, to: tIdx });
+                        });
+
+                        // 8-neighborhood connectionism
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                const nr = r + dr;
+                                const nc = c + dc;
+                                if (nr < 0 || nr > 8 || nc < 0 || nc > 8) continue;
+                                const nIdx = nr * 9 + nc;
+                                if (!grid[nIdx]) continue;
+                                edges.push({ from: idx, to: nIdx });
+                            }
+                        }
+                    });
+
+                    const seen = new Set();
+                    APP.STATE.D2 = [];
+                    edges.forEach(e => {
+                        const key = `${e.from}->${e.to}`;
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        APP.STATE.D2.push(e);
+                    });
+
+                    // Fill deps/callers from edges
+                    APP.STATE.D1.forEach(b => { if (b) { b.deps = []; b.callers = []; } });
+                    APP.STATE.D2.forEach(e => {
+                        const fromB = APP.STATE.D1[e.from];
+                        const toB = APP.STATE.D1[e.to];
+                        if (!fromB || !toB) return;
+                        fromB.deps.push(e.to);
+                        toB.callers.push(e.from);
+                    });
+                    APP.STATE.D1.forEach(b => {
+                        if (b) {
+                            b.deps = [...new Set(b.deps)];
+                            b.callers = [...new Set(b.callers)];
+                        }
+                    });
+
+                    // If ingestMode is summary, show compact summary in editor.
+                    // If ingestMode is json, we already populated D0/editor in loadFromJson.
+                    if (APP.STATE.ingestMode === 'summary') {
+                        APP.STATE.D0 = lines;
+                        APP.STATE.D8.editor.value = APP.STATE.D0.join('\n');
+                    }
+                    APP.RENDERER.renderAll();
+
+                    if (coreIdx >= 0) {
+                        APP.NAV.focus.set(coreIdx);
+                    } else {
+                        APP.NAV.xray.clear();
+                    }
+
+                    console.log('[LEGOS] Scene loaded into ONYX Abs from SceneCollection.');
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C1 ── Parser Engine ──
+            // ── OLOG 1: Feature F1.1:LiveCodeSync (parse) ──
+            PARSER: {
+                // MORPHISM M0_PARSE: void → rebuilds D0-D4
+                parse: function () {
+                    console.log('[M0_PARSE] Initiating parse cycle');
+                    const lines = APP.STATE.D0;
+                    APP.STATE.D1 = new Array(81).fill(null);
+                    APP.STATE.D2 = [];
+                    APP.STATE.D3 = {};
+                    APP.STATE.D4 = [];
+                    let scopeStack = [];
+                    const lpc = Math.ceil(lines.length / 81);
+
+                    // M1_EXTRACT_SYMBOLS: Extract type/name from line
+                    lines.forEach((line, i) => {
+                        const trim = line.trim();
+                        if (!trim) return;
+                        const cellIdx = Math.floor(i / lpc);
+                        let type = null, name = null;
+
+                        const fn = trim.match(/(?:function|class)\s+(\w+)|(\w+)\s*\(/);
+                        if (fn && !trim.includes('=')) { type = 'function'; name = fn[1] || fn[2]; }
+
+                        const vr = trim.match(/(?:const|let|var)\s+(\w+)/);
+                        if (vr && !type) { type = 'variable'; name = vr[1]; }
+
+                        const tag = trim.match(/^<(\w+)/);
+                        if (tag && !type) { type = 'tag'; name = tag[1].toUpperCase(); }
+
+                        // M3_TRACK_SCOPES: Build scope hierarchy
+                        if (trim.includes('{')) {
+                            let scopeName = name || (scopeStack.length ? scopeStack[scopeStack.length - 1].name : 'ROOT');
+                            scopeStack.push({ start: i, name: scopeName });
+                        }
+                        if (trim.includes('}')) {
+                            if (scopeStack.length) {
+                                let s = scopeStack.pop();
+                                s.end = i;
+                                APP.STATE.D4.push(s);
+                            }
+                        }
+
+                        // D1 population with priority resolution (OLOG 1 F2.2)
+                        if (type && name) {
+                            const pri = type === 'function' ? 4 : type === 'variable' ? 3 : 2;
+                            if (!APP.STATE.D1[cellIdx] || APP.STATE.D1[cellIdx].pri < pri) {
+                                APP.STATE.D1[cellIdx] = {
+                                    idx: cellIdx, type, name, line: i, pri,
+                                    deps: [], callers: [] // D2 vectors
+                                };
+                                APP.STATE.D3[name] = cellIdx; // D3 mapping
+                            }
+                        }
+                    });
+
+                    // M2_BUILD_DEPS: Construct dependency graph
+                    lines.forEach((line, i) => {
+                        const fromIdx = Math.floor(i / lpc);
+                        const matches = line.trim().matchAll(/(\w+)/g);
+                        for (const m of matches) {
+                            const target = m[1];
+                            const toIdx = APP.STATE.D3[target];
+                            if (toIdx !== undefined && toIdx !== fromIdx && APP.STATE.D1[fromIdx]) {
+                                APP.STATE.D2.push({ from: fromIdx, to: toIdx });
+                                APP.STATE.D1[fromIdx].deps.push(toIdx);
+                                if (APP.STATE.D1[toIdx]) APP.STATE.D1[toIdx].callers.push(fromIdx);
+                            }
+                        }
+                    });
+
+                    // Deduplication (OLOG 1 F2.2)
+                    APP.STATE.D1.forEach(b => {
+                        if (b) {
+                            b.deps = [...new Set(b.deps)];
+                            b.callers = [...new Set(b.callers)];
+                        }
+                    });
+
+                    console.log('[M0_PARSE] Complete. Blocks:', APP.STATE.D1.filter(b => b).length);
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C2 ── Renderer Engine ──
+            // ── OLOG 1: ENTITY E1.C1.2 (Renderer aspect) ──
+            RENDERER: {
+                // M4_RENDER_CODE: DOM render of D0
+                renderCode: function () {
+                    const visual = APP.STATE.D8.visual;
+                    visual.innerHTML = '';
+                    const lpc = Math.ceil(APP.STATE.D0.length / 81);
+
+                    APP.STATE.D0.forEach((l, i) => {
+                        const div = document.createElement('div');
+                        div.className = 'line';
+                        div.id = `L${i}`;
+
+                        // M5_SYNTAX_HIGHLIGHT: Regex token coloring
+                        let html = l.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                            .replace(/(function|class|const|let|var|if|return|for|while)/g, '<span class="kwd">$1</span>')
+                            .replace(/([a-zA-Z0-9_]+)\(/g, '<span class="var">$1</span>(')
+                            .replace(/(\/\/.*)/g, '<span class="com">$1</span>');
+
+                        // Definition highlighting (OLOG 1 M3.2.1)
+                        const mapItem = APP.STATE.D1[Math.floor(i / lpc)];
+                        if (mapItem && mapItem.name && l.includes(mapItem.name)) {
+                            html = html.replace(mapItem.name, `<span class="def">${mapItem.name}</span>`);
+                        }
+
+                        div.innerHTML = `<span class="ln">${i}</span><span class="code-text">${html}</span>`;
+                        div.onclick = (e) => APP.NAV.focus.set(Math.floor(i / lpc));
+                        visual.appendChild(div);
+                    });
+
+                    // M7_RENDER_MINIMAP: Canvas bitmap generation
+                    this.renderMinimap();
+                },
+
+                // M9_RENDER_BLOCKS: 9×9 grid from D1
+                renderGrid: function () {
+                    const grid = APP.STATE.D8.grid;
+                    grid.innerHTML = '';
+
+                    APP.STATE.D1.forEach((d, i) => {
+                        const cell = document.createElement('div');
+                        cell.className = 'block';
+                        cell.dataset.ologId = `E3:Block:${i}`;
+
+                        if (d) {
+                            // M3.1.1: Icon selection
+                            let icon = d.type === 'function' ? 'ƒ' : d.type === 'tag' ? '<>' : '=';
+                            cell.innerHTML = `<div class="port in"></div><div class="block-icon">${icon}</div><div class="block-label">${d.name}</div><div class="port out"></div>`;
+                            cell.setAttribute('data-type', d.type); // OLOG 1 M3.1.2
+                        } else {
+                            cell.style.opacity = '0.05'; cell.innerHTML = '·';
+                        }
+
+                        // M3.5.1: Hover xray when no active focus
+                        cell.onmouseenter = () => { if (APP.STATE.D5 === null) APP.NAV.xray.transient(i); };
+                        // M3.5.2: Click to lock focus
+                        cell.onclick = (e) => { e.stopPropagation(); APP.NAV.focus.toggle(i); };
+                        grid.appendChild(cell);
+                    });
+
+                    this.drawWires();
+                },
+
+                // M16_DRAW_WIRES: SVG path generation
+                drawWires: function () {
+                    const wires = APP.STATE.D8.wires;
+                    wires.innerHTML = '';
+                    const rect = APP.STATE.D8.lock.getBoundingClientRect();
+                    if (rect.width === 0) return;
+
+                    const cw = rect.width / 9; const ch = rect.height / 9;
+                    const unique = [...new Set(APP.STATE.D2.map(JSON.stringify))].map(JSON.parse);
+
+                    unique.forEach(e => {
+                        const fromEl = APP.STATE.D8.grid.children[e.from];
+                        const toEl = APP.STATE.D8.grid.children[e.to];
+                        if (!fromEl || !toEl) return;
+
+                        const r1 = fromEl.getBoundingClientRect(); const r2 = toEl.getBoundingClientRect();
+                        const x1 = (r1.left - rect.left) + r1.width / 2, y1 = (r1.bottom - rect.top) - 2;
+                        const x2 = (r2.left - rect.left) + r2.width / 2, y2 = (r2.top - rect.top) + 2;
+
+                        // M17_COMPUTE_PATHS: Cubic bezier
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${y1 + 20}, ${x2} ${y2 - 20}, ${x2} ${y2}`);
+                        path.setAttribute("class", "cable");
+                        path.dataset.from = e.from; path.dataset.to = e.to;
+                        wires.appendChild(path);
+                    });
+                },
+
+                // M7_RENDER_MINIMAP: Canvas drawing
+                renderMinimap: function () {
+                    const canvas = APP.STATE.D8.mm;
+                    const ctx = canvas.getContext('2d');
+                    const rect = canvas.getBoundingClientRect();
+                    const dpr = window.devicePixelRatio || 1;
+                    canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+                    ctx.scale(dpr, dpr);
+                    const lh = rect.height / APP.STATE.D0.length;
+
+                    // Clear canvas
+                    ctx.fillStyle = 'transparent'; ctx.fillRect(0, 0, rect.width, rect.height);
+
+                    APP.STATE.D0.forEach((line, i) => {
+                        if (!line.trim()) return;
+                        const indent = line.search(/\S|$/);
+                        const len = Math.min(rect.width, line.trim().length * 2);
+                        let color = getComputedStyle(document.body).getPropertyValue('--border').trim();
+
+                        const m = APP.STATE.D1[Math.floor(i / Math.ceil(APP.STATE.D0.length / 81))];
+                        if (m) {
+                            if (m.type === 'function') color = getComputedStyle(document.body).getPropertyValue('--func').trim();
+                            else if (m.type === 'variable') color = getComputedStyle(document.body).getPropertyValue('--var').trim();
+                        }
+
+                        ctx.fillStyle = color;
+                        ctx.fillRect(indent * 2, i * lh, len, Math.max(1, lh));
+                    });
+
+                    // M8_UPDATE_VIEWPORT: Initial viewport sync
+                    APP.RENDERER.updateMinimapView();
+                },
+
+                // M8_UPDATE_VIEWPORT: Viewport overlay sync
+                updateMinimapView: function () {
+                    const scroller = APP.STATE.D8.scroller;
+                    const mmv = APP.STATE.D8.mmView;
+                    const h = APP.STATE.D8.mm.getBoundingClientRect().height;
+                    const pct = scroller.scrollTop / (scroller.scrollHeight - scroller.clientHeight);
+                    const vh = (scroller.clientHeight / scroller.scrollHeight) * h;
+                    mmv.style.height = `${vh}px`;
+                    mmv.style.top = `${pct * (h - vh)}px`;
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C3 ── UI Subsystem ──
+            // ── OLOG 1: ENTITY E1.C1.3 (Direct Manipulation) ──
+            UI: {
+                // M36_TOGGLE_SIDE, M37_OVERLAY_CTL: Blade modal control
+                blade: {
+                    toggle: function () {
+                        const blade = APP.STATE.D8.sideblade;
+                        const overlay = APP.STATE.D8.overlay;
+                        blade.classList.toggle('open'); // OLOG 1 M8.1.1
+                        overlay.classList.toggle('open'); // OLOG 1 M8.1.2
+                    }
+                },
+
+                // M39_SWITCH_VIEW, M40_UPDATE_BUTTONS: Mode switching
+                mode: {
+                    switch: function (mode) {
+                        const preview = APP.STATE.D8.preview;
+                        const btnCode = document.getElementById('btn-code');
+                        const btnRun = document.getElementById('btn-run');
+
+                        if (mode === 'code') {
+                            APP.STATE.D7 = false;
+                            preview.classList.remove('visible');
+                            btnCode.classList.add('active'); btnRun.classList.remove('active');
+                        } else {
+                            APP.STATE.D7 = true;
+                            const blob = new Blob([APP.STATE.D8.editor.value], { type: 'text/html' });
+                            preview.src = URL.createObjectURL(blob);
+                            preview.classList.add('visible');
+                            btnRun.classList.add('active'); btnCode.classList.remove('active');
+                        }
+                        console.log('[M25_SET_MODE] Preview mode:', APP.STATE.D7);
+                    }
+                },
+
+                // M0.1.1: Theme mutation
+                theme: {
+                    set: function (theme) {
+                        document.documentElement.setAttribute('data-theme', theme);
+                        setTimeout(() => APP.RENDERER.renderMinimap(), 100); // Re-render for colors
+                        console.log('[M0.1.1] Theme set to:', theme);
+                    }
+                },
+
+                // Convenience: load demo LEGOS multi-channel JSON from same directory
+                loadDemo: function () {
+                    const url = 'legos-multi-channel-1764651203785.json';
+                    console.log('[ONYX-ABS] Loading demo JSON from', url);
+                    fetch(url)
+                        .then(function (res) {
+                            if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+                            return res.json();
+                        })
+                        .then(function (data) {
+                            try {
+                                APP.LEGOS.loadFromJson(data);
+                                console.log('[ONYX-ABS] Demo JSON loaded into ONYX Abs + SceneCollection');
+                            } catch (e) {
+                                console.error('[ONYX-ABS] Failed to load demo JSON into ONYX Abs:', e);
+                            }
+                        })
+                        .catch(function (err) {
+                            console.error('[ONYX-ABS] Failed to fetch demo JSON:', err);
+                        });
+                },
+
+                // Load scenario seeds from scenario-seeds.json and convert to ONYX nodes
+                loadScenarioSeeds: function () {
+                    const url = 'scenario-seeds.json';
+                    console.log('[ONYX-ABS] Loading scenario seeds from', url);
+                    fetch(url)
+                        .then(function (res) {
+                            if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+                            return res.json();
+                        })
+                        .then(function (data) {
+                            // Convert scenario seeds to ONYX-compatible structure
+                            const scenes = [];
+                            const STAGE_COLORS = {
+                                GROUND: '#3b82f6',
+                                SITE: '#10b981',
+                                SKY: '#f97316',
+                                PERSPECTIVE: '#ef4444'
+                            };
+
+                            // Create category nodes as parents
+                            const categoryNodes = {};
+                            let y = 0;
+                            Object.entries(data.categories).forEach(function ([catId, cat]) {
+                                const catNode = {
+                                    id: 'cat_' + catId,
+                                    label: catId,
+                                    type: 'category',
+                                    stage: cat.stage,
+                                    color: STAGE_COLORS[cat.stage] || '#a855f7',
+                                    x: 100,
+                                    y: y,
+                                    children: []
+                                };
+                                categoryNodes[catId] = catNode;
+                                scenes.push(catNode);
+                                y += 200;
+                            });
+
+                            // Create scenario nodes
+                            Object.values(data.scenarios).forEach(function (s) {
+                                const catNode = categoryNodes[s.category];
+                                if (!catNode) return;
+
+                                const node = {
+                                    id: 'scenario_' + s.id,
+                                    label: s.name,
+                                    symbol: s.symbol,
+                                    type: 'scenario',
+                                    role: s.role,
+                                    goal: s.goal,
+                                    obstacle: s.obstacle,
+                                    stage: s.stage,
+                                    category: s.category,
+                                    color: STAGE_COLORS[s.stage] || '#a855f7',
+                                    x: catNode.x + 250,
+                                    y: catNode.y + (catNode.children.length * 60),
+                                    parent: catNode.id
+                                };
+                                catNode.children.push(node.id);
+                                scenes.push(node);
+                            });
+
+                            // Load into ONYX
+                            const payload = { scenes: scenes };
+                            APP.LEGOS.loadFromJson(payload);
+                            console.log('[ONYX-ABS] Loaded', scenes.length, 'scenario seed nodes');
+                        })
+                        .catch(function (err) {
+                            console.error('[ONYX-ABS] Failed to fetch scenario seeds:', err);
+                            alert('Failed to load scenario-seeds.json. Run via local server (npx serve .)');
+                        });
+                },
+
+                // M33_INGEST_CODE: Reality replacement / LEGOS ingest
+                ingest: function () {
+                    const v = document.getElementById('paste-input').value;
+                    const trimmed = v.trim();
+                    if (!trimmed) return;
+
+                    // Try LEGOS multi-channel or SceneCollection JSON first
+                    let asJson = null;
+                    try {
+                        asJson = JSON.parse(trimmed);
+                    } catch (e) {
+                        asJson = null;
+                    }
+
+                    if (asJson && (Array.isArray(asJson.channels) || Array.isArray(asJson.scenes))) {
+                        try {
+                            APP.LEGOS.loadFromJson(asJson);
+                            this.blade.toggle();
+                            console.log('[M33_INGEST_CODE] Loaded LEGOS/SceneCollection into ONYX Abs');
+                            return;
+                        } catch (e) {
+                            console.error('[LEGOS] Failed to load JSON into ONYX Abs:', e);
+                        }
+                    }
+
+                    // Fallback: treat as raw code/text and rebuild ancestry graph
+                    APP.STATE.D0 = v.split('\n');
+                    APP.STATE.D8.editor.value = v;
+                    APP.STATE.D5 = null; // Reset focus
+                    APP.PARSER.parse();
+                    APP.RENDERER.renderAll();
+                    this.blade.toggle();
+                    console.log('[M35_REBOOT] Reality replaced from text');
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C4 ── Navigation System ──
+            // ── OLOG 1: Feature F3.5 (InteractiveStateMachine) ──
+            NAV: {
+                // M45_BLOCK_CLICK, M46_LINE_CLICK: Unified focus setting
+                focus: {
+                    set: function (idx) {
+                        APP.STATE.D5 = idx;
+                        APP.NAV.xray.explicit(idx);
+                        APP.NAV.scroll.toLine(idx * Math.ceil(APP.STATE.D0.length / 81));
+                        console.log('[M45_BLOCK_CLICK] Focus locked on:', idx);
+                    },
+                    toggle: function (idx) {
+                        APP.STATE.D5 = (APP.STATE.D5 === idx) ? null : idx;
+                        if (APP.STATE.D5 !== null) this.set(idx);
+                        else {
+                            APP.NAV.xray.clear();
+                            console.log('[M45_BLOCK_CLICK] Focus released');
+                        }
+                    }
+                },
+
+                // M12_XRAY, M13_MUTE_BLOCKS, M14_HIGHLIGHT_PATHS, M15_UPDATE_NAV
+                xray: {
+                    explicit: function (idx) {
+                        // Clear all
+                        document.querySelectorAll('.block').forEach(b => b.className = 'block');
+                        document.querySelectorAll('.cable').forEach(w => { w.className = 'cable'; w.style.opacity = '0.05'; });
+                        document.querySelectorAll('.line').forEach(l => l.className = 'line');
+
+                        if (idx === null || !APP.STATE.D1[idx]) {
+                            document.querySelectorAll('.block').forEach(b => b.classList.remove('muted'));
+                            document.querySelectorAll('.cable').forEach(w => w.style.opacity = '0.3');
+                            this.updateHUD(null);
+                            APP.RENDERER.updateBranch(null);
+                            return;
+                        }
+
+                        const root = APP.STATE.D1[idx];
+                        const lpc = Math.ceil(APP.STATE.D0.length / 81);
+
+                        // Mute all
+                        document.querySelectorAll('.block').forEach(b => b.classList.add('muted'));
+
+                        // Focus root
+                        const el = APP.STATE.D8.grid.children[idx];
+                        el.classList.remove('muted'); el.classList.add('focus');
+                        for (let i = idx * lpc; i < (idx + 1) * lpc; i++)
+                            document.getElementById(`L${i}`)?.classList.add('active');
+
+                        // Upstream (callers)
+                        root.callers.forEach(c => {
+                            const cel = APP.STATE.D8.grid.children[c];
+                            if (cel) { cel.classList.remove('muted'); cel.classList.add('up'); }
+                            const w = document.querySelector(`path[data-from="${c}"][data-to="${idx}"]`);
+                            if (w) { w.className = 'cable active up'; w.style.opacity = '1'; }
+                            document.getElementById(`L${c * lpc}`)?.classList.add('up');
+                        });
+
+                        // Downstream (deps)
+                        root.deps.forEach(d => {
+                            const cel = APP.STATE.D8.grid.children[d];
+                            if (cel) { cel.classList.remove('muted'); cel.classList.add('down'); }
+                            const w = document.querySelector(`path[data-from="${idx}"][data-to="${d}"]`);
+                            if (w) { w.className = 'cable active down'; w.style.opacity = '1'; }
+                            document.getElementById(`L${d * lpc}`)?.classList.add('down');
+                        });
+
+                        APP.NAV.updateHUD(root);
+                        APP.RENDERER.updateBranch(root);
+                    },
+
+                    transient: function (idx) {
+                        if (APP.STATE.D5 === null) this.explicit(idx);
+                    },
+
+                    clear: function () {
+                        this.explicit(null);
+                    }
+                },
+
+                // M15_UPDATE_NAV: Chips for callers/deps
+                updateHUD: function (data) {
+                    const navUp = APP.STATE.D8.navUp;
+                    const navDown = APP.STATE.D8.navDown;
+                    navUp.innerHTML = ''; navDown.innerHTML = '';
+                    if (!data) { APP.STATE.D8.navFocus.innerText = "--"; return; }
+
+                    APP.STATE.D8.navFocus.innerText = data.name;
+
+                    const mkChip = (idx, cls) => {
+                        const b = APP.STATE.D1[idx]; if (!b) return null;
+                        const c = document.createElement('div');
+                        c.className = `chip ${cls}`;
+                        c.innerText = b.name;
+                        c.onclick = (e) => { e.stopPropagation(); APP.NAV.focus.set(idx); };
+                        return c;
+                    };
+
+                    data.callers.forEach(c => { const el = mkChip(c, 'up'); if (el) navUp.appendChild(el); });
+                    data.deps.forEach(d => { const el = mkChip(d, 'down'); if (el) navDown.appendChild(el); });
+                },
+
+                // M22_SCROLL_TO_LINE, M23_CALC_OFFSET, M24_SMOOTH_SCROLL
+                scroll: {
+                    toLine: function (idx) {
+                        const offset = APP.NAV.scroll.calculate(idx) - 100;
+                        APP.STATE.D8.scroller.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+                        console.log('[M22_SCROLL_TO_LINE] Scrolling to line:', idx);
+                    },
+                    calculate: function (lineIdx) {
+                        return lineIdx * 20; // var(--lh) = 20px
+                    }
+                },
+
+                // M19_UPDATE_BRANCH, M20_BUILD_PATH: Breadcrumb generation
+                branch: {
+                    update: function (data) {
+                        const bar = APP.STATE.D8.branch;
+                        if (!data) { bar.innerHTML = '<span class="branch-node">ROOT</span>'; return; }
+
+                        const path = ['ROOT'];
+                        const line = data.line;
+
+                        APP.STATE.D4.forEach(s => {
+                            if (line >= s.start && line <= s.end) {
+                                const match = APP.STATE.D0[s.start].match(/(?:class|function)\s+(\w+)/);
+                                if (match) path.push(match[1].toUpperCase());
+                            }
+                        });
+                        path.push(data.name.toUpperCase());
+
+                        bar.innerHTML = path.map(p => `<span class="branch-node">${p}</span>`).join('<span class="branch-sep"> > </span>');
+                    }
+                },
+
+                // M28_TOGGLE_AUTO, M29_CYCLE_BLOCKS, M30_INTERVAL_CTL
+                autoplay: {
+                    toggle: function () {
+                        const btn = document.querySelector('.btn.autoplay');
+                        const indicator = document.getElementById('autoplay-indicator');
+                        if (APP.STATE.D6) {
+                            clearInterval(APP.STATE.D6);
+                            APP.STATE.D6 = null;
+                            btn.classList.remove('active');
+                            indicator.classList.remove('active');
+                            console.log('[M30_INTERVAL_CTL] Autoplay stopped');
+                        } else {
+                            APP.STATE.D6 = setInterval(() => this.cycle(), 1000);
+                            btn.classList.add('active');
+                            indicator.classList.add('active');
+                            console.log('[M30_INTERVAL_CTL] Autoplay started');
+                        }
+                    },
+
+                    cycle: function () {
+                        const blocks = APP.STATE.D1.map((b, i) => b ? i : null).filter(i => i !== null);
+                        if (!blocks.length) return;
+                        const current = APP.STATE.D5 || blocks[0];
+                        const nextIdx = blocks[(blocks.indexOf(current) + 1) % blocks.length];
+                        APP.NAV.focus.set(nextIdx);
+                        console.log('[M29_CYCLE_BLOCKS] Cycled to:', nextIdx);
+                    }
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C5 ── Event System ──
+            EVENT: {
+                // Central dispatcher for all events (OLOG 1 implicit, OLOG 2 explicit)
+                init: function () {
+                    // EVT0: Input from editor
+                    APP.STATE.D8.editor.addEventListener('input', () => {
+                        APP.STATE.D0 = APP.STATE.D8.editor.value.split('\n');
+                        setTimeout(() => {
+                            APP.PARSER.parse();
+                            APP.RENDERER.renderAll();
+                        }, 500);
+                    });
+
+                    // EVT1: Scroll sync
+                    APP.STATE.D8.scroller.addEventListener('scroll', () => {
+                        APP.RENDERER.updateMinimapView();
+                    });
+
+                    // EVT4: Minimap click
+                    APP.STATE.D8.mm.addEventListener('click', (e) => {
+                        const rect = e.target.getBoundingClientRect();
+                        const pct = e.offsetY / rect.height;
+                        const line = Math.floor(pct * APP.STATE.D0.length);
+                        APP.NAV.scroll.toLine(line);
+                    });
+
+                    // EVT2: Resize
+                    new ResizeObserver(() => {
+                        APP.RENDERER.drawWires();
+                        APP.RENDERER.renderMinimap();
+                    }).observe(APP.STATE.D8.lock);
+
+                    console.log('[E0.C5:EVENT] Event system initialized');
+                }
+            },
+
+            // ── OLOG 2: ENTITY E0.C6 ── Live Reload System ──
+            // ── OLOG 1: Entity E9 (LiveReload) ── C9.1:WebSocketChannel ──
+            LIVERELOAD: {
+                // M48_CONNECT_WS, M49_HANDLE_MSG, M50_REFRESH_CSS: Injected by live-server
+                connect: function () {
+                    // Skip WebSocket for file:// protocol or missing host
+                    if (!('WebSocket' in window) || !window.location.host) {
+                        console.log('[M48_CONNECT_WS] Skipped (no host or file:// protocol)');
+                        return;
+                    }
+                    try {
+                        const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
+                        const address = protocol + window.location.host + '/ws';
+                        const socket = new WebSocket(address);
+                        socket.onmessage = function (msg) {
+                            if (msg.data === 'reload') window.location.reload();
+                            else if (msg.data === 'refreshcss') {
+                                // M50_REFRESH_CSS: Refresh CSS links
+                                document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+                                    const url = link.href.replace(/(&|\?)_cacheOverride=\d+/, '');
+                                    link.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
+                                });
+                            }
+                        };
+                        socket.onerror = function () { /* silent fail */ };
+                        console.log('[M48_CONNECT_WS] Live reload enabled');
+                    } catch (e) {
+                        console.log('[M48_CONNECT_WS] WebSocket unavailable');
+                    }
+                }()
+            },
+
+            // ── BOOTSTRAP ──
+            init: function () {
+                console.log('── FORENSIC RECONSTRUCTION BOOT ──');
+
+                // ── DOM REGISTRY: OLOG 1 C1.2, OLOG 2 D8 ──
+                APP.STATE.D8 = {
+                    grid: document.getElementById('grid'),
+                    wires: document.getElementById('wires'),
+                    visual: document.getElementById('visual-layer'),
+                    editor: document.getElementById('code-editor'),
+                    scroller: document.getElementById('scroller'),
+                    mm: document.getElementById('minimap'),
+                    mmView: document.getElementById('mm-view'),
+                    lock: document.getElementById('grid-lock'),
+                    preview: document.getElementById('preview-frame'),
+                    branch: document.getElementById('branch-bar'),
+                    navFocus: document.getElementById('nav-focus'),
+                    navUp: document.getElementById('nav-up'),
+                    navDown: document.getElementById('nav-down'),
+                    sideblade: document.getElementById('sideblade'),
+                    overlay: document.getElementById('overlay'),
+                    navDeck: document.querySelector('.nav-deck'),
+                    scenePicker: document.getElementById('scene-picker')
+                };
+
+                // ── RENDER ALL WRAPPER ──
+                APP.RENDERER.renderAll = function () {
+                    this.renderGrid();
+                    this.renderCode();
+                    this.drawWires();
+                };
+
+                const picker = APP.STATE.D8.scenePicker;
+                if (picker) {
+                    picker.addEventListener('change', () => {
+                        const idx = parseInt(picker.value, 10);
+                        APP.LEGOS.setScene(idx);
+                    });
+                }
+
+                // ── INITIAL STATE ──
+                let hydratedFromScenes = false;
+                try {
+                    const raw = localStorage.getItem('onyx_scene_collection');
+                    if (raw) {
+                        const col = JSON.parse(raw);
+                        if (col && Array.isArray(col.scenes) && col.scenes.length) {
+                            APP.LEGOS.loadFromJson(col);
+                            hydratedFromScenes = true;
+                            console.log('[ABS] Hydrated from existing SceneCollection');
+                        }
+                    }
+                } catch (e) {
+                    console.error('[ABS] Failed to hydrate from SceneCollection:', e);
+                }
+
+                if (!hydratedFromScenes) {
+                    // Default: parse our own HTML as ancestry graph
+                    APP.STATE.D0 = document.documentElement.outerHTML.split('\n');
+                    APP.STATE.D8.editor.value = APP.STATE.D0.join('\n');
+                    APP.PARSER.parse();
+                    APP.RENDERER.renderAll();
+                }
+
+                // ── EVENT SYSTEM: OLOG 1 implicit, OLOG 2 E0.C5 ──
+                APP.EVENT.init();
+
+                // ── INITIAL LOG ──
+                console.log('APP.STATE:', APP.STATE);
+                console.log('Entities loaded:', Object.keys(APP));
+                console.log('─ FORENSIC ANCESTRY COMPLETE ─');
+            }
+        };
+
+        // ── GLOBAL BOOT ──
+        APP.init();
+    </script>
+</body>
+
+</html>

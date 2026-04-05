@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Spotlight Consciousness: a focused reading interface inspired by Alison Gopnik's attentional theory, using Pretext for JS-driven text layout.">
+  <title>Spotlight Consciousness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+
+    :root {
+      color-scheme: dark;
+      --bg: #0a0908;
+      --vignette: rgba(0,0,0,0.92);
+      --column-bg: #12110f;
+      --ink: #e8e0d4;
+      --muted: #8a7f72;
+      --accent: #d4a056;
+      --accent-glow: rgba(212,160,86,0.12);
+      --focus-ring: rgba(212,160,86,0.35);
+      --column-width: 580px;
+      --line-height: 30px;
+      --font-size: 18px;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    body {
+      font-family: 'EB Garamond', Georgia, 'Times New Roman', serif;
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* Vignette overlay — darkened periphery */
+    .vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      background:
+        radial-gradient(ellipse 50% 50% at 50% 50%, transparent 0%, var(--vignette) 100%);
+      opacity: 0.7;
+      transition: opacity 600ms ease;
+    }
+
+    .vignette--deep {
+      opacity: 0.88;
+    }
+
+    /* Top bar */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: linear-gradient(180deg, rgba(10,9,8,0.96) 0%, rgba(10,9,8,0) 100%);
+      pointer-events: none;
+    }
+
+    .topbar > * { pointer-events: auto; }
+
+    .mode-label {
+      font: 500 11px/1 'Inter', sans-serif;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      animation: pulse-dot 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Focus depth meter */
+    .focus-meter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font: 500 11px/1 'Inter', sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .meter-bar {
+      width: 80px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(138,127,114,0.2);
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent), #e8c88a);
+      transition: width 400ms ease;
+    }
+
+    /* Main reading column */
+    .page {
+      position: relative;
+      z-index: 5;
+      max-width: var(--column-width);
+      margin: 0 auto;
+      padding: 100px 24px 120px;
+    }
+
+    /* Title block */
+    .title-block {
+      text-align: center;
+      margin-bottom: 56px;
+      opacity: 0;
+      animation: fade-in 1.2s ease 0.3s forwards;
+    }
+
+    @keyframes fade-in {
+      to { opacity: 1; }
+    }
+
+    .title-eyebrow {
+      font: 500 11px/1 'Inter', sans-serif;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .title-main {
+      font: 500 38px/1.15 'EB Garamond', serif;
+      color: var(--ink);
+      margin-bottom: 12px;
+    }
+
+    .title-author {
+      font: italic 400 20px/1.4 'EB Garamond', serif;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .title-source {
+      font: 400 13px/1.4 'Inter', sans-serif;
+      color: rgba(138,127,114,0.6);
+    }
+
+    .divider {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      margin: 32px auto;
+    }
+
+    /* Reading body — lines rendered by pretext */
+    .reading-body {
+      position: relative;
+      width: 100%;
+      opacity: 0;
+      animation: fade-in 1.2s ease 0.8s forwards;
+    }
+
+    .reading-line {
+      position: absolute;
+      left: 0;
+      white-space: pre;
+      font: 400 var(--font-size)/1 'EB Garamond', Georgia, serif;
+      color: var(--ink);
+      letter-spacing: 0.005em;
+      transition: opacity 300ms ease, color 300ms ease;
+      cursor: text;
+      user-select: text;
+    }
+
+    .reading-line--dim {
+      opacity: 0.22;
+      color: var(--muted);
+    }
+
+    .reading-line--near {
+      opacity: 0.55;
+    }
+
+    .reading-line--focus {
+      opacity: 1;
+      color: var(--ink);
+    }
+
+    /* Reading progress */
+    .progress-track {
+      position: fixed;
+      right: 28px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 200px;
+      border-radius: 2px;
+      background: rgba(138,127,114,0.12);
+      z-index: 20;
+    }
+
+    .progress-thumb {
+      position: absolute;
+      top: 0;
+      left: -2px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+      transition: top 200ms ease;
+    }
+
+    /* Paragraph separator */
+    .para-gap {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 1px;
+      background: rgba(212,160,86,0.15);
+    }
+
+    /* Controls */
+    .controls {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      background: rgba(18,17,15,0.92);
+      border: 1px solid rgba(138,127,114,0.15);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    .controls label {
+      font: 500 10px/1 'Inter', sans-serif;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .controls input[type="range"] {
+      width: 120px;
+      accent-color: var(--accent);
+    }
+
+    .controls .val {
+      font: 600 11px/1 'Inter', sans-serif;
+      color: var(--accent);
+      min-width: 42px;
+      text-align: right;
+    }
+
+    .focus-toggle {
+      padding: 6px 14px;
+      border: 1px solid rgba(212,160,86,0.3);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--accent);
+      font: 600 10px/1 'Inter', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 200ms ease, border-color 200ms ease;
+      white-space: nowrap;
+    }
+
+    .focus-toggle:hover {
+      background: rgba(212,160,86,0.1);
+      border-color: var(--accent);
+    }
+
+    .focus-toggle--active {
+      background: rgba(212,160,86,0.15);
+      border-color: var(--accent);
+    }
+
+    @media (max-width: 680px) {
+      :root {
+        --column-width: 100%;
+        --font-size: 17px;
+        --line-height: 28px;
+      }
+      .page { padding: 80px 18px 100px; }
+      .title-main { font-size: 30px; }
+      .progress-track { display: none; }
+      .controls { gap: 10px; padding: 8px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="vignette" id="vignette"></div>
+
+  <div class="topbar">
+    <div class="mode-label">
+      <span class="mode-dot"></span>
+      Spotlight Consciousness
+    </div>
+    <div class="focus-meter">
+      <span>Focus Depth</span>
+      <div class="meter-bar"><div class="meter-fill" id="meter-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="progress-track" id="progress-track">
+    <div class="progress-thumb" id="progress-thumb"></div>
+  </div>
+
+  <main class="page" id="page">
+    <header class="title-block">
+      <p class="title-eyebrow">Reading Mode · Spotlight</p>
+      <h1 class="title-main">Preface</h1>
+      <p class="title-author">Clifford Geertz</p>
+      <p class="title-source">Available Light: Anthropological Reflections on Philosophical Topics</p>
+      <div class="divider"></div>
+    </header>
+
+    <div class="reading-body" id="reading-body"></div>
+  </main>
+
+  <div class="controls" id="controls">
+    <label>Column</label>
+    <input id="width-slider" type="range" min="320" max="680" value="530">
+    <span class="val" id="width-value">530px</span>
+    <button class="focus-toggle" id="focus-toggle">Deep Focus</button>
+  </div>
+
+  <script type="module" src="./spotlight.ts"></script>
+</body>
+</html>

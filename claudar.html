@@ -1,0 +1,1491 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="ORCA BAT-MIND — echolocation as cognition">
+    <title>ORCA // BAT-MIND</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@200;300;400&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #030202;
+            --amber: #ff8c00;
+            --cyan: #00ffcc;
+            --pink: #e024c3;
+            --ui: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: var(--ui);
+            color: var(--amber);
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Boot */
+        #boot {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            animation: flicker 0.14s infinite alternate;
+            transition: opacity 0.5s;
+        }
+
+        @keyframes flicker {
+            from {
+                opacity: 0.91;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .boot-logo {
+            font-size: 10px;
+            letter-spacing: 8px;
+            color: rgba(255, 140, 0, 0.35);
+        }
+
+        .boot-title {
+            font-size: 28px;
+            letter-spacing: 5px;
+            color: var(--amber);
+            text-align: center;
+            padding: 0 20px;
+            text-shadow: 0 0 40px rgba(255, 140, 0, 0.3);
+        }
+
+        .boot-sub {
+            font-size: 11px;
+            color: rgba(255, 140, 0, 0.45);
+            letter-spacing: 2px;
+            line-height: 2.1;
+            text-align: center;
+        }
+
+        .boot-sub em {
+            font-style: normal;
+            color: var(--cyan);
+        }
+
+        .boot-btn {
+            margin-top: 12px;
+            background: transparent;
+            border: 1px solid rgba(255, 140, 0, 0.55);
+            color: var(--amber);
+            padding: 13px 40px;
+            font-family: var(--ui);
+            font-size: 12px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .boot-btn:hover {
+            background: var(--amber);
+            color: #000;
+            border-color: var(--amber);
+        }
+
+        /* Canvas */
+        #c {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* CRT */
+        .crt {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 90;
+            background:
+                linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.22) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.012), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            opacity: 0.18;
+        }
+
+        /* HUD */
+        .hud {
+            position: fixed;
+            z-index: 200;
+            pointer-events: none;
+            font-size: 10px;
+            letter-spacing: 1.5px;
+        }
+
+        .tl {
+            top: 14px;
+            left: 14px;
+        }
+
+        .tr {
+            top: 14px;
+            right: 14px;
+            text-align: right;
+        }
+
+        .bl {
+            bottom: 14px;
+            left: 14px;
+            right: 140px;
+        }
+
+        .hud-lbl {
+            color: rgba(255, 140, 0, 0.38);
+            font-size: 8px;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+        }
+
+        .hud-val {
+            color: var(--amber);
+            margin-top: 3px;
+            line-height: 1.6;
+        }
+
+        .hud-scan {
+            color: var(--cyan);
+            margin-top: 8px;
+            font-size: 10px;
+            line-height: 1.7;
+            max-width: 280px;
+            white-space: pre-wrap;
+        }
+
+        /* Crosshair */
+        #xhair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 150;
+            font-size: 13px;
+            color: rgba(0, 255, 204, 0.35);
+            transition: color 0.08s, text-shadow 0.08s;
+        }
+
+        #xhair.on {
+            color: rgba(0, 255, 204, 0.9);
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
+        }
+
+        /* Poem UI */
+        #poem {
+            position: fixed;
+            top: 50%;
+            right: 16px;
+            transform: translateY(-50%);
+            z-index: 150;
+            pointer-events: none;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 17px;
+            font-style: italic;
+            font-weight: 300;
+            color: rgba(224, 36, 195, 0.85);
+            text-shadow: 0 0 14px rgba(224, 36, 195, 0.4);
+            text-align: right;
+            line-height: 1.95;
+            max-width: 320px;
+            transition: all 5s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        #poem.complete {
+            top: 50%;
+            right: 50%;
+            transform: translate(50%, -50%);
+            text-align: center;
+            font-size: 22px;
+            max-width: 680px;
+            line-height: 2.3;
+            background: radial-gradient(circle, rgba(3, 2, 2, 0.97) 0%, rgba(3, 2, 2, 0.8) 55%, transparent 100%);
+            padding: 55px 65px;
+            border-radius: 16px;
+        }
+
+        .pline {
+            opacity: 0;
+            animation: fadein 2.8s forwards;
+        }
+
+        #poem.complete .pline {
+            color: var(--cyan);
+            text-shadow: 0 0 20px rgba(0, 255, 204, 0.7);
+            animation: pulseLine 8s infinite alternate;
+        }
+
+        #poem.complete .pline:nth-child(even) {
+            color: #8eff44;
+            text-shadow: 0 0 16px rgba(142, 255, 68, 0.5);
+            animation-delay: 1.8s;
+        }
+
+        @keyframes fadein {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulseLine {
+            0% {
+                filter: hue-rotate(0deg);
+                opacity: 0.8;
+            }
+
+            100% {
+                filter: hue-rotate(55deg);
+                opacity: 1;
+            }
+        }
+
+        /* Minimap */
+        #mm {
+            position: fixed;
+            bottom: 14px;
+            right: 14px;
+            width: 120px;
+            height: 120px;
+            border: 1px solid rgba(255, 140, 0, 0.22);
+            background: rgba(0, 0, 0, 0.78);
+            z-index: 200;
+            image-rendering: pixelated;
+            pointer-events: none;
+        }
+
+        /* Hint */
+        #hint {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            pointer-events: none;
+            font-size: 9px;
+            color: rgba(255, 140, 0, 0.4);
+            letter-spacing: 2px;
+            transition: opacity 3s;
+            white-space: nowrap;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 10px;
+        }
+
+        /* Scan-active vignette */
+        #scan-vfx {
+            position: fixed;
+            inset: 0;
+            z-index: 80;
+            pointer-events: none;
+            background: radial-gradient(circle at center, transparent 40%, rgba(0, 255, 204, 0.035) 100%);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        #scan-vfx.on {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .boot-title {
+                font-size: 20px;
+            }
+
+            #poem {
+                font-size: 13px;
+                right: 8px;
+                left: 8px;
+                text-align: center;
+                max-width: none;
+            }
+
+            #poem.complete {
+                font-size: 15px;
+                padding: 20px;
+                width: 92vw;
+                right: 50%;
+            }
+
+            #mm {
+                width: 80px;
+                height: 80px;
+            }
+
+            .bl {
+                right: 92px;
+                bottom: 8px;
+                left: 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="boot">
+        <div class="boot-logo">ORCA ECHOLOCATION ENGINE v3.0</div>
+        <div class="boot-title">BAT-MIND<br>
+            <span style="font-size:14px;letter-spacing:3px;color:rgba(255,140,0,0.55)">A CAVE OF COGNITION</span>
+        </div>
+        <div class="boot-sub">
+            INITIALIZING SPATIAL AUDIO ARRAY...<br>
+            CALIBRATING PERCEPTUAL GEOMETRY...<br>
+            LOADING SEMANTIC SUBSTRATE...<br>
+            <em>TYPOGRAPHY ENGINE READY</em>
+        </div>
+        <button class="boot-btn" id="boot-btn">Enter the Cave</button>
+    </div>
+
+    <canvas id="c"></canvas>
+    <div class="crt"></div>
+    <div id="scan-vfx"></div>
+    <div id="xhair">+</div>
+
+    <div class="hud tl">
+        <div class="hud-lbl">Surface</div>
+        <div class="hud-val" id="h-zone">UNKNOWN</div>
+    </div>
+    <div class="hud tr">
+        <div class="hud-lbl">Bearing</div>
+        <div class="hud-val" id="h-pos">---</div>
+        <div class="hud-val" id="h-prog" style="margin-top:8px;font-size:9px;color:rgba(255,140,0,0.45)">0 / 13</div>
+    </div>
+    <div class="hud bl">
+        <div class="hud-lbl">Echo Return</div>
+        <div class="hud-scan" id="h-scan">STANDBY — HOLD SCAN TO PULSE</div>
+    </div>
+
+    <div id="poem"></div>
+    <canvas id="mm" width="120" height="120"></canvas>
+    <div id="hint">WASD: MOVE │ MOUSE: LOOK │ HOLD CLICK / SPACE: SCAN</div>
+
+    <script type="module">
+        'use strict';
+        
+        import { prepareWithSegments, layoutNextLine } from './dist/layout.js';
+
+        // ─────────────────────────────────────────────
+        // SETUP
+        // ─────────────────────────────────────────────
+        const C = document.getElementById('c');
+        const ctx = C.getContext('2d', { alpha: false });
+        const MM = document.getElementById('mm');
+        const mCtx = MM.getContext('2d');
+        const poemEl = document.getElementById('poem');
+        const xhairEl = document.getElementById('xhair');
+        const scanVfxEl = document.getElementById('scan-vfx');
+
+        let W = C.width = window.innerWidth;
+        let H = C.height = window.innerHeight;
+        window.addEventListener('resize', () => {
+            W = C.width = window.innerWidth;
+            H = C.height = window.innerHeight;
+            zBuf = new Float32Array(W);
+        });
+
+        const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+        // ─────────────────────────────────────────────
+        // MAP (26×26)
+        // ─────────────────────────────────────────────
+        const MAP = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+        const MW = MAP[0].length, MH = MAP.length;
+
+        // Wall texture corpus via pretext
+        const TEXT_CORPUS = "Mind in its purest play is like some bat That beats about in caverns all alone. Contriving by a kind of senseless wit Not to conclude against a wall of stone. It has no need to falter or explore; Darkly it knows what obstacles are there, And so may weave and flitter, dip and soar In perfect courses through the blackest air. And has this simile a like perfection? The mind is like a bat. Precisely. Save That in the very happiest intellection A graceful error may correct the cave.";
+        const PRETEXT_FONT = "bold 16px 'JetBrains Mono', monospace";
+        const preparedText = prepareWithSegments(TEXT_CORPUS, PRETEXT_FONT);
+        let pretextLines = [];
+        let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+        while (true) {
+            const line = layoutNextLine(preparedText, cursor, 250); 
+            if (!line) break;
+            pretextLines.push(line.text);
+            cursor = line.end;
+        }
+        if (pretextLines.length === 0) pretextLines = ["CAVE//MIND//ECHO//DARK"];
+
+        // ─────────────────────────────────────────────
+        // PLAYER
+        // ─────────────────────────────────────────────
+        const player = {
+            x: 2.5, y: 2.5,
+            dirX: 1.0, dirY: 0.08,
+            planeX: 0.0, planeY: 0.66,
+            moveSpeed: 3.4, rotSpeed: 2.3
+        };
+        (function normalize() {
+            const l = Math.hypot(player.dirX, player.dirY);
+            player.dirX /= l; player.dirY /= l;
+        })();
+
+        // ─────────────────────────────────────────────
+        // POEM SYSTEM
+        // ─────────────────────────────────────────────
+        const POEM = [
+            "Mind in its purest play is like some bat",
+            "That beats about in caverns all alone.",
+            "Contriving by a kind of senseless wit",
+            "Not to conclude against a wall of stone.",
+            "It has no need to falter or explore;",
+            "Darkly it knows what obstacles are there,",
+            "And so may weave and flitter, dip and soar",
+            "In perfect courses through the blackest air.",
+            "And has this simile a like perfection?",
+            "The mind is like a bat.",
+            "Precisely. Save",
+            "That in the very happiest intellection",
+            "A graceful error may correct the cave."
+        ];
+
+        let poemNodes = [];
+        let currentLine = 0;
+        let seqComplete = false;
+
+        // ─────────────────────────────────────────────
+        // RUNTIME STATE
+        // ─────────────────────────────────────────────
+        const keys = { w: false, a: false, s: false, d: false };
+        let isPointerLocked = false;
+        let isScanning = false;
+        let frameCount = 0;
+        let lastTime = 0;
+        let lastBumpTime = 0;
+        let lastBeaconFrame = 0;
+        let lastPassiveBeacon = 0;
+        let zBuf = new Float32Array(W);
+        let scanMap = new Uint8Array(MW * MH); // discovered wall cells
+
+        // Pulse rings (visual echo returns)
+        const pulses = [];
+
+        // Touch state
+        let moveTouchId = null, lookTouchId = null;
+        let moveTouchStart = { x: 0, y: 0 }, moveTouchCurrent = { x: 0, y: 0 };
+        let lastLookX = 0;
+        let lookTouchStartPos = { x: 0, y: 0 }, lookTouchStartTime = 0;
+
+        const vibrate = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (_) { } };
+
+        // ─────────────────────────────────────────────
+        // ══ AUDIO ENGINE ══
+        // (Superior synthesis: convolution reverb, dynamic
+        //  echolocation delay line, distance-aware beacon filter)
+        // ─────────────────────────────────────────────
+        const Audio = (() => {
+            let ctx = null, master = null, reverb = null, revGain = null;
+            let delay = null, delayFB = null;
+            let complete = false;
+            let lastPing = 0, lastBeat = 0;
+            const NOTES = [880, 987.77, 1108.73, 1318.51, 1479.98, 1760];
+
+            function init() {
+                try {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    ctx = new AC();
+
+                    master = ctx.createGain();
+                    master.gain.value = 0.55;
+                    master.connect(ctx.destination);
+
+                    // ── Convolution Reverb: the cave ──
+                    reverb = ctx.createConvolver();
+                    const len = ctx.sampleRate * 5.0;
+                    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+                    for (let ch = 0; ch < 2; ch++) {
+                        const d = buf.getChannelData(ch);
+                        for (let i = 0; i < len; i++) {
+                            // Richer impulse: two decay curves layered
+                            const t = i / ctx.sampleRate;
+                            const decay = Math.exp(-t * 0.8) * Math.pow(1 - i / len, 2.5);
+                            d[i] = (Math.random() * 2 - 1) * decay;
+                        }
+                    }
+                    reverb.buffer = buf;
+                    revGain = ctx.createGain();
+                    revGain.gain.value = 1.35;
+                    reverb.connect(revGain);
+                    revGain.connect(master);
+
+                    // ── Echolocation delay line ──
+                    // Delay time modulated in real-time by closest wall distance.
+                    // Near walls = short return; open space = long return.
+                    delay = ctx.createDelay(2.2);
+                    delay.delayTime.value = 0.24;
+                    delayFB = ctx.createGain();
+                    delayFB.gain.value = 0.44;
+                    delay.connect(delayFB);
+                    delayFB.connect(delay);         // feedback loop
+                    delayFB.connect(reverb);        // feed into the cave
+                    delay.connect(master);          // direct delay out
+                } catch (e) { console.warn('Audio init failed', e); }
+            }
+
+            function makePanner(panVal) {
+                if (!ctx) return null;
+                const p = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+                if (p.pan) p.pan.value = Math.max(-1, Math.min(1, panVal));
+                p.connect(master);
+                p.connect(reverb);
+                return p;
+            }
+
+            // Stereo pan based on target's angular position relative to look dir
+            function angularPan(tx, ty) {
+                const dx = tx - player.x, dy = ty - player.y;
+                const dist = Math.hypot(dx, dy) + 0.001;
+                const tAng = Math.atan2(dy, dx);
+                const pAng = Math.atan2(player.dirY, player.dirX);
+                let rel = tAng - pAng;
+                while (rel > Math.PI) rel -= Math.PI * 2;
+                while (rel < -Math.PI) rel += Math.PI * 2;
+                return Math.sin(rel);
+            }
+
+            // ── Outgoing scan ping ──
+            function ping(panVal = 0) {
+                if (!ctx || complete) return;
+                const now = ctx.currentTime;
+                if (now - lastPing < 0.072) return;
+                lastPing = now;
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const p = makePanner(panVal);
+                if (!p) return;
+
+                osc.type = 'sine';
+                const freq = NOTES[Math.floor(Math.random() * NOTES.length)] * (Math.random() > 0.8 ? 2 : 1);
+                osc.frequency.setValueAtTime(freq, now);
+                osc.frequency.exponentialRampToValueAtTime(freq * 0.92, now + 0.07);
+
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.11, now + 0.005);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+
+                osc.connect(gain);
+                gain.connect(p);
+                // Route into delay line for echolocation return
+                gain.connect(delay);
+                osc.start(now);
+                osc.stop(now + 0.16);
+            }
+
+            // ── Rhythmic proximity pulse (when target illuminated) ──
+            function beat(distRatio) {
+                if (!ctx || complete) return;
+                const now = ctx.currentTime;
+                const interval = Math.max(0.055, 0.42 * distRatio);
+                if (now - lastBeat < interval) return;
+                lastBeat = now;
+
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(1050 - distRatio * 680, now);
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(0.038, now + 0.001);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.022);
+                osc.connect(g);
+                g.connect(master);
+                osc.start(now); osc.stop(now + 0.03);
+            }
+
+            // ── Spatial beacon with distance-aware low-pass filter ──
+            // Far = muffled harmonics; close = bright, multiple partials
+            function beacon(tx, ty, lineIdx, dist) {
+                if (!ctx || complete) return;
+                const panVal = angularPan(tx, ty);
+                const p = makePanner(panVal);
+                if (!p) return;
+                const now = ctx.currentTime;
+
+                const roots = [329.63, 369.99, 440.00, 493.88, 554.37, 415.30];
+                let rootFreq = roots[lineIdx % roots.length];
+                if (lineIdx > 5) rootFreq *= 1.5;
+                if (lineIdx > 10) rootFreq *= 1.25;
+
+                const closeness = Math.max(0, 1 - dist / 18);
+                const numOsc = 1 + Math.floor(closeness * 3);
+
+                // Dynamic low-pass: far = 350 Hz, close = 3500 Hz
+                const filt = ctx.createBiquadFilter();
+                filt.type = 'lowpass';
+                filt.frequency.value = 350 + closeness * 3150;
+                filt.Q.value = 1.2;
+                filt.connect(p);
+
+                const harmonics = [1, 1.5, 1.25, 1.875];
+                for (let i = 0; i < numOsc; i++) {
+                    const osc = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(rootFreq * harmonics[i % 4], now);
+                    osc.detune.value = (Math.random() - 0.5) * 10;
+
+                    const vol = (0.20 / numOsc) * (i === 0 ? 1 : closeness * 0.85);
+                    g.gain.setValueAtTime(0, now);
+                    g.gain.linearRampToValueAtTime(vol, now + 1.0);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 3.8);
+
+                    osc.connect(g);
+                    g.connect(filt);
+                    osc.start(now); osc.stop(now + 4.2);
+                }
+            }
+
+            // ── Wall collision ──
+            function bump() {
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(155, now);
+                osc.frequency.exponentialRampToValueAtTime(26, now + 0.3);
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(0.4, now + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+                osc.connect(g);
+                g.connect(master);
+                g.connect(reverb);
+                osc.start(now); osc.stop(now + 0.38);
+            }
+
+            // ── Fragment collection ──
+            function collect() {
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                [440, 554.37, 659.25, 830.61].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now);
+                    g.gain.setValueAtTime(0, now);
+                    g.gain.linearRampToValueAtTime(0.17 / 4, now + 0.09 + i * 0.055);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 2.3);
+                    osc.connect(g);
+                    g.connect(master);
+                    g.connect(reverb);
+                    osc.start(now); osc.stop(now + 2.4);
+                });
+            }
+
+            // ── Finale: harmonic field opens, space dissolves ──
+            function finale() {
+                if (!ctx) return;
+                complete = true;
+                const now = ctx.currentTime;
+                const root = 220;
+                [root, root * 1.25, root * 1.5, root * 1.875, root * 2, root * 2.25, root * 3].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    const p = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+                    if (p.pan) p.pan.value = (Math.random() - 0.5) * 0.85;
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq + (Math.random() * 2 - 1), now);
+                    // Slight frequency drift — phasing effect
+                    osc.frequency.linearRampToValueAtTime(freq + (Math.random() * 3 - 1.5), now + 10);
+                    g.gain.setValueAtTime(0, now);
+                    g.gain.linearRampToValueAtTime(0.11 / 7, now + 2.2 + i * 0.85);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 20);
+                    osc.connect(g); g.connect(p);
+                    p.connect(master); p.connect(reverb);
+                    osc.start(now); osc.stop(now + 21);
+                });
+                // Slow delay line — vast space opening
+                delay.delayTime.linearRampToValueAtTime(1.8, now + 5);
+                delayFB.gain.linearRampToValueAtTime(0.68, now + 5);
+            }
+
+            // ── Per-frame: modulate delay by wall distance, trigger beat ──
+            function update(closestWall, distRatio, panVal, targetIlluminated) {
+                if (!ctx || complete) return;
+                if (isScanning) {
+                    const now = ctx.currentTime;
+                    // Echolocation: closer wall = shorter return delay
+                    const dynDelay = 0.035 + Math.min(1.0, closestWall / 16) * 0.58;
+                    delay.delayTime.setTargetAtTime(dynDelay, now, 0.07);
+                    if (targetIlluminated) beat(distRatio);
+                    if (Math.random() < 0.09) ping(panVal);
+                }
+            }
+
+            return {
+                init, ping, beacon, bump, collect, finale, update,
+                resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
+                get running() { return !!ctx; }
+            };
+        })();
+
+        // ─────────────────────────────────────────────
+        // WORLD INIT — place poem nodes in open space
+        // ─────────────────────────────────────────────
+        function initWorld() {
+            const open = [];
+            for (let y = 1; y < MH - 1; y++)
+                for (let x = 1; x < MW - 1; x++)
+                    if (MAP[y][x] === 0) open.push({ x: x + 0.5, y: y + 0.5 });
+
+            // Shuffle
+            for (let i = open.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [open[i], open[j]] = [open[j], open[i]];
+            }
+
+            const MIN_DIST = 3.8;
+            const placed = [];
+            for (const line of POEM) {
+                for (const cell of open) {
+                    if (Math.hypot(cell.x - player.x, cell.y - player.y) < 4.5) continue;
+                    let ok = true;
+                    for (const p of placed)
+                        if (Math.hypot(cell.x - p.x, cell.y - p.y) < MIN_DIST) { ok = false; break; }
+                    if (ok) {
+                        placed.push({
+                            x: cell.x, y: cell.y, text: line,
+                            illuminated: false, illuminTime: 0, collected: false
+                        });
+                        break;
+                    }
+                }
+            }
+            poemNodes = placed;
+        }
+
+        // ─────────────────────────────────────────────
+        // INPUT
+        // ─────────────────────────────────────────────
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === C;
+        });
+
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') keys.w = true;
+            if (k === 's' || k === 'arrowdown') keys.s = true;
+            if (k === 'a' || k === 'arrowleft') keys.a = true;
+            if (k === 'd' || k === 'arrowright') keys.d = true;
+            if (k === ' ' || k === 'e') { isScanning = true; Audio.resume(); }
+        });
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') keys.w = false;
+            if (k === 's' || k === 'arrowdown') keys.s = false;
+            if (k === 'a' || k === 'arrowleft') keys.a = false;
+            if (k === 'd' || k === 'arrowright') keys.d = false;
+            if (k === ' ' || k === 'e') isScanning = false;
+        });
+
+        C.addEventListener('mousedown', async () => {
+            Audio.resume();
+            if (!isPointerLocked && !isMobile) {
+                try { await C.requestPointerLock(); } catch (_) { }
+            } else {
+                isScanning = true;
+            }
+        });
+        C.addEventListener('mouseup', () => { isScanning = false; });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked) return;
+            rotateCam(-e.movementX * 0.002);
+        });
+
+        // Touch
+        C.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            Audio.resume();
+            for (const t of e.changedTouches) {
+                if (t.clientX < W / 2 && moveTouchId === null) {
+                    moveTouchId = t.identifier;
+                    moveTouchStart = { x: t.clientX, y: t.clientY };
+                    moveTouchCurrent = { x: t.clientX, y: t.clientY };
+                } else if (t.clientX >= W / 2 && lookTouchId === null) {
+                    lookTouchId = t.identifier;
+                    lastLookX = t.clientX;
+                    lookTouchStartPos = { x: t.clientX, y: t.clientY };
+                    lookTouchStartTime = performance.now();
+                    isScanning = true; // Right-side touch = scanning
+                }
+            }
+        }, { passive: false });
+
+        C.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (const t of e.changedTouches) {
+                if (t.identifier === moveTouchId) {
+                    moveTouchCurrent = { x: t.clientX, y: t.clientY };
+                } else if (t.identifier === lookTouchId) {
+                    rotateCam(-(t.clientX - lastLookX) * 0.005);
+                    lastLookX = t.clientX;
+                }
+            }
+        }, { passive: false });
+
+        const touchEnd = (e) => {
+            e.preventDefault();
+            for (const t of e.changedTouches) {
+                if (t.identifier === moveTouchId) moveTouchId = null;
+                else if (t.identifier === lookTouchId) {
+                    lookTouchId = null;
+                    isScanning = false;
+                }
+            }
+        };
+        C.addEventListener('touchend', touchEnd, { passive: false });
+        C.addEventListener('touchcancel', touchEnd, { passive: false });
+
+        function rotateCam(rot) {
+            const cos = Math.cos(rot), sin = Math.sin(rot);
+            const odx = player.dirX, opx = player.planeX;
+            player.dirX = odx * cos - player.dirY * sin;
+            player.dirY = odx * sin + player.dirY * cos;
+            player.planeX = opx * cos - player.planeY * sin;
+            player.planeY = opx * sin + player.planeY * cos;
+        }
+
+        // ─────────────────────────────────────────────
+        // RENDERING
+        // ─────────────────────────────────────────────
+        const RSTEP = isMobile ? 8 : 5;  // px per ray column
+        const CHAR_H = isMobile ? 14 : 12; // text row height
+
+        function wallChar(globalWallX, z) {
+            if (pretextLines.length === 0) return ' ';
+            let uAbs = Math.floor(globalWallX * 12);
+            let v = Math.floor((z + 0.5) * pretextLines.length);
+            v = Math.max(0, Math.min(pretextLines.length - 1, v));
+            let lineObj = pretextLines[v];
+            if (!lineObj || lineObj.length === 0) return ' ';
+            let len = lineObj.length;
+            let u = ((uAbs % len) + len) % len;
+            return lineObj[u] || ' ';
+        }
+
+        // Illumination: player ambient + pulse rings + scan directional glow
+        function getLight(wx, wy) {
+            let r = 0, g = 0, b = 0;
+
+            // Player ambient (warm orange)
+            const pd = Math.hypot(wx - player.x, wy - player.y);
+            if (pd < 5) {
+                const l = Math.pow(1 - pd / 5, 2.2) * 0.22;
+                r += l * 255; g += l * 185; b += l * 80;
+            }
+
+            // Pulse rings (expanding echolocation returns — amber)
+            for (const p of pulses) {
+                const d = Math.hypot(wx - p.x, wy - p.y);
+                const radius = (p.age / p.maxAge) * p.maxR;
+                const toWave = Math.abs(d - radius);
+                const thick = 1.6;
+                if (toWave < thick) {
+                    const tFade = Math.pow(1 - p.age / p.maxAge, 1.1);
+                    const str = Math.pow(1 - toWave / thick, 2) * tFade * 3.2;
+                    r += str * 255; g += str * 155; b += str * 10;
+                }
+                if (d < radius) {
+                    const iF = Math.pow(1 - p.age / p.maxAge, 1.6) * 0.16;
+                    r += iF * 255; g += iF * 130;
+                }
+            }
+
+            // Active scan: directional cyan glow along look direction
+            if (isScanning) {
+                const dot = player.dirX * (wx - player.x) + player.dirY * (wy - player.y);
+                if (dot > 0 && pd < 14) {
+                    const aligned = dot / (pd + 0.001);
+                    if (aligned > 0.5) {
+                        const str = ((aligned - 0.5) / 0.5) * 0.28 * Math.pow(Math.max(0, 1 - pd / 12), 1.6);
+                        g += str * 255; b += str * 210;
+                    }
+                }
+            }
+
+            return {
+                r: Math.min(255, r | 0),
+                g: Math.min(255, g | 0),
+                b: Math.min(255, b | 0),
+                a: Math.min(1.0, (r + g + b) / 200)
+            };
+        }
+
+        function drawWorld() {
+            ctx.font = `${CHAR_H}px 'JetBrains Mono', monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let sx = 0; sx < W; sx += RSTEP) {
+                const camX = 2 * sx / W - 1;
+                const rdx = player.dirX + player.planeX * camX;
+                const rdy = player.dirY + player.planeY * camX;
+
+                let mx = Math.floor(player.x), my = Math.floor(player.y);
+                const ddx = Math.abs(1 / rdx), ddy = Math.abs(1 / rdy);
+                let stepX, stepY, sdx, sdy, side = 0;
+
+                if (rdx < 0) { stepX = -1; sdx = (player.x - mx) * ddx; }
+                else { stepX = 1; sdx = (mx + 1 - player.x) * ddx; }
+                if (rdy < 0) { stepY = -1; sdy = (player.y - my) * ddy; }
+                else { stepY = 1; sdy = (my + 1 - player.y) * ddy; }
+
+                let hit = 0, depth = 0;
+                while (!hit && depth++ < 42) {
+                    if (sdx < sdy) { sdx += ddx; mx += stepX; side = 0; }
+                    else { sdy += ddy; my += stepY; side = 1; }
+                    if (mx < 0 || mx >= MW || my < 0 || my >= MH) { hit = 2; break; }
+                    if (MAP[my][mx] > 0) hit = 1;
+                }
+
+                const perp = side === 0
+                    ? (mx - player.x + (1 - stepX) / 2) / rdx
+                    : (my - player.y + (1 - stepY) / 2) / rdy;
+
+                const hx = player.x + rdx * perp;
+                const hy = player.y + rdy * perp;
+                const wc = side === 0 ? hy - Math.floor(hy) : hx - Math.floor(hx);
+
+                // Accumulate scan map
+                if (isScanning && mx >= 0 && mx < MW && my >= 0 && my < MH)
+                    scanMap[my * MW + mx] = 1;
+
+                zBuf[sx] = perp;
+                const lh = Math.floor(H / (perp || 0.001));
+                const top = Math.max(0, (H - lh) >> 1);
+                const bot = Math.min(H, (H + lh) >> 1);
+                
+                const globalWallX = side === 0 ? (rdx > 0 ? -hy : hy) : (rdy < 0 ? -hx : hx);
+
+                // Wall columns
+                for (let y = top; y < bot; y += CHAR_H) {
+                    const lt = getLight(hx, hy);
+                    if (lt.a < 0.018) continue;
+                    let z = (y - H / 2) / lh;
+                    ctx.fillStyle = `rgba(${lt.r},${lt.g},${lt.b},${lt.a})`;
+                    ctx.fillText(wallChar(globalWallX, z), sx + RSTEP / 2, y + CHAR_H / 2);
+                }
+
+                // Floor & ceiling (dotted, same illumination)
+                for (let y = bot; y < H; y += CHAR_H) {
+                    const rowD = H / ((2 * y - H) || 0.001);
+                    const wt = rowD / (perp || 0.001);
+                    const fx = wt * hx + (1 - wt) * player.x;
+                    const fy = wt * hy + (1 - wt) * player.y;
+                    const cy = H - y;
+
+                    const lt = getLight(fx, fy);
+                    if (lt.a > 0.012) {
+                        ctx.fillStyle = `rgba(${lt.r},${lt.g},${lt.b},${lt.a * 0.65})`;
+                        ctx.fillText('·', sx + RSTEP / 2, y + CHAR_H / 2);
+                        ctx.fillText('·', sx + RSTEP / 2, cy + CHAR_H / 2);
+                    }
+                }
+            }
+        }
+
+        // ── Poem Fragment Sprites (3D billboard projection) ──
+        function drawSprites() {
+            const sorted = poemNodes
+                .filter(n => !n.collected)
+                .map(n => ({ ...n, dist: Math.hypot(n.x - player.x, n.y - player.y) }))
+                .sort((a, b) => b.dist - a.dist);
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (const sp of sorted) {
+                // Only visible when illuminated or very close
+                if (!sp.illuminated && sp.dist > 2.2) continue;
+
+                const sx = sp.x - player.x, sy = sp.y - player.y;
+                const inv = 1 / (player.planeX * player.dirY - player.dirX * player.planeY);
+                const tx = inv * (player.dirY * sx - player.dirX * sy);
+                const ty = inv * (-player.planeY * sx + player.planeX * sy);
+
+                if (ty <= 0.08) continue; // behind player
+
+                const screenX = Math.floor((W / 2) * (1 + tx / ty));
+                const screenY = H / 2;
+
+                // Occlusion: check z-buffer at sprite center
+                const xi = Math.max(0, Math.min(W - 1, screenX));
+                if (zBuf[xi] && ty > zBuf[xi] + 0.08) continue;
+
+                // Scale text with distance
+                const scale = Math.min(2.8, Math.max(0.18, H / (ty * 11)));
+                const fs = Math.max(8, Math.min(34, Math.floor(17 * scale)));
+                const alpha = sp.illuminated ? Math.min(1, sp.illuminTime * 1.8) : 0.15;
+                const glow = sp.illuminated ? Math.min(22, sp.illuminTime * 28) : 4;
+
+                ctx.save();
+                ctx.font = `italic 300 ${fs}px 'Cormorant Garamond', serif`;
+                ctx.shadowColor = `rgba(224,36,195,${alpha * 0.75})`;
+                ctx.shadowBlur = glow;
+                ctx.fillStyle = `rgba(224,36,195,${alpha})`;
+                ctx.fillText(sp.text, screenX, screenY);
+
+                // Proximity pulse ring
+                if (sp.dist < 2.2 && sp.illuminated) {
+                    const pulse = 0.45 + Math.sin(frameCount * 0.18) * 0.45;
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = `rgba(224,36,195,${pulse * 0.55})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, fs * 0.9 + pulse * 6, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        // ── Off-screen target compass arrow ──
+        function drawCompass() {
+            if (seqComplete || currentLine >= poemNodes.length) return;
+            const t = poemNodes[currentLine];
+            const dx = t.x - player.x, dy = t.y - player.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 3) return;
+
+            const tAng = Math.atan2(dy, dx);
+            const pAng = Math.atan2(player.dirY, player.dirX);
+            let rel = tAng - pAng;
+            while (rel > Math.PI) rel -= Math.PI * 2;
+            while (rel < -Math.PI) rel += Math.PI * 2;
+
+            const R = Math.min(W, H) * 0.41;
+            const ax = W / 2 + Math.sin(rel) * R;
+            const ay = H / 2 - Math.cos(rel) * R;
+            const mx = Math.max(55, Math.min(W - 55, ax));
+            const my = Math.max(55, Math.min(H - 55, ay));
+
+            const hue = 35 + currentLine * 14;
+            const blink = 0.38 + Math.sin(frameCount * 0.13) * 0.38;
+
+            ctx.save();
+            ctx.translate(mx, my);
+            ctx.rotate(rel + Math.PI / 2);
+            ctx.beginPath();
+            ctx.moveTo(0, -13); ctx.lineTo(8, 7); ctx.lineTo(0, 2); ctx.lineTo(-8, 7);
+            ctx.closePath();
+            ctx.fillStyle = `hsla(${hue},100%,62%,${blink})`;
+            ctx.shadowColor = `hsla(${hue},100%,62%,0.6)`;
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ── Minimap ──
+        function drawMinimap() {
+            // dynamic scale and padding improvements!
+            const mmW = MM.width, mmH = MM.height;
+            const sx = mmW / MW, sy = mmH / MH;
+
+            mCtx.clearRect(0, 0, mmW, mmH);
+
+            // Walls: dim if unseen, amber if scanned
+            for (let y = 0; y < MH; y++) {
+                for (let x = 0; x < MW; x++) {
+                    if (MAP[y][x] > 0) {
+                        mCtx.fillStyle = scanMap[y * MW + x]
+                            ? 'rgba(255,140,0,0.85)'
+                            : 'rgba(255,140,0,0.2)';
+                        mCtx.fillRect(x * sx, y * sy, sx - 0.5, sy - 0.5);
+                    }
+                }
+            }
+
+            // Pulse rings
+            for (const p of pulses) {
+                const r = (p.age / p.maxAge) * p.maxR * sx;
+                const alpha = Math.pow(1 - p.age / p.maxAge, 1.2);
+                mCtx.beginPath();
+                mCtx.arc(p.x * sx, p.y * sy, r, 0, Math.PI * 2);
+                mCtx.strokeStyle = `rgba(255,140,0,${alpha})`;
+                mCtx.lineWidth = 1.5;
+                mCtx.stroke();
+            }
+
+            // Target beacon
+            if (currentLine < poemNodes.length) {
+                const t = poemNodes[currentLine];
+                const pulse = 0.5 + Math.sin(frameCount * 0.22) * 0.45;
+                mCtx.beginPath();
+                mCtx.arc(t.x * sx, t.y * sy, 3 + pulse * 2, 0, Math.PI * 2);
+                mCtx.fillStyle = `rgba(224,36,195,${0.8 + pulse * 0.4})`;
+                mCtx.shadowColor = 'rgba(224,36,195,0.9)';
+                mCtx.shadowBlur = 6;
+                mCtx.fill();
+                mCtx.shadowBlur = 0;
+            }
+
+            // Player dot
+            mCtx.fillStyle = '#00ffcc';
+            mCtx.beginPath();
+            mCtx.arc(player.x * sx, player.y * sy, 4, 0, Math.PI * 2);
+            mCtx.fill();
+
+            // Look direction (stronger line)
+            mCtx.strokeStyle = 'rgba(0,255,204,0.85)';
+            mCtx.lineWidth = 2;
+            mCtx.beginPath();
+            mCtx.moveTo(player.x * sx, player.y * sy);
+            mCtx.lineTo((player.x + player.dirX * 4) * sx, (player.y + player.dirY * 4) * sy);
+            mCtx.stroke();
+            
+            // Fov Cone
+            mCtx.strokeStyle = 'rgba(0,255,204,0.3)';
+            mCtx.lineWidth = 1;
+            mCtx.beginPath();
+            mCtx.moveTo(player.x * sx, player.y * sy);
+            mCtx.lineTo((player.x + player.dirX * 4 + player.planeX * 4) * sx, (player.y + player.dirY * 4 + player.planeY * 4) * sy);
+            mCtx.moveTo(player.x * sx, player.y * sy);
+            mCtx.lineTo((player.x + player.dirX * 4 - player.planeX * 4) * sx, (player.y + player.dirY * 4 - player.planeY * 4) * sy);
+            mCtx.stroke();
+        }
+
+        // ─────────────────────────────────────────────
+        // SCAN PROCESSING (per-frame)
+        // ─────────────────────────────────────────────
+        function processScan(dt) {
+            let closestWall = 16, panVal = 0, distRatio = 1, targetIlluminated = false;
+            const CONE_HALF = Math.PI / 5.5; // ~33° half-angle
+
+            if (isScanning && !seqComplete) {
+                const RAYS = 48, MAX_D = 15;
+                let hitAny = false;
+
+                for (let i = 0; i < RAYS; i++) {
+                    const ang = (i / RAYS - 0.5) * (CONE_HALF * 2);
+                    const cos = Math.cos(ang), sin = Math.sin(ang);
+                    const rdx = player.dirX * cos - player.dirY * sin;
+                    const rdy = player.dirX * sin + player.dirY * cos;
+
+                    let mx = Math.floor(player.x), my = Math.floor(player.y);
+                    const ddx = Math.abs(1 / rdx), ddy = Math.abs(1 / rdy);
+                    let stepX, stepY, sdx, sdy;
+                    if (rdx < 0) { stepX = -1; sdx = (player.x - mx) * ddx; } else { stepX = 1; sdx = (mx + 1 - player.x) * ddx; }
+                    if (rdy < 0) { stepY = -1; sdy = (player.y - my) * ddy; } else { stepY = 1; sdy = (my + 1 - player.y) * ddy; }
+
+                    let dist = 0, depth = 0;
+                    while (depth++ < MAX_D * 2) {
+                        if (sdx < sdy) { sdx += ddx; mx += stepX; dist = sdx - ddx; }
+                        else { sdy += ddy; my += stepY; dist = sdy - ddy; }
+                        if (mx < 0 || mx >= MW || my < 0 || my >= MH) break;
+                        if (MAP[my][mx] > 0) {
+                            if (dist < closestWall) closestWall = dist;
+                            scanMap[my * MW + mx] = 1;
+                            hitAny = true;
+                            // Spawn pulse at first hit every ~90 frames
+                            if (i === 0 && frameCount % 90 === 0) {
+                                const hx = player.x + rdx * dist;
+                                const hy = player.y + rdy * dist;
+                                pulses.push({ x: hx, y: hy, age: 0, maxAge: 2.2, maxR: 12 });
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Illuminate nodes in scan cone
+                for (const n of poemNodes) {
+                    if (n.collected) continue;
+                    const ndx = n.x - player.x, ndy = n.y - player.y;
+                    const ndist = Math.hypot(ndx, ndy);
+                    if (ndist > 13) continue;
+                    const ndot = (ndx * player.dirX + ndy * player.dirY) / ndist;
+                    if (ndot > Math.cos(CONE_HALF)) {
+                        n.illuminated = true;
+                        n.illuminTime = Math.min(1, n.illuminTime + dt * 1.8);
+                    }
+                }
+
+                // Target-specific audio logic
+                if (currentLine < poemNodes.length) {
+                    const t = poemNodes[currentLine];
+                    const dx = t.x - player.x, dy = t.y - player.y;
+                    const dist = Math.hypot(dx, dy);
+                    distRatio = Math.min(1, dist / 14);
+
+                    const dot = (dx * player.dirX + dy * player.dirY) / dist;
+                    if (dot > Math.cos(CONE_HALF) && dist < 14) targetIlluminated = true;
+
+                    // Pan from angular position
+                    const cross = dx * player.dirY - dy * player.dirX;
+                    panVal = Math.max(-1, Math.min(1, cross / (dist + 0.001)));
+
+                    if (targetIlluminated && frameCount - lastBeaconFrame > 60) {
+                        Audio.beacon(t.x, t.y, currentLine, dist);
+                        lastBeaconFrame = frameCount;
+                    }
+                }
+
+            } else {
+                // Fade illumination when not scanning
+                for (const n of poemNodes) {
+                    if (!n.collected) {
+                        n.illuminTime = Math.max(0, n.illuminTime - dt * 0.5);
+                        if (n.illuminTime <= 0) n.illuminated = false;
+                    }
+                }
+            }
+
+            // Passive proximity illuminate (no scan needed if very close)
+            for (const n of poemNodes) {
+                if (!n.collected && Math.hypot(n.x - player.x, n.y - player.y) < 1.8) {
+                    n.illuminated = true;
+                    n.illuminTime = Math.min(1, n.illuminTime + dt * 3);
+                }
+            }
+
+            Audio.update(closestWall, distRatio, panVal, targetIlluminated);
+        }
+
+        // ─────────────────────────────────────────────
+        // UPDATE
+        // ─────────────────────────────────────────────
+        function update(dt) {
+            // Movement
+            let fwd = 0, strafe = 0;
+            if (keys.w) fwd += 1;
+            if (keys.s) fwd -= 1;
+            if (keys.a) rotateCam(player.rotSpeed * dt);
+            if (keys.d) rotateCam(-player.rotSpeed * dt);
+
+            if (moveTouchId !== null) {
+                const dx = moveTouchCurrent.x - moveTouchStart.x;
+                const dy = moveTouchCurrent.y - moveTouchStart.y;
+                const d = Math.hypot(dx, dy);
+                const mx = 55;
+                if (d > 8) {
+                    const str = Math.min(d, mx) / mx;
+                    fwd = (-dy / d) * str;
+                    strafe = (dx / d) * str;
+                }
+            }
+
+            const ms = player.moveSpeed * dt;
+            let collided = false;
+
+            if (fwd !== 0) {
+                const nx = player.x + player.dirX * ms * fwd;
+                const ny = player.y + player.dirY * ms * fwd;
+                if (MAP[Math.floor(player.y)][Math.floor(nx)] === 0) player.x = nx; else collided = true;
+                if (MAP[Math.floor(ny)][Math.floor(player.x)] === 0) player.y = ny; else collided = true;
+            }
+            if (strafe !== 0) {
+                const rx = player.dirY, ry = -player.dirX;
+                const nx = player.x + rx * ms * strafe;
+                const ny = player.y + ry * ms * strafe;
+                if (MAP[Math.floor(player.y)][Math.floor(nx)] === 0) player.x = nx; else collided = true;
+                if (MAP[Math.floor(ny)][Math.floor(player.x)] === 0) player.y = ny; else collided = true;
+            }
+
+            if (collided && performance.now() - lastBumpTime > 260) {
+                Audio.bump();
+                vibrate(12);
+                lastBumpTime = performance.now();
+                pulses.push({ x: player.x, y: player.y, age: 0, maxAge: 1.4, maxR: 4 });
+            }
+
+            // Scan processing
+            processScan(dt);
+
+            // Passive beacon every ~3.5s regardless of scanning
+            if (!seqComplete && currentLine < poemNodes.length && frameCount - lastPassiveBeacon > 210) {
+                const t = poemNodes[currentLine];
+                const dist = Math.hypot(t.x - player.x, t.y - player.y);
+                Audio.beacon(t.x, t.y, currentLine, dist);
+                lastPassiveBeacon = frameCount;
+            }
+
+            // Update pulses
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                pulses[i].age += dt;
+                if (pulses[i].age >= pulses[i].maxAge) pulses.splice(i, 1);
+            }
+
+            // Collection check
+            if (!seqComplete && currentLine < poemNodes.length) {
+                const t = poemNodes[currentLine];
+                const dist = Math.hypot(t.x - player.x, t.y - player.y);
+
+                if (dist < 1.5 && (t.illuminated || dist < 1.0) && isScanning) {
+                    t.collected = true;
+                    Audio.collect();
+                    vibrate([30, 60, 30]);
+                    pulses.push({ x: t.x, y: t.y, age: 0, maxAge: 3.5, maxR: 22 });
+
+                    const line = document.createElement('div');
+                    line.className = 'pline';
+                    line.textContent = t.text;
+                    poemEl.appendChild(line);
+
+                    currentLine++;
+                    const rem = POEM.length - currentLine;
+                    document.getElementById('h-prog').textContent = `${currentLine} / ${POEM.length}`;
+                    document.getElementById('h-scan').textContent =
+                        rem > 0 ? `FRAGMENT ACQUIRED. ${rem} SIGNAL${rem !== 1 ? 'S' : ''} REMAINING.`
+                            : `ALL SIGNALS ACQUIRED.\nRESONANCE ACHIEVED.`;
+
+                    if (currentLine >= POEM.length) {
+                        seqComplete = true;
+                        poemEl.classList.add('complete');
+                        document.getElementById('h-zone').textContent = 'TRANSCENDENCE';
+                        document.querySelectorAll('.hud').forEach(el => el.style.opacity = '0.22');
+                        Audio.finale();
+                        vibrate([60, 80, 60, 80, 200]);
+                    }
+                }
+
+                // Proximity haptic hint
+                if (dist < 5 && frameCount % Math.max(8, Math.floor(dist * 9)) === 0) vibrate(7);
+            }
+
+            // HUD updates (throttled)
+            if (frameCount % 10 === 0) {
+                const ang = Math.atan2(player.dirY, player.dirX);
+                const deg = (((ang + Math.PI) / (Math.PI * 2)) * 360) | 0;
+                document.getElementById('h-pos').textContent = `${deg}° / ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`;
+                if (!seqComplete && currentLine < poemNodes.length) {
+                    const t = poemNodes[currentLine];
+                    const d = Math.hypot(t.x - player.x, t.y - player.y).toFixed(1);
+                    document.getElementById('h-zone').textContent =
+                        `${t.illuminated ? '◉' : '○'} ${d}u — SEEK SIGNAL ${currentLine + 1}`;
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // RENDER
+        // ─────────────────────────────────────────────
+        function render() {
+            // Subtle fade when complete (world fades to black as poem emerges)
+            if (seqComplete) {
+                ctx.fillStyle = 'rgba(3,2,2,0.055)';
+            } else {
+                ctx.fillStyle = '#030202';
+            }
+            ctx.fillRect(0, 0, W, H);
+
+            if (!seqComplete) {
+                drawWorld();
+                drawSprites();
+                drawCompass();
+            }
+
+            drawMinimap();
+
+            // Scan VFX toggle
+            scanVfxEl.className = isScanning && !seqComplete ? 'on' : '';
+            xhairEl.className = isScanning ? 'on' : '';
+
+            if (moveTouchId !== null) {
+                ctx.beginPath();
+                ctx.arc(moveTouchStart.x, moveTouchStart.y, 60, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 140, 0, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(moveTouchCurrent.x, moveTouchCurrent.y, 25, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 140, 0, 0.6)';
+                ctx.fill();
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // GAME LOOP
+        // ─────────────────────────────────────────────
+        function gameLoop(time) {
+            const dt = Math.min(0.1, (time - (lastTime || time)) / 1000);
+            lastTime = time;
+            frameCount++;
+            update(dt);
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ─────────────────────────────────────────────
+        // BOOT
+        // ─────────────────────────────────────────────
+        document.getElementById('boot-btn').addEventListener('click', async () => {
+            const bootEl = document.getElementById('boot');
+            bootEl.style.opacity = '0';
+            setTimeout(() => bootEl.style.display = 'none', 500);
+
+            Audio.init();
+            Audio.resume();
+            initWorld();
+
+            if (!isMobile) {
+                try { await C.requestPointerLock(); } catch (_) { }
+            }
+
+            setTimeout(() => {
+                document.getElementById('hint').style.opacity = '0';
+            }, 8000);
+
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+
+</html>

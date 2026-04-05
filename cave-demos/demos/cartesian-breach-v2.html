@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Cartesian Breach V2 — Pretext</title>
+  <meta name="description" content="A 4-field grid of dissolved disciplinary boundaries.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0a08;
+      --bone: #f0e8d8;
+      --amber: #e8c547;
+      --breach: #ff4444;
+      --anthro: #6eb5ff;
+      --psych: #e09050;
+      --neuro: #50c8a0;
+      --socio: #c850c8;
+      --wall: #3d3830;
+      --serif: 'Cormorant Garamond', Georgia, serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--serif);
+      color: var(--bone);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #title-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: linear-gradient(180deg, rgba(12,10,8,0.95) 0%, rgba(12,10,8,0.7) 100%);
+      z-index: 100;
+      border-bottom: 1px solid rgba(232,197,71,0.15);
+    }
+
+    #title-bar h1 {
+      font: 300 14px var(--mono);
+      color: var(--amber);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    #breach-meter {
+      font: 300 12px var(--mono);
+      color: var(--breach);
+      opacity: 0.8;
+    }
+
+    #breach-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    #spike-cursor {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+      width: 6px;
+      height: 80px;
+      transform: translate(-50%, -100%) rotate(15deg);
+      transform-origin: bottom center;
+    }
+    #spike-cursor .shaft {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg,
+        #888 0%, #aaa 20%, #666 40%, #888 60%, var(--breach) 80%, #ff6644 100%);
+      border-radius: 2px 2px 0 0;
+      box-shadow: 0 0 12px rgba(255,68,68,0.4), 0 0 24px rgba(255,68,68,0.15);
+    }
+    #spike-cursor .tip {
+      width: 0;
+      height: 0;
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 16px solid #666;
+      margin: 0 auto;
+    }
+
+    #instructions {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%);
+      font: 300 13px var(--mono);
+      color: rgba(240,232,216,0.5);
+      text-align: center;
+      z-index: 100;
+      transition: opacity 1.5s ease;
+      pointer-events: none;
+    }
+
+    #legend {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      font: 300 11px var(--mono);
+      color: rgba(240,232,216,0.4);
+      z-index: 100;
+      text-align: right;
+      line-height: 1.8;
+    }
+    #legend .swatch {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 600px) {
+      #title-bar { padding: 0 12px; height: 40px; }
+      #title-bar h1 { font-size: 11px; letter-spacing: 2px; }
+      #legend { display: none; }
+      #instructions { font-size: 11px; bottom: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="breach-canvas"></canvas>
+
+  <div id="title-bar">
+    <h1>The Cartesian Breach V2</h1>
+    <span id="breach-meter">BOUNDARY INTEGRITY: 100%</span>
+  </div>
+
+  <div id="spike-cursor">
+    <div class="shaft"></div>
+    <div class="tip"></div>
+  </div>
+
+  <div id="instructions">
+    DRAG THE SPIKE ACROSS THE CROSS-WALLS · WATCH THE TEXT SPILL
+  </div>
+
+  <div id="legend">
+    <span class="swatch" style="background:var(--anthro)"></span>ANTHROPOLOGY<br>
+    <span class="swatch" style="background:var(--psych)"></span>PSYCHOLOGY<br>
+    <span class="swatch" style="background:var(--neuro)"></span>NEUROLOGY<br>
+    <span class="swatch" style="background:var(--socio)"></span>SOCIOLOGY
+  </div>
+
+  <script type="module" src="./cartesian-breach-v2.ts"></script>
+</body>
+</html>
