@@ -25,11 +25,22 @@ if (result.exitCode !== 0) {
 }
 
 // ── Step 3: Slug routing for GitHub Pages ────────────────────────
+// Moving bat.html → bat/index.html adds one directory level,
+// so all relative paths (../../foo.js) need an extra ../ prefix.
 const siteGlob = new Glob('**/*.html')
 for await (const file of siteGlob.scan(outdir)) {
   if (file.endsWith('index.html')) continue
 
   const oldPath = path.join(outdir, file)
+
+  // Moving file.html → file/index.html adds one directory level.
+  // Prepend ../ to every relative src/href so paths still resolve correctly.
+  let html = await readFile(oldPath, 'utf-8')
+  html = html.replace(/((?:src|href)=["'])(\.{1,2}\/)/g, (_match, prefix, relPath) => {
+    return `${prefix}../${relPath}`
+  })
+  await writeFile(oldPath, html, 'utf-8')
+
   const slugDir = oldPath.replace(/\.html$/, '')
   const newPath = path.join(slugDir, 'index.html')
 
