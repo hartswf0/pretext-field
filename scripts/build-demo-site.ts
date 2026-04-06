@@ -1,4 +1,4 @@
-import { rm, rename, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { rename, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Glob } from 'bun'
 
@@ -9,7 +9,7 @@ const outdir = path.join(root, 'site')
 const glob = new Glob('**/*.html')
 const entrypoints: string[] = []
 for await (const file of glob.scan(root)) {
-  if (file.includes('node_modules') || file.includes('site/') || file.includes('dist/')) continue
+  if (file.includes('node_modules') || file.includes('site/') || file.includes('dist/') || file.includes('cave-demos/')) continue
   entrypoints.push(file)
 }
 console.log(`[site:build] Found ${entrypoints.length} HTML entrypoints`)
