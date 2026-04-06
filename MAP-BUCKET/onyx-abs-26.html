@@ -1636,7 +1636,7 @@
                             document.querySelectorAll('.block').forEach(b => b.classList.remove('muted'));
                             document.querySelectorAll('.cable').forEach(w => w.style.opacity = '0.3');
                             this.updateHUD(null);
-                            APP.RENDERER.updateBranch(null);
+                            APP.NAV.branch.update(null);
                             return;
                         }
 
@@ -1671,7 +1671,7 @@
                         });
 
                         APP.NAV.updateHUD(root);
-                        APP.RENDERER.updateBranch(root);
+                        APP.NAV.branch.update(root);
                     },
 
                     transient: function (idx) {

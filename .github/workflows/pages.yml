@@ -24,10 +24,18 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run site:build
+      - name: Build static site
+        run: |
+          bun run site:build
+          echo "--- Built site contents ---"
+          find site -type f | head -80
+          echo "--- Checking for stale .ts script refs ---"
+          if grep -rn '\.ts"' site/ --include='*.html' | grep -v 'modulepreload'; then
+            echo "⚠️  WARNING: found .ts references in built HTML (may be harmless modulepreload hints)"
+          else
+            echo "✅ No stale .ts script references in built HTML"
+          fi
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site

@@ -287,52 +287,52 @@
     // Paths are absolute from repo root — works with Bun clean URLs
     const pages = [
         // GENOMA
-        { name: 'GENOMA Index',     path: '../gene-main.html',               family: 'GENOMA',      color: '#f43f5e' },
+        { name: 'GENOMA Index',     path: 'index.html',               family: 'GENOMA',      color: '#f43f5e' },
         { name: 'GENOMA Editor',    path: 'editor.html',        family: 'GENOMA',      color: '#f43f5e' },
         { name: 'GENOMA Scope',     path: 'scope.html',         family: 'GENOMA',      color: '#f43f5e' },
         { name: 'GENOMA Docs',      path: 'docs.html',          family: 'GENOMA',      color: '#f43f5e' },
         { name: 'GENOMA Registry',  path: 'registry.html',      family: 'GENOMA',      color: '#f43f5e' },
 
         // ORCA
-        { name: 'BAT-MIND Claudar',       path: '../claudar.html',                    family: 'ORCA',        color: '#ff8c00' },
-        { name: 'ORCA Aidar',             path: '../aidar.html',                      family: 'ORCA',        color: '#ff8c00' },
-        { name: 'ENGRAM Jumpar',           path: '../jumpar.html',                     family: 'ORCA',        color: '#ff8c00' },
-        { name: 'ORCA Shield 18',          path: '../ORCA/orca-shield-18.html',       family: 'ORCA',        color: '#ff8c00' },
-        { name: 'WORD Orcadar',            path: '../WORD-ENGINE/orcadar.html',       family: 'ORCA',        color: '#ff8c00' },
-        { name: 'WORD Walldar',            path: '../WORD-ENGINE/walldar.html',       family: 'ORCA',        color: '#ff8c00' },
+        { name: 'BAT-MIND Claudar',       path: '../claudar',                    family: 'ORCA',        color: '#ff8c00' },
+        { name: 'ORCA Aidar',             path: '../aidar',                      family: 'ORCA',        color: '#ff8c00' },
+        { name: 'ENGRAM Jumpar',           path: '../jumpar',                     family: 'ORCA',        color: '#ff8c00' },
+        { name: 'ORCA Shield 18',          path: '../ORCA/orca-shield-18',       family: 'ORCA',        color: '#ff8c00' },
+        { name: 'WORD Orcadar',            path: '../WORD-ENGINE/orcadar',       family: 'ORCA',        color: '#ff8c00' },
+        { name: 'WORD Walldar',            path: '../WORD-ENGINE/walldar',       family: 'ORCA',        color: '#ff8c00' },
 
         // CAVE
-        { name: 'Cave: Bat',              path: '../pages/demos/bat.html',              family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Bat Echo',          path: '../pages/demos/bat-echo.html',         family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Spotlight',         path: '../pages/demos/spotlight.html',         family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Lantern',           path: '../pages/demos/lantern.html',           family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Moon',              path: '../pages/demos/power-of-a-moon.html',   family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Cartesian v1',      path: '../pages/demos/cartesian-breach.html',  family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Cartesian v2',      path: '../pages/demos/cartesian-breach-v2.html', family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: ORCA LiDAR',        path: '../pages/demos/orca-lidar.html',        family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Cultural Brain',    path: '../pages/demos/cultural-brain.html',    family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Wordar',            path: '../pages/demos/wordar.html',            family: 'CAVE', color: '#e024c3' },
-        { name: 'Cave: Voabar',            path: '../pages/demos/voabar.html',            family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Bat',              path: '../pages/demos/bat',              family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Bat Echo',          path: '../pages/demos/bat-echo',         family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Spotlight',         path: '../pages/demos/spotlight',         family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Lantern',           path: '../pages/demos/lantern',           family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Moon',              path: '../pages/demos/power-of-a-moon',   family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Cartesian v1',      path: '../pages/demos/cartesian-breach',  family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Cartesian v2',      path: '../pages/demos/cartesian-breach-v2', family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: ORCA LiDAR',        path: '../pages/demos/orca-lidar',        family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Cultural Brain',    path: '../pages/demos/cultural-brain',    family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Wordar',            path: '../pages/demos/wordar',            family: 'CAVE', color: '#e024c3' },
+        { name: 'Cave: Voabar',            path: '../pages/demos/voabar',            family: 'CAVE', color: '#e024c3' },
 
         // LAYOUT
-        { name: 'Dynamic Layout',         path: '../pages/demos/dynamic-layout.html',     family: 'LAYOUT',  color: '#5ec8b8' },
-        { name: 'Bubbles',                path: '../pages/demos/bubbles.html',             family: 'LAYOUT',  color: '#5ec8b8' },
-        { name: 'Accordion',              path: '../pages/demos/accordion.html',           family: 'LAYOUT',  color: '#5ec8b8' },
-        { name: 'Rich Note',              path: '../pages/demos/rich-note.html',           family: 'LAYOUT',  color: '#5ec8b8' },
-        { name: 'Masonry',                path: '../pages/demos/masonry.html',             family: 'LAYOUT',  color: '#5ec8b8' },
+        { name: 'Dynamic Layout',         path: '../pages/demos/dynamic-layout',     family: 'LAYOUT',  color: '#5ec8b8' },
+        { name: 'Bubbles',                path: '../pages/demos/bubbles',             family: 'LAYOUT',  color: '#5ec8b8' },
+        { name: 'Accordion',              path: '../pages/demos/accordion',           family: 'LAYOUT',  color: '#5ec8b8' },
+        { name: 'Rich Note',              path: '../pages/demos/rich-note',           family: 'LAYOUT',  color: '#5ec8b8' },
+        { name: 'Masonry',                path: '../pages/demos/masonry',             family: 'LAYOUT',  color: '#5ec8b8' },
 
         // TYPOGRAPHIC
-        { name: 'Editorial Engine',       path: '../pages/demos/editorial-engine.html',           family: 'TYPOGRAPHIC', color: '#c89b5e' },
-        { name: 'Justification',          path: '../pages/demos/justification-comparison.html',   family: 'TYPOGRAPHIC', color: '#c89b5e' },
-        { name: 'ASCII Typographic',      path: '../pages/demos/variable-typographic-ascii.html', family: 'TYPOGRAPHIC', color: '#c89b5e' },
+        { name: 'Editorial Engine',       path: '../pages/demos/editorial-engine',           family: 'TYPOGRAPHIC', color: '#c89b5e' },
+        { name: 'Justification',          path: '../pages/demos/justification-comparison',   family: 'TYPOGRAPHIC', color: '#c89b5e' },
+        { name: 'ASCII Typographic',      path: '../pages/demos/variable-typographic-ascii', family: 'TYPOGRAPHIC', color: '#c89b5e' },
 
         // INSTRUMENT
-        { name: 'Cognitive Lanes',        path: '../cognitive-lanes.html',   family: 'INSTRUMENT', color: '#fbbf24' },
+        { name: 'Cognitive Lanes',        path: '../cognitive-lanes',   family: 'INSTRUMENT', color: '#fbbf24' },
 
         // OTHER
-        { name: 'Demos Index',            path: '../pages/demos.html',              family: 'OTHER', color: '#6b6f7b' },
-        { name: 'Cave Index',             path: '../pages/demos/index-cave.html',   family: 'OTHER', color: '#6b6f7b' },
-        { name: 'Onyx Abs 26',            path: '../MAP-BUCKET/onyx-abs-26.html',   family: 'OTHER', color: '#6b6f7b' },
+        { name: 'Demos Index',            path: '../pages/demos',              family: 'OTHER', color: '#6b6f7b' },
+        { name: 'Cave Index',             path: '../pages/demos/index-cave',   family: 'OTHER', color: '#6b6f7b' },
+        { name: 'Onyx Abs 26',            path: '../MAP-BUCKET/onyx-abs-26',   family: 'OTHER', color: '#6b6f7b' },
     ];
 
     const grid = document.getElementById('grid');
@@ -397,7 +397,7 @@
                         <button onclick="window.open('${page.path}','_blank')" title="Open in new tab">↗</button>
                     </div>
                 </div>
-                <iframe src="${page.path}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+                <iframe src="${page.path}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-pointer-lock"></iframe>
                 <div class="frame-path">${page.path}</div>
             `;
 
