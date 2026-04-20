@@ -734,7 +734,7 @@ function openContextChat(): void {
   const overlay = document.createElement('div')
   overlay.style.cssText = `position:fixed; bottom:0; left:0; right:0; z-index:9999;
     background:rgba(0,0,0,0.92); border-top:2px solid ${zoneColor};
-    padding:10px 14px; display:flex; flex-direction:column; gap:6px; font-family:Courier New;`
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; gap:6px; font-family:Courier New;`
 
   // Chat log area
   const logDiv = document.createElement('div')
@@ -744,12 +744,18 @@ function openContextChat(): void {
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
       <span style="background:${zoneColor}; color:#000; font-size:9px; font-weight:bold; padding:2px 8px; letter-spacing:1px;">LOADED CONTEXT</span>
       <span style="color:${zoneColor}; font-size:10px; font-weight:bold;">${zoneLabel}</span>
-      <span style="color:#555; font-size:8px; margin-left:auto;">ESC to close · responses write onto walls</span>
+      <span style="color:#555; font-size:8px; margin-left:auto;">responses write onto walls</span>
+      <button id="ctx-chat-close" style="background:none; border:1px solid #555; color:#aaa; font-size:14px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;">✕</button>
     </div>
     <div style="color:#999; font-size:10px; border-left:3px solid ${zoneColor}40; padding:4px 8px; margin:4px 0; background:rgba(255,255,255,0.02); max-height:60px; overflow-y:auto;">
       ${lastFacedText.substring(0, 300)}${lastFacedText.length > 300 ? '…' : ''}
     </div>`
   overlay.appendChild(logDiv)
+
+  // Wire close button
+  setTimeout(() => {
+    document.getElementById('ctx-chat-close')?.addEventListener('click', () => closeContextChat())
+  }, 0)
 
   // Input row
   const inputRow = document.createElement('div')
