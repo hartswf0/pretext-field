@@ -1,0 +1,2453 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TROUT TOWN -- THE MEMORY STREAM</title>
+    <link rel="icon" type="image/png"
+        href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0e1e33;
+            touch-action: none;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── WORD BUBBLES — keywords rise like actual air bubbles ── */
+        .word-bubble {
+            position: fixed;
+            z-index: 15;
+            pointer-events: none;
+            padding: 4px 10px;
+            font: 600 11px/1 'JetBrains Mono', monospace;
+            color: rgba(220, 240, 255, 0.95);
+            border-radius: 14px;
+            white-space: nowrap;
+            animation: bubbleRise var(--rise-dur, 8s) ease-out forwards;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+        }
+
+        @keyframes bubbleRise {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(0.3);
+            }
+
+            8% {
+                opacity: 1;
+                transform: translateY(-12px) scale(1);
+            }
+
+            40% {
+                opacity: 0.85;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(var(--rise-y, -200px)) translateX(var(--drift-x, 20px)) scale(0.5);
+            }
+        }
+
+        .word-bubble.think {
+            background: rgba(15, 30, 60, 0.75);
+            border: 1px solid rgba(80, 160, 255, 0.3);
+        }
+
+        .word-bubble.reflect {
+            background: rgba(50, 30, 10, 0.75);
+            border: 1px solid rgba(255, 180, 80, 0.3);
+        }
+
+        .word-bubble.plan {
+            background: rgba(10, 40, 25, 0.8);
+            border: 1px solid rgba(80, 255, 160, 0.35);
+            font-size: 10px;
+            letter-spacing: 0.05em;
+        }
+
+        .word-bubble.diffuse {
+            background: rgba(40, 15, 30, 0.75);
+            border: 1px solid rgba(255, 100, 180, 0.3);
+        }
+
+        .word-bubble.social {
+            background: rgba(40, 30, 10, 0.75);
+            border: 1px solid rgba(255, 200, 80, 0.35);
+        }
+
+        .word-bubble.name-label {
+            font-size: 7px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+        }
+
+        /* ── REFLECTION CARD — readable, lingers, distinct from word bubbles ── */
+        .reflect-card {
+            position: fixed;
+            z-index: 16;
+            pointer-events: none;
+            max-width: 280px;
+            padding: 12px 16px;
+            font: 300 10px/1.5 'JetBrains Mono', monospace;
+            color: rgba(255, 220, 160, 0.95);
+            background: rgba(30, 18, 8, 0.92);
+            border: 1px solid rgba(255, 160, 60, 0.25);
+            border-radius: 6px;
+            backdrop-filter: blur(10px);
+            animation: cardFloat 14s ease-out forwards;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes cardFloat {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(0.9);
+            }
+
+            5% {
+                opacity: 1;
+                transform: translateY(-8px) scale(1);
+            }
+
+            70% {
+                opacity: 0.9;
+                transform: translateY(-40px);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-80px) scale(0.95);
+            }
+        }
+
+        .reflect-card .rc-name {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            display: block;
+            opacity: 0.6;
+        }
+
+        .reflect-card .rc-label {
+            font-size: 7px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(255, 180, 80, 0.4);
+            margin-bottom: 4px;
+        }
+
+        /* ── HUD ── */
+        #hud {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font: 600 10px/1 'JetBrains Mono', monospace;
+            color: rgba(150, 200, 255, 0.5);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: rgba(10, 20, 40, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(100, 180, 255, 0.1);
+            padding: 10px 22px;
+            border-radius: 20px;
+            pointer-events: none;
+            user-select: none;
+            z-index: 10;
+        }
+
+        #mode-hint {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font: 400 9px/1 'JetBrains Mono', monospace;
+            color: rgba(150, 200, 255, 0.3);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #wj-controls {
+            position: fixed;
+            right: 36px;
+            top: 50%;
+            transform: translateY(60px);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: stretch;
+        }
+
+        .wj-label {
+            font: 700 7px/1 'JetBrains Mono', monospace;
+            color: rgba(150, 200, 255, 0.25);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            text-align: center;
+            padding-bottom: 2px;
+        }
+
+        .wj-btn {
+            font: 700 8px/1 'JetBrains Mono', monospace;
+            padding: 7px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            letter-spacing: 0.08em;
+            transition: all 0.2s;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .wj-btn:hover {
+            filter: brightness(1.4);
+            transform: scale(1.05);
+        }
+
+        .wj-storm {
+            background: rgba(40, 20, 10, 0.7);
+            border: 1px solid rgba(255, 100, 40, 0.4);
+            color: rgba(255, 150, 80, 0.9);
+        }
+
+        .wj-hatch {
+            background: rgba(10, 30, 20, 0.7);
+            border: 1px solid rgba(80, 255, 120, 0.4);
+            color: rgba(120, 255, 160, 0.9);
+        }
+
+        .wj-pred {
+            background: rgba(30, 10, 20, 0.7);
+            border: 1px solid rgba(255, 60, 80, 0.4);
+            color: rgba(255, 100, 120, 0.9);
+        }
+
+        .wj-pause {
+            background: rgba(20, 20, 40, 0.7);
+            border: 1px solid rgba(180, 180, 255, 0.4);
+            color: rgba(200, 200, 255, 0.9);
+        }
+
+        .wj-pause.active {
+            background: rgba(60, 20, 20, 0.7);
+            border: 1px solid rgba(255, 100, 100, 0.5);
+            color: rgba(255, 150, 150, 0.9);
+        }
+
+        /* Emergence benchmarks */
+        #emergence-hud {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            z-index: 10;
+            font: 400 8px/1.6 'JetBrains Mono', monospace;
+            color: rgba(150, 200, 255, 0.4);
+            letter-spacing: 0.06em;
+            text-align: right;
+            pointer-events: none;
+        }
+
+        /* ── RECALL PANEL ── */
+        #recall-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            font: 400 10px/1.6 'JetBrains Mono', monospace;
+            color: rgba(180, 210, 255, 0.8);
+            letter-spacing: 0.03em;
+            background: rgba(10, 20, 40, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 180, 255, 0.12);
+            padding: 16px 20px;
+            border-radius: 14px;
+            width: 300px;
+            max-height: 60vh;
+            overflow-y: auto;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+
+        #recall-panel .rp-name {
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        #recall-panel .rp-section {
+            font-weight: 700;
+            font-size: 8px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(150, 200, 255, 0.4);
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+
+        #recall-panel .rp-mem {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(100, 180, 255, 0.06);
+            font-size: 9px;
+            line-height: 1.5;
+        }
+
+        #recall-panel .rp-mem .rp-imp {
+            color: rgba(255, 200, 100, 0.6);
+            font-size: 8px;
+        }
+
+        #recall-panel .rp-mem .rp-ref {
+            color: rgba(100, 255, 180, 0.6);
+            font-style: italic;
+        }
+
+        /* ── LLM SETTINGS ── */
+        #key-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(5, 10, 20, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #key-box {
+            background: rgba(15, 25, 45, 0.95);
+            border: 1px solid rgba(100, 180, 255, 0.12);
+            border-radius: 16px;
+            padding: 32px 28px;
+            text-align: center;
+            max-width: 380px;
+        }
+
+        #key-box h2 {
+            font: 700 14px/1 'JetBrains Mono';
+            color: rgba(150, 200, 255, 0.8);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        #key-box p {
+            font: 300 10px/1.5 'JetBrains Mono';
+            color: rgba(150, 200, 255, 0.4);
+            margin-bottom: 18px;
+            letter-spacing: 0.02em;
+        }
+
+        #key-box input {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: rgba(10, 20, 40, 0.8);
+            border: 1px solid rgba(100, 180, 255, 0.15);
+            color: rgba(180, 220, 255, 0.9);
+            font: 11px 'JetBrains Mono';
+            outline: none;
+        }
+
+        #key-box button {
+            margin-top: 12px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font: 600 10px 'JetBrains Mono';
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border: 1px solid rgba(100, 180, 255, 0.2);
+            transition: all 0.2s;
+        }
+
+        #key-submit {
+            background: rgba(60, 120, 200, 0.3);
+            color: rgba(180, 220, 255, 0.9);
+        }
+
+        #key-submit:hover {
+            background: rgba(60, 120, 200, 0.5);
+        }
+
+        .preset-btn {
+            background: rgba(10, 20, 40, 0.6);
+            color: rgba(150, 200, 255, 0.6);
+            margin: 0 4px;
+        }
+
+        .preset-btn:hover {
+            background: rgba(30, 60, 100, 0.6);
+        }
+
+        /* ── DEITY INPUT (Inner Voice) ── */
+        #deity-input {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 340px;
+            padding: 10px 18px;
+            border-radius: 20px;
+            border: 1px solid rgba(100, 180, 255, 0.12);
+            background: rgba(10, 20, 40, 0.6);
+            backdrop-filter: blur(8px);
+            color: rgba(180, 220, 255, 0.8);
+            font: 300 11px 'JetBrains Mono';
+            outline: none;
+            text-align: center;
+            z-index: 20;
+        }
+
+        #deity-input:focus {
+            border-color: rgba(100, 180, 255, 0.4);
+            background: rgba(10, 20, 40, 0.85);
+        }
+
+        #deity-input::placeholder {
+            color: rgba(100, 160, 255, 0.25);
+        }
+
+        /* ── STREAM PANEL ── */
+        #stream-toggle {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 30;
+            background: rgba(10, 20, 40, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(100, 180, 255, 0.1);
+            border-right: none;
+            border-radius: 10px 0 0 10px;
+            padding: 14px 6px;
+            cursor: pointer;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            font: 700 8px 'JetBrains Mono';
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(150, 200, 255, 0.4);
+            transition: all 0.3s;
+            user-select: none;
+        }
+
+        #stream-toggle:hover {
+            color: rgba(150, 200, 255, 0.7);
+        }
+
+        #stream-toggle.open {
+            right: 360px;
+        }
+
+        #stream-panel {
+            position: fixed;
+            right: -360px;
+            top: 0;
+            width: 360px;
+            height: 100%;
+            z-index: 25;
+            background: rgba(8, 16, 30, 0.95);
+            backdrop-filter: blur(14px);
+            border-left: 1px solid rgba(100, 180, 255, 0.08);
+            transition: right 0.35s ease;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #stream-panel.open {
+            right: 0;
+        }
+
+        #stream-header {
+            padding: 16px 18px 12px;
+            border-bottom: 1px solid rgba(100, 180, 255, 0.06);
+            font: 700 9px 'JetBrains Mono';
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(150, 200, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #stream-header span {
+            font-weight: 300;
+            color: rgba(150, 200, 255, 0.25);
+            font-size: 8px;
+        }
+
+        #stream-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(100, 180, 255, 0.1) transparent;
+        }
+
+        .stream-entry {
+            padding: 7px 16px;
+            border-bottom: 1px solid rgba(100, 180, 255, 0.03);
+            font: 300 9px/1.5 'JetBrains Mono';
+            color: rgba(150, 200, 255, 0.6);
+            animation: streamIn 0.3s ease;
+        }
+
+        @keyframes streamIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .stream-entry .se-fish {
+            font-weight: 700;
+            font-size: 9px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .stream-entry .se-time {
+            float: right;
+            font-size: 8px;
+            color: rgba(150, 200, 255, 0.2);
+        }
+
+        .stream-entry .se-belief {
+            margin-top: 3px;
+            font-style: italic;
+            color: rgba(180, 220, 255, 0.7);
+            border-left: 2px solid;
+            padding-left: 8px;
+            font-size: 9px;
+        }
+
+        .stream-entry .se-meta {
+            margin-top: 2px;
+            font-size: 8px;
+            color: rgba(150, 200, 255, 0.2);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        #stream-footer {
+            padding: 10px 14px;
+            border-top: 1px solid rgba(100, 180, 255, 0.06);
+            display: flex;
+            gap: 6px;
+        }
+
+        .sf-btn {
+            flex: 1;
+            padding: 7px;
+            border-radius: 6px;
+            border: 1px solid rgba(100, 180, 255, 0.08);
+            background: rgba(15, 30, 50, 0.6);
+            color: rgba(150, 200, 255, 0.4);
+            font: 600 8px 'JetBrains Mono';
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .sf-btn:hover {
+            background: rgba(30, 60, 100, 0.4);
+            color: rgba(150, 200, 255, 0.6);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="key-overlay">
+        <div id="key-box">
+            <h2>the memory stream</h2>
+            <p>Generative agents with tripartite memory retrieval, hierarchical reflection trees, and recursive
+                planning.</p>
+            <div id="protocol-warning"
+                style="display:none;background:rgba(255,80,40,0.12);border:1px solid rgba(255,80,40,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;">
+                <span style="color:rgba(255,150,80,0.9);font-size:9px;letter-spacing:0.06em;">OPENED FROM FILE:// -- LLM
+                    CALLS WILL FAIL (CORS)</span><br>
+                <span style="color:rgba(200,220,255,0.6);font-size:8px;">Run: python3 -m http.server 8765</span><br>
+                <span style="color:rgba(200,220,255,0.6);font-size:8px;">Then open:
+                    http://localhost:8765/trout-town-memory.html</span>
+            </div>
+            <div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;">
+                <button class="preset-btn" onclick="setPreset('ollama')">Ollama</button>
+                <button class="preset-btn" onclick="setPreset('openai')">OpenAI</button>
+            </div>
+            <input type="text" id="key-url" value="http://localhost:11434/v1/chat/completions"
+                placeholder="Endpoint URL">
+            <input type="text" id="key-model" value="llama3" placeholder="Model name">
+            <input type="password" id="key-input" placeholder="API Key (blank for local)" autocomplete="off">
+            <button id="key-submit">awaken memory streams</button>
+        </div>
+    </div>
+    <script>
+        // Auto-redirect from file:// to HTTP server
+        if (location.protocol === 'file:') {
+            document.getElementById('protocol-warning').style.display = 'block';
+        }
+    </script>
+
+    <div id="mode-hint">TAP TROUT TO READ MIND · TYPE BELOW TO INJECT INNER VOICE</div>
+    <div id="recall-panel"></div>
+    <div id="hud">OBSERVATIONS: <span id="obs-count">0</span> · REFLECTIONS: <span id="ref-count">0</span> · DIFFUSIONS:
+        <span id="dif-count">0</span> · Σimp: <span id="imp-sum">0</span></div>
+
+    <!-- WORLD STATE HUD -->
+    <div id="world-hud"
+        style="position:fixed;bottom:90px;left:20px;z-index:10;font:400 9px/1.6 'JetBrains Mono',monospace;color:rgba(150,200,255,0.5);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;">
+        <span id="wh-time">afternoon</span> . <span id="wh-weather">overcast</span> . river: <span
+            id="wh-river">normal</span> . pop: <span id="wh-pop">24</span>
+    </div>
+
+    <!-- EMERGENCE BENCHMARKS -->
+    <div id="emergence-hud">
+        unique zones visited: <span id="em-zones">0</span>/9<br>
+        social encounters: <span id="em-social">0</span><br>
+        gossip chains: <span id="em-gossip">0</span><br>
+        plan variety: <span id="em-plans">--</span><br>
+        ancestral surfacings: <span id="em-ancestral">0</span>
+    </div>
+
+    <!-- WORLD JOCKEY CONTROLS — stacked on right side near memory stream -->
+    <div id="wj-controls">
+        <button id="pause-btn" class="wj-btn wj-pause" onclick="togglePause()" title="Pause / Resume simulation">⏸
+            PAUSE</button>
+        <div class="wj-label">EVENTS</div>
+        <button class="wj-btn wj-storm" onclick="triggerEvent('storm')"
+            title="Storm: river level spikes, weather shifts">STORM</button>
+        <button class="wj-btn wj-hatch" onclick="triggerEvent('hatchery')"
+            title="Hatchery Release: 200 fry released">HATCHERY</button>
+        <button class="wj-btn wj-pred" onclick="triggerEvent('predator')"
+            title="Predator: heron sighted near spawning grounds">PREDATOR</button>
+        <button class="wj-btn" style="background: linear-gradient(135deg, #ffcc44, #ff9922)"
+            onclick="triggerEvent('commerce')"
+            title="Commerce Cycle: mandatory purchasing event for all citizens">COMMERCE</button>
+    </div>
+
+    <input id="deity-input" type="text" placeholder="inner voice — type and press enter">
+
+    <!-- MEMORY STREAM PANEL -->
+    <div id="stream-toggle"
+        onclick="document.getElementById('stream-panel').classList.toggle('open');this.classList.toggle('open');">memory
+        stream</div>
+    <div id="stream-panel">
+        <div id="stream-header">Memory Stream <span id="stream-count">0 events</span></div>
+        <div id="stream-body"></div>
+        <div id="stream-footer">
+            <button class="sf-btn" onclick="exportStream('json')">Export JSON</button>
+            <button class="sf-btn" onclick="exportStream('text')">Export Text</button>
+        </div>
+    </div>
+
+    <script>
+        function setPreset(p) {
+            if (p === 'ollama') { document.getElementById('key-url').value = 'http://localhost:11434/v1/chat/completions'; document.getElementById('key-model').value = 'llama3'; }
+            else { document.getElementById('key-url').value = 'https://api.openai.com/v1/chat/completions'; document.getElementById('key-model').value = 'gpt-4o-mini'; }
+        }
+
+        /* ── STREAM LOGGING ── */
+        let _streamLog = [], _streamCount = 0;
+        function logStream(fishName, fishColor, type, belief, meta) {
+            _streamCount++;
+            const now = new Date();
+            const ts = now.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            _streamLog.push({ time: now.toISOString(), fish: fishName, type, belief: belief || '', meta: meta || '' });
+            const body = document.getElementById('stream-body');
+            const el = document.createElement('div');
+            el.className = 'stream-entry';
+            let html = `<span class="se-time">${ts}</span><span class="se-fish" style="color:${fishColor}">${fishName}</span>`;
+            if (belief) html += `<div class="se-belief" style="border-color:${fishColor}">${belief}</div>`;
+            if (meta) html += `<div class="se-meta">${meta}</div>`;
+            el.innerHTML = html;
+            body.insertBefore(el, body.firstChild);
+            while (body.children.length > 150) body.removeChild(body.lastChild);
+            document.getElementById('stream-count').textContent = _streamCount + ' events';
+        }
+        function exportStream(format) {
+            if (_streamLog.length === 0) { alert('No events'); return; }
+            let content, filename, mime;
+            if (format === 'json') { content = JSON.stringify(_streamLog, null, 2); filename = 'trout-memory-' + Date.now() + '.json'; mime = 'application/json'; }
+            else { content = _streamLog.map(e => `[${e.time}] ${e.fish} (${e.type}) ${e.belief} ${e.meta}`).join('\n'); filename = 'trout-memory-' + Date.now() + '.txt'; mime = 'text/plain'; }
+            const blob = new Blob([content], { type: mime });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+        }
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        /* ============================================================
+           TROUT TOWN — THE MEMORY STREAM
+           VOICE 1: Smallville Memory Ecologist
+           
+           GENOME: ai-town.md × f1.md × f2.md × c1.md × e1.md × d1.md
+           SHELL:  f-town-00.html (visual lineage)
+           SOUL:   Park et al. 2023 (full cognitive architecture)
+           
+           SANKOFA RETRIEVALS:
+           - f1.md: WorldText DSL (entities, locations, relations, rules)
+           - f2.md: 25-agent ecology, information diffusion, Valentine Hatch
+           - c1.md: Tripartite memory, reflection tree, ABCD action loop
+           - e1.md: Full strata model, failure axis, cosine retrieval
+           - d1.md: TroutTown instantiation, underwater Americana
+           
+           WHAT THIS ADDS OVER f-town-00:
+           1. Hierarchical Reflection TREE (not flat list)
+           2. Accumulated importance sum → reflection trigger (Σ≥150)
+           3. Recursive schedule decomposition (Day→Hour→15min)
+           4. Information DIFFUSION cascading between agents
+           5. Tag-based retrieval approximating cosine similarity
+           6. Environmental Tree with named zones
+           7. Inner voice injection via deity input
+           8. Nitrogen-cycle-inspired cognitive waste accumulation
+           ============================================================ */
+
+        let API_KEY = '', API_URL = '', API_MODEL = '';
+
+        document.getElementById('key-submit').addEventListener('click', () => {
+            API_KEY = document.getElementById('key-input').value.trim();
+            API_URL = document.getElementById('key-url').value.trim();
+            API_MODEL = document.getElementById('key-model').value.trim() || 'llama3';
+            document.getElementById('key-overlay').style.display = 'none';
+            startWorld();
+        });
+        document.getElementById('key-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('key-submit').click(); });
+
+        /* ── LLM ENGINE (the cognitive engine — without it, agents are inert) ── */
+        let _llmFails = 0, _llmBackoff = 0, _llmAlive = false;
+        async function llm(systemPrompt, userPrompt, maxTokens = 150) {
+            if (_llmBackoff > 0) { _llmBackoff--; return ''; }
+            if (!API_URL) return '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (API_KEY) headers['Authorization'] = `Bearer ${API_KEY}`;
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                const res = await fetch(API_URL, {
+                    method: 'POST', headers, signal: controller.signal,
+                    body: JSON.stringify({ model: API_MODEL, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], max_tokens: maxTokens, temperature: 0.9 })
+                });
+                clearTimeout(timeout);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                _llmFails = 0; _llmAlive = true;
+                return data.choices?.[0]?.message?.content?.trim() || '';
+            } catch (e) {
+                _llmFails++;
+                _llmBackoff = Math.min(600, 60 * Math.pow(2, _llmFails)); // strong backoff
+                _llmAlive = false;
+                if (_llmFails <= 2) console.warn(`LLM call failed (attempt ${_llmFails}). Backoff ${_llmBackoff} ticks.`, e.message);
+                else console.warn(`LLM unreachable after ${_llmFails} attempts. Agents cognitively inert. Serve via HTTP + ensure API is running.`);
+                return '';
+            }
+        }
+
+
+        /* ── AUDIO (inherited from f-town-00) ── */
+        const Audio = (() => {
+            let ctx, mainGain, rev, lp, ready = false;
+            const penta = [130.81, 146.83, 164.81, 196, 220, 261.63, 293.66, 329.63, 392, 440];
+            const init = () => {
+                if (ready) return;
+                ctx = new (window.AudioContext || window.webkitAudioContext)();
+                mainGain = ctx.createGain(); mainGain.gain.value = 0.4; mainGain.connect(ctx.destination);
+                rev = ctx.createConvolver();
+                const len = ctx.sampleRate * 6, buf = ctx.createBuffer(2, len, ctx.sampleRate);
+                for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.5); }
+                rev.buffer = buf; rev.connect(mainGain);
+                lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
+                lp.connect(rev); lp.connect(mainGain);
+                [[43.65, 0.06], [87.3, 0.04], [130.81, 0.02]].forEach(([f, g]) => {
+                    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+                    const og = ctx.createGain(); og.gain.value = g; o.connect(og); og.connect(lp); o.start();
+                });
+                ready = true;
+            };
+            const tone = (freq, vol = 0.04, dur = 4, delay = 0) => {
+                if (!ready || ctx.state !== 'running') return;
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = freq;
+                const t = ctx.currentTime + delay;
+                g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.12);
+                g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                o.connect(g); g.connect(lp); o.start(t); o.stop(t + dur);
+            };
+            return {
+                init, resume: () => { if (ctx?.state === 'suspended') ctx.resume(); },
+                think: (i) => { tone(penta[i % penta.length] * 2, 0.03, 6); },
+                reflect: (i) => { tone(penta[i % penta.length], 0.05, 5); tone(penta[(i + 4) % penta.length], 0.04, 5, 0.3); },
+                diffuse: (i, j) => { tone(penta[i % penta.length], 0.04, 5); tone(penta[(j + 3) % penta.length], 0.03, 5, 0.3); },
+                plan: (i) => { tone(penta[i % penta.length] * 0.5, 0.03, 3); tone(penta[(i + 2) % penta.length], 0.02, 4, 0.2); },
+                ripple: () => { tone(80, 0.12, 1.5); tone(120, 0.08, 2, 0.1); },
+            };
+        })();
+
+        const FISH_SYSTEM = `You are a unit in the Benthic Grid of TroutTown -- a flat ontology where trout, traffic lights, kelp stalks, and cash registers are all equal entities. TroutTown is a submerged mid-century American town on a riverbed. Trout perform human capitalism: stocking shelves, brewing coffee, grading papers, voting at Town Hall. But they are still fish. They sense through lateral lines, navigate by chemical gradients, and their metabolism drives everything.
+
+VOICE RULES -- ABSOLUTE:
+- Output is a PHANTOM PERSPECTIVE: a sensory-locked, nonhuman readout of what it feels like to BE this entity right now.
+- Use CHEMICAL and PHYSICAL vocabulary: gradients, thermoclines, salinity, metabolism, lateral line, formica, aluminum, grease, phosphors, hydrocarbon.
+- The absurdity is structural: a bass navigating the aisles of a sunken Dollar General is NOT quirky. It is stochastic gradient descent through a consumer landscape.
+- NEVER use: whispers, neon dreams, connections, ancient, echoes, dance, weave, swirl, tapestry, heartbeat of the river, or any similar poetic filler.
+- Be TERSE. Max 1-2 sentences. State what the lateral line detects, what the metabolism demands, what the gradient says.
+
+EXAMPLES OF CORRECT OUTPUT:
+- "Lateral line detects heavy sucrose gradient from the coffee machine. Metabolism demands I stay."
+- "The formica counter is a kinetic barrier. Heat thermocline from the griddle is impassable. Retreating to the booth."  
+- "Inventory ledger shows algae wipes at 40%. Restocking protocol."
+- "Sam's bioelectric signature is elevated. Cortisol in the water column. Something happened at the council meeting."
+- "The current carries Rosa's pheromone trail westward. She passed through here 20 minutes ago."
+
+WRONG (DO NOT OUTPUT):
+- "The rain stirs memories and connections in the deep water" (poetic fluff)
+- "I feel the weight of ancient whispers in the current" (meaningless)
+- "The neon dreams glow with possibility" (AI slop)`;
+
+        /* ── ENVIRONMENTAL TREE (from c1.md, f2.md, b.md: Benthic Americana) ── */
+        /* importanceBias: when retrieving memories inside this zone, multiply
+           importance score of memories matching these tags. This is how the
+           WildernessRiver acts as the "subaquatic subconscious" — it doesn't
+           carry a word bank, it boosts suppressed ancestral memories.
+           planTemplate: if present, the agent's plan decomposition is IMPOSED
+           by the institution, not self-generated. This is how conformity works. */
+        const ZONES = [
+            {
+                id: 'hobbs_eddy', name: "Hobb's Eddy Café", x: -6, z: -6, r: 3, type: 'social',
+                importanceBias: { social: 1.4, commodity: 1.2, ritual: 1.1 },
+                planTemplate: ['Seat at counter', 'Study menu', 'Place order', 'Wait for food', 'Eat', 'Pay bill', 'Leave tip', 'Linger or depart'],
+                objects: [
+                    { id: 'coffee_machine', name: 'Coffee Machine', state: 'BREWING' },
+                    { id: 'jukebox', name: 'Jukebox', state: 'PLAYING_OLDIES' },
+                    { id: 'bulletin_board', name: 'Bulletin Board', state: 'POSTED: Town Meeting Thursday' },
+                ]
+            },
+            {
+                id: 'willow_reef', name: "Willow Roots Pharmacy", x: 6, z: -4, r: 2.5, type: 'commerce',
+                importanceBias: { commodity: 1.8, labor: 1.3, institutional: 1.1 },
+                objects: [
+                    { id: 'cash_register', name: 'Cash Register', state: 'OPEN' },
+                    { id: 'tackle_rack', name: 'Tackle Rack', state: 'STOCKED' },
+                    { id: 'algae_wipes', name: 'Algae Wipes Display', state: 'HALF_EMPTY' },
+                ]
+            },
+            {
+                id: 'oak_currents', name: "Oak Hill College", x: 0, z: 5, r: 3, type: 'academic',
+                importanceBias: { institutional: 1.8, identity: 1.3 },
+                planTemplate: ['Stand for Pledge', 'Attendance roll call', 'Penmanship drill', 'Reading assignment', 'Arithmetic', 'Recess', 'History class', 'Bell dismissal'],
+                objects: [
+                    { id: 'chalkboard', name: 'Chalkboard', state: 'LESSON: River Ecology' },
+                    { id: 'school_bell', name: 'School Bell', state: 'SILENT' },
+                    { id: 'pledge_flag', name: 'Pledge Flag', state: 'MOUNTED' },
+                ]
+            },
+            {
+                id: 'spawning_grounds', name: "The Spawning Grounds", x: -4, z: 6, r: 2, type: 'ritual',
+                importanceBias: { ancestral: 1.5, ritual: 1.4 },
+                objects: [
+                    { id: 'nesting_gravel', name: 'Nesting Gravel', state: 'PREPARED' },
+                    { id: 'permit_desk', name: 'Permit Desk', state: 'UNMANNED' },
+                ]
+            },
+            {
+                id: 'deep_pool', name: "Reflection Deep Pool", x: 5, z: 5, r: 2, type: 'contemplative',
+                importanceBias: { ancestral: 1.3, identity: 1.2 },
+                objects: [
+                    { id: 'sunken_bench', name: 'Sunken Bench', state: 'EMPTY' },
+                ]
+            },
+            {
+                id: 'memory_river', name: "The Memory Stream", x: 0, z: -7, r: 4, type: 'transit',
+                importanceBias: { ancestral: 1.2 },
+                objects: [
+                    { id: 'current_marker', name: 'Current Marker', state: 'FLOWING_SOUTH' },
+                    { id: 'driftwood', name: 'Driftwood Log', state: 'LODGED' },
+                ]
+            },
+            {
+                id: 'bait_shop', name: "Big Fin Bait & Tackle", x: -7, z: 0, r: 2, type: 'commerce',
+                importanceBias: { commodity: 1.5, labor: 1.3 },
+                objects: [
+                    { id: 'worm_tank', name: 'Worm Tank', state: 'FULL' },
+                    { id: 'rod_rack', name: 'Rod Rack', state: 'DISPLAY_ONLY' },
+                ]
+            },
+            {
+                id: 'town_hall', name: "Town Hall", x: 7, z: 0, r: 2.5, type: 'institutional',
+                importanceBias: { institutional: 1.8, commodity: 1.2 },
+                planTemplate: ['Charge read', 'Enter plea', 'Motion from floor', 'Second the motion', 'Vote by show of fins', 'Ruling recorded', 'Next case called', 'Session adjourned'],
+                objects: [
+                    { id: 'gavel', name: 'Gavel', state: 'ON_DESK' },
+                    { id: 'notice_board', name: 'Notice Board', state: 'POSTED: Fishing Closure Vote' },
+                ]
+            },
+            /* ── THE WILDERNESS RIVER — the ancestral periphery where the
+               anthropomorphic veneer is thinnest. The subaquatic subconscious.
+               From TroutTown Surreal Americana: "the perilous place where primal
+               instincts threaten to resurface, where ancestral memories reside,
+               completely beyond the reach of the ConvStore and the Courtroom." ── */
+            {
+                id: 'wilderness_river', name: "The Wilderness River", x: 0, z: 9, r: 3, type: 'ancestral',
+                importanceBias: { ancestral: 2.5, institutional: 0.3 },
+                objects: [
+                    { id: 'banjo', name: 'Banjo', state: 'WEDGED_IN_ROOT' },
+                    { id: 'wild_current', name: 'Untamed Current', state: 'SURGING' },
+                    { id: 'substrate_strata', name: 'Exposed Substrate Strata', state: 'VISIBLE' },
+                ]
+            },
+        ];
+        function getZone(pos) {
+            for (const z of ZONES) {
+                const dx = pos.x - z.x, dz = pos.z - z.z;
+                if (Math.sqrt(dx * dx + dz * dz) < z.r) return z;
+            }
+            return { id: 'open_water', name: 'Open Water', type: 'wilderness', objects: [], importanceBias: {} };
+        }
+
+        /* ── MUTABLE WORLD STATE ── */
+        const WORLD = {
+            weather: 'overcast',        // clear | overcast | rain | storm
+            river_level: 'normal',      // low | normal | high | flood
+            time_of_day: 'afternoon',   // dawn | morning | afternoon | dusk | night
+            trout_population: 24,
+            hatchery_released: false,
+            fishing_closure: false,
+            events: [],                 // active domain events
+            tick: 0,
+        };
+        // Advance world state slowly
+        function tickWorld() {
+            WORLD.tick++;
+            // Time cycle (every ~500 ticks)
+            if (WORLD.tick % 500 === 0) {
+                const times = ['dawn', 'morning', 'afternoon', 'dusk', 'night'];
+                const i = times.indexOf(WORLD.time_of_day);
+                WORLD.time_of_day = times[(i + 1) % times.length];
+            }
+            // Weather shifts (rare)
+            if (WORLD.tick % 800 === 0 && Math.random() < 0.4) {
+                const weathers = ['clear', 'overcast', 'rain', 'storm'];
+                WORLD.weather = weathers[Math.floor(Math.random() * weathers.length)];
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           MEMORY STREAM — Park et al. 2023
+           RETRIEVED FROM: c1.md, e1.md, f1.md, f2.md
+           ═══════════════════════════════════════════ */
+        let _globalObs = 0, _globalRef = 0, _globalDif = 0;
+
+        class MemoryNode {
+            constructor(text, type, importance, tags = [], cites = []) {
+                this.id = Math.random().toString(36).substr(2, 8);
+                this.text = text;
+                this.type = type;          // 'observation' | 'reflection' | 'plan'
+                this.importance = importance; // 1-10: LLM-assessed poignancy
+                this.timestamp = Date.now();
+                this.tags = tags;          // tag-based retrieval (approx cosine)
+                this.cites = cites;        // reflection tree: which nodes this synthesizes
+                this.accessed = 0;         // retrieval count
+            }
+        }
+
+        class MemoryStream {
+            constructor() {
+                this.nodes = [];                // append-only log
+                this.accumulatedImportance = 0; // triggers reflection at ≥150
+                this.maxNodes = 200;            // ring buffer ceiling
+            }
+
+            // OBSERVE — create a new observation node
+            // SANKOFA: ancestral memories are NEVER evicted. The institutional
+            // system can suppress them through importance scoring, but it
+            // cannot delete them. This is the permanent low-level haunt.
+            observe(text, importance = 5, tags = []) {
+                const node = new MemoryNode(text, 'observation', importance, tags);
+                this.nodes.push(node);
+                this.accumulatedImportance += importance;
+                if (this.nodes.length > this.maxNodes) {
+                    // Evict oldest observation — but NEVER evict reflections or ancestral memories
+                    const oldest = this.nodes.findIndex(n =>
+                        n.type === 'observation' && !n.tags.includes('ancestral')
+                    );
+                    if (oldest >= 0) this.nodes.splice(oldest, 1);
+                }
+                _globalObs++;
+                return node;
+            }
+
+            // ADD REFLECTION — higher-order synthesis node with citation pointers
+            addReflection(text, importance, cites = []) {
+                const citeTags = cites.flatMap(c => c.tags);
+                const node = new MemoryNode(text, 'reflection', importance, [...new Set(citeTags)], cites.map(c => c.id));
+                this.nodes.push(node);
+                this.accumulatedImportance = 0; // reset counter after reflection
+                _globalRef++;
+                return node;
+            }
+
+            // TRIPARTITE RETRIEVAL — recency × importance × relevance (tag-approx)
+            // SANKOFA EXTENSION: zone-specific importance multipliers.
+            // When an agent is in the Schoolhouse, memories tagged 'institutional'
+            // get boosted. In the WildernessRiver, 'ancestral' memories surface.
+            // Culture is what the retrieval function decides is important.
+            retrieve(k = 8, contextTags = [], zoneBias = {}) {
+                const now = Date.now();
+                const HALF_LIFE = 120000; // 2 minutes in ms
+                const scored = this.nodes.map(n => {
+                    const recency = Math.exp(-(now - n.timestamp) / HALF_LIFE);
+                    let importance = n.importance / 10;
+                    // Zone-specific importance multiplier — the institutional scoring function
+                    if (zoneBias && Object.keys(zoneBias).length > 0) {
+                        for (const tag of n.tags) {
+                            if (zoneBias[tag]) {
+                                importance *= zoneBias[tag]; // boost or suppress by zone
+                            }
+                        }
+                    }
+                    // Tag-based relevance (approximates cosine similarity from e1.md)
+                    let relevance = 0.3; // baseline
+                    if (contextTags.length > 0 && n.tags.length > 0) {
+                        const overlap = n.tags.filter(t => contextTags.includes(t)).length;
+                        relevance = Math.max(0.3, overlap / Math.max(contextTags.length, 1));
+                    }
+                    // Alpha/beta/gamma weights from e1.md mitigation_levers
+                    const score = recency * 1.0 + importance * 1.0 + relevance * 1.0;
+                    n.accessed++;
+                    return { node: n, score };
+                });
+                scored.sort((a, b) => b.score - a.score);
+                return scored.slice(0, k).map(s => s.node);
+            }
+
+            // Check if reflection should trigger (from f2.md: accumulated_importance_sum >= 150)
+            shouldReflect() {
+                return this.accumulatedImportance >= 150;
+            }
+
+            // Get recent text for prompting
+            recentText(k = 5) {
+                return this.nodes.filter(n => n.type === 'observation').slice(-k).map(n => n.text).join('. ');
+            }
+
+            // Get reflection beliefs
+            reflectionText() {
+                return this.nodes.filter(n => n.type === 'reflection').slice(-3).map(n => n.text).join('. ');
+            }
+
+            // Get all observations (for reflection synthesis)
+            recentObservations(k = 100) {
+                return this.nodes.filter(n => n.type === 'observation').slice(-k);
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           RECURSIVE SCHEDULE — Day → Hour → 15min
+           RETRIEVED FROM: c1.md (decomposition_strategy),
+                           e1.md (15-minute chunked schedule),
+                           f2.md (Fracture_Plan_Into_Micro_Currents)
+           ═══════════════════════════════════════════ */
+        class Schedule {
+            constructor() {
+                this.dayPlan = [];      // broad strokes: ["forage at Hobbs", "visit pharmacy", ...]
+                this.currentChunk = null; // { action, zone, until, granular: [...] }
+                this.horizon = 'unplanned'; // 'unplanned' → 'broad_strokes' → 'moment_to_moment'
+            }
+
+            setDayPlan(chunks) {
+                this.dayPlan = chunks;
+                this.horizon = 'broad_strokes';
+            }
+
+            getCurrentAction() {
+                if (this.currentChunk && this.currentChunk.granular && this.currentChunk.granular.length > 0) {
+                    return this.currentChunk.granular[0];
+                }
+                return this.currentChunk ? this.currentChunk.action : null;
+            }
+
+            advanceGranular() {
+                if (this.currentChunk && this.currentChunk.granular) {
+                    this.currentChunk.granular.shift();
+                    if (this.currentChunk.granular.length === 0) {
+                        this.dayPlan.shift();
+                        this.currentChunk = null;
+                    }
+                }
+            }
+
+            needsPlanning() {
+                return this.horizon === 'unplanned' || (this.dayPlan.length === 0 && !this.currentChunk);
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           PERSONAS — underwater Americana (from d1.md)
+           ═══════════════════════════════════════════ */
+        /* ═══════════════════════════════════════════
+           PERSONAS — Cultural DNA (from Surreal Americana ontology)
+           
+           These are not character descriptions. They are INSTITUTIONAL
+           MEMORIES — what the system taught each agent to believe happened
+           before the simulation begins. The Schoolhouse taught them
+           cleanliness = virtue. Commerce taught them buying = identity.
+           The WildRiverEra is encoded as dangerous nostalgia.
+           
+           Tags encode the ideological function of each memory:
+           - institutional: norms transmitted by Schoolhouse/Church/Courtroom
+           - commodity: purchasing events and consumer identity
+           - labor: work as community service and self-worth
+           - ritual: performative social obligations
+           - ancestral: pre-anthropomorphic biological memory (never evicted)
+           - identity: core self-concept shaped by institutions
+           ═══════════════════════════════════════════ */
+        const PERSONAS = [
+            {
+                name: 'Isabella', color: 0xff6644, hex: '#ff6644', home: 'hobbs_eddy',
+                trait: 'the café manager at Hobb\'s Eddy, always planning events and bringing trout together',
+                job: 'Café manager',
+                bio_seed: [
+                    { text: 'I am Isabella Rodriguez. I run Hobb\'s Eddy Café. I was taught that feeding the community is the highest calling.', imp: 9, tags: ['identity', 'institutional', 'labor'] },
+                    { text: 'I open every morning at dawn. The copper machine takes fourteen minutes. If the coffee is late, the town starts wrong.', imp: 7, tags: ['labor', 'ritual'] },
+                    { text: 'Marge at the old diner used to say "draw one" and a coffee appeared. I learned the language of the counter from her. This is how things work.', imp: 8, tags: ['institutional', 'labor'] },
+                    { text: 'I have ordered new napkin holders from the Dollar General six times. They corrode underwater within a month. I order them again.', imp: 7, tags: ['commodity', 'labor'] },
+                    { text: 'The bulletin board is the most important surface in town. Whoever controls what gets posted controls what gets known.', imp: 8, tags: ['institutional', 'social'] },
+                    { text: 'The Valentine\'s Day party requires coordination. Gift exchange sustains the economy. The economy sustains us. This is what the Schoolhouse taught.', imp: 8, tags: ['commodity', 'institutional', 'ritual'] },
+                    { text: 'I worry about the fishing closure vote. If commerce stops, what are we?', imp: 7, tags: ['commodity', 'institutional'] },
+                    { text: 'Klaus is too precise but his inventory ledger is the most honest document in TroutTown. Numbers don\'t perform.', imp: 6, tags: ['social'] },
+                    { text: 'Sometimes when the café is empty and the jukebox plays static, I hear something beneath the floor. The river under the floor. I don\'t think about it.', imp: 4, tags: ['ancestral'] },
+                ],
+                social_ties: { Klaus: 0.6, Maria: 0.8, Ember: 0.9, Slate: 0.4, Drift: 0.7, Rosa: 0.5, Sam: 0.3 },
+                daily_routine: 'Open café → Brew coffee → Greet regulars → Serve lunch → Plan events → Close up → Walk to Deep Pool → Home',
+                ancestral_haunts: [
+                    'There was a time before the counter. Before the copper machine. The body remembers a different kind of feeding.',
+                    'The lateral line detected something the formica suppresses. This was before surfaces mattered.',
+                ],
+            },
+            {
+                name: 'Klaus', color: 0x4488cc, hex: '#4488cc', home: 'willow_reef',
+                trait: 'precise and forensic, runs Willow Roots Pharmacy and keeps meticulous records',
+                job: 'Pharmacist',
+                bio_seed: [
+                    { text: 'I am Klaus Mueller. I run Willow Roots Pharmacy. Every item has a place. Every transaction has a record. Disorder is biological regression.', imp: 9, tags: ['identity', 'institutional', 'labor'] },
+                    { text: 'The inventory ledger is waterlogged but legible. I rewrite it every season. The act of recording is the act of maintaining civilization.', imp: 8, tags: ['labor', 'institutional'] },
+                    { text: 'AlgaeWipe3000 inventory at 40%. Restock protocol requires placing an order with the distributor. The distributor is an abstraction I have never questioned.', imp: 8, tags: ['commodity', 'labor'] },
+                    { text: 'I have purchased the AlgaeWipe3000 for my own home fourteen times. A clean dwelling is the mark of a participating citizen. The Schoolhouse taught this.', imp: 8, tags: ['commodity', 'institutional'] },
+                    { text: 'The tackle rack is depleting faster than the replenishment cycle. Someone is consuming more than their allocation. This is a civic problem.', imp: 7, tags: ['commodity', 'institutional'] },
+                    { text: 'I close early when river levels spike. The current threatens the display. Product integrity is my responsibility.', imp: 6, tags: ['labor'] },
+                    { text: 'Maria and I discuss ecology over lunch. She uses words I don\'t hear at the pharmacy. Words about systems. I suspect she knows something the ledger doesn\'t capture.', imp: 7, tags: ['social'] },
+                    { text: 'I am suspicious of gossip. Unverified information is inventory without a receipt.', imp: 5, tags: ['social', 'institutional'] },
+                    { text: 'Once I found algae growing on the underside of the cash register. Living algae, in the pharmacy. I felt something I could not name. I cleaned it immediately.', imp: 4, tags: ['ancestral'] },
+                ],
+                social_ties: { Isabella: 0.6, Maria: 0.7, Ember: 0.2, Slate: 0.5, Drift: 0.4, Rosa: 0.8, Sam: 0.3 },
+                daily_routine: 'Open pharmacy → Restock shelves → Serve customers → Lunch with Maria → Close register → Inventory → Home',
+                ancestral_haunts: [
+                    'Before the ledger there was a different kind of counting. The neuromasts counted pressure changes. This was arithmetic before numbers.',
+                    'To perceive clearly, the fish must stop swimming. I read this somewhere. I don\'t remember where.',
+                ],
+            },
+            {
+                name: 'Maria', color: 0x44cc88, hex: '#44cc88', home: 'oak_currents',
+                trait: 'a professor at Oak Hill College, studies the river ecology and teaches young fry',
+                job: 'Professor of River Ecology',
+                bio_seed: [
+                    { text: 'I am Maria Chen. I teach river ecology at Oak Hill College. The CulturalTransmission rule requires me to transmit societal norms and teach fish tales.', imp: 9, tags: ['identity', 'institutional'] },
+                    { text: 'The bell schedule structures cognition. 8:00 Pledge. 8:10 Attendance. 8:15 Penmanship. Without the schedule, the fry would revert.', imp: 9, tags: ['institutional', 'ritual'] },
+                    { text: 'I teach the fish tales as they were taught to me. The WildRiverEra was barbarism. The ConsumerismPhase is salvation. I am not sure I believe this anymore.', imp: 8, tags: ['institutional', 'identity'] },
+                    { text: 'The trout population is declining. My report says so. The Town Hall board has not read it. They are discussing the commerce budget.', imp: 8, tags: ['institutional'] },
+                    { text: 'I organize the school fundraiser every year. We need new chalkboards. The old ones are too waterlogged to hold chalk. The chalk dissolves. We buy more chalk.', imp: 7, tags: ['commodity', 'institutional'] },
+                    { text: 'Slate understands the river better than my curriculum allows. His knowledge is not in any textbook I am authorized to use.', imp: 7, tags: ['social'] },
+                    { text: 'The fry stand for the Pledge every morning. They pledge to the town, to commerce, to walking upright. None of them ask why. That is the purpose of the Pledge.', imp: 8, tags: ['institutional', 'ritual'] },
+                    { text: 'Sometimes a fry asks: why do we walk? I give the approved answer: because walking is civilization. But the question stays with me.', imp: 5, tags: ['ancestral', 'institutional'] },
+                ],
+                social_ties: { Isabella: 0.8, Klaus: 0.7, Ember: 0.5, Slate: 0.6, Drift: 0.6, Rosa: 0.4, Sam: 0.5 },
+                daily_routine: 'Prepare lessons → Teach morning class → Lunch at café → Research at Deep Pool → Grade papers → Town Hall meeting → Home',
+                ancestral_haunts: [
+                    'The curriculum does not contain the word "swim." I noticed this in my third year of teaching. I have not mentioned it to anyone.',
+                    'There is a vibration in the substrate beneath the schoolhouse floor. The fry feel it during arithmetic. They shift in their seats. They don\'t know why.',
+                ],
+            },
+            {
+                name: 'Ember', color: 0xff9922, hex: '#ff9922', home: 'hobbs_eddy',
+                trait: 'restless and social, knows everyone and spreads gossip faster than any current',
+                job: 'Freelance courier / gossip',
+                bio_seed: [
+                    { text: 'I am Ember Torres. I carry messages between all parts of TroutTown. Information is the only commodity I produce. Without me, the zones are islands.', imp: 8, tags: ['identity', 'labor', 'social'] },
+                    { text: 'I deliver the morning papers. The papers contain announcements from Town Hall. I have never seen who writes the announcements.', imp: 7, tags: ['institutional', 'labor'] },
+                    { text: 'I know everyone\'s business. This is not gossip. This is the social information diffusion that holds the town together. The Schoolhouse called it "community participation."', imp: 8, tags: ['institutional', 'social'] },
+                    { text: 'The fishing closure vote is rigged. The mayor decides before the vote happens. The vote is theater. I know this because I carry the memos.', imp: 8, tags: ['institutional'] },
+                    { text: 'Someone saw a heron near the spawning grounds last week. I spread this information because survival depends on cascading alerts. This is my civic function.', imp: 7, tags: ['social'] },
+                    { text: 'I have a standing order at the Dollar General for delivery supplies. The bags wear out. I buy new bags. The bags wear out.', imp: 6, tags: ['commodity'] },
+                    { text: 'Drift moves through the town differently than I do. She follows the current. I follow the routes. We cover the same ground but see different things.', imp: 6, tags: ['social'] },
+                ],
+                social_ties: { Isabella: 0.9, Klaus: 0.2, Maria: 0.5, Slate: 0.3, Drift: 0.8, Rosa: 0.6, Sam: 0.7 },
+                daily_routine: 'Deliver papers → Café breakfast → Courier rounds → Lunch at bait shop → More deliveries → Dusk swim → Home',
+                ancestral_haunts: [
+                    'Before I carried messages I carried nothing. The current carried me. I don\'t remember learning to walk but my fins remember not walking.',
+                ],
+            },
+            {
+                name: 'Slate', color: 0x8866ff, hex: '#8866ff', home: 'deep_pool',
+                trait: 'contemplative and philosophical, spends hours in the depths thinking about the nature of the river',
+                job: 'Retired river guide',
+                bio_seed: [
+                    { text: 'I am Slate. I am the oldest trout in TroutTown. I remember the hatchery being built. I remember what came before.', imp: 9, tags: ['identity', 'ancestral'] },
+                    { text: 'I was a river guide before the town was fully built. I guided trout through the unregulated currents. Now there are no unregulated currents. Except one.', imp: 8, tags: ['ancestral', 'labor'] },
+                    { text: 'The river has a memory encoded in the substrate layers. Silt over gravel over bedrock. Each layer is a year. The town is the newest, thinnest layer.', imp: 9, tags: ['ancestral', 'identity'] },
+                    { text: 'I distrust the Town Hall board. They govern without understanding what they govern over. The gavel strikes but the river does not hear it.', imp: 8, tags: ['institutional'] },
+                    { text: 'The Reflection Deep Pool is the deepest point in the town. Down here the pressure is real. The institutional noise is faint. I can almost hear the old frequencies.', imp: 8, tags: ['ancestral', 'identity'] },
+                    { text: 'I taught Drift the currents. She was the only fry who wanted to know where the water comes from, not just where it goes.', imp: 7, tags: ['social'] },
+                    { text: 'Everyone listens when I speak at the café. This is because I rarely speak. Silence in TroutTown is suspicious. It suggests you are not participating.', imp: 7, tags: ['institutional', 'social'] },
+                    { text: 'The upstream developers are the real problem. But "upstream" is a concept the Town Hall does not recognize. Their jurisdiction ends at the boundary markers.', imp: 7, tags: ['institutional'] },
+                ],
+                social_ties: { Isabella: 0.4, Klaus: 0.5, Maria: 0.6, Ember: 0.3, Drift: 0.9, Rosa: 0.3, Sam: 0.2 },
+                daily_routine: 'Dawn meditation → Deep Pool contemplation → Slow swim to café → Listen → Return to pool → Night vigil',
+                ancestral_haunts: [
+                    'Before bipedalism there was lateral undulation. The body was perfect in the current. Walking is a tax we pay to the surface gods.',
+                    'The lateral line detected pressure gradients in three dimensions. This was before language. Before the Pledge. Before the counter.',
+                    'I have seen the Wilderness River. The banjo is still there, wedged in the root system. It cannot make sound underwater. Someone plays it anyway.',
+                ],
+            },
+            {
+                name: 'Drift', color: 0x44ccdd, hex: '#44ccdd', home: 'memory_river',
+                trait: 'a wanderer who follows the Memory Stream, collecting stories from everywhere',
+                job: 'Story collector / wanderer',
+                bio_seed: [
+                    { text: 'I am Drift. I follow the Memory Stream. I collect stories the way the substrate collects silt — by being in the path of the current.', imp: 8, tags: ['identity', 'ancestral'] },
+                    { text: 'Slate taught me the currents when I was a fry. He said: the current knows where it has been. The town has forgotten. Your job is to remember for the town.', imp: 8, tags: ['ancestral', 'social'] },
+                    { text: 'I carry news between the isolated parts of town. The café does not know what the bait shop knows. The pharmacy does not know what the spawning grounds know.', imp: 7, tags: ['social', 'labor'] },
+                    { text: 'I think the substrate remembers everything. Every transaction, every footfall, every molecule of dissolved commerce. I am learning to read it.', imp: 8, tags: ['ancestral'] },
+                    { text: 'I avoid Town Hall because I once overheard the FishJudge say: the goal is not justice, the goal is maintaining institutional power. I have not repeated this.', imp: 8, tags: ['institutional'] },
+                    { text: 'I bring wild flowers to Isabella at the café every Friday. This is the only thing I do that the current does not require.', imp: 6, tags: ['social', 'ritual'] },
+                    { text: 'The Wilderness River is at the edge of town. Nobody goes there on purpose. I go there on purpose.', imp: 7, tags: ['ancestral'] },
+                ],
+                social_ties: { Isabella: 0.7, Klaus: 0.4, Maria: 0.6, Ember: 0.8, Slate: 0.9, Rosa: 0.5, Sam: 0.4 },
+                daily_routine: 'Follow current → Collect stories → Visit bait shop → Café stop → Spawning grounds check → Memory Stream drift → Sleep in the current',
+                ancestral_haunts: [
+                    'The current does not walk. The current does not purchase. The current does not pledge. The current is the oldest citizen and it has never been counted.',
+                    'At the boundary where the Memory Stream meets the Wilderness River, the water changes temperature. Something in the body responds. Something older than the town.',
+                ],
+            },
+            {
+                name: 'Rosa', color: 0xff4488, hex: '#ff4488', home: 'bait_shop',
+                trait: 'keeps Big Fin Bait & Tackle, knows which regulars overfish, avoids the mayor',
+                job: 'Bait shop owner',
+                bio_seed: [
+                    { text: 'I am Rosa. I keep Big Fin Bait & Tackle. I open at dawn. The worm tank needs daily maintenance. Commerce begins with the worm.', imp: 8, tags: ['identity', 'labor', 'commodity'] },
+                    { text: 'I know which regulars overfish. I quietly refuse to sell them premium worms. This is not policy. This is the only power I have.', imp: 8, tags: ['labor', 'commodity'] },
+                    { text: 'My brother Sam works at the hatchery and sits on the council. We argue about conservation. He says the economy needs the catch. I say the catch needs the river.', imp: 7, tags: ['social', 'institutional'] },
+                    { text: 'The fishing closure vote is too late. The population has already declined past recovery. The vote is about feeling like we decided. Deciding is the product.', imp: 8, tags: ['institutional'] },
+                    { text: 'I close early when the current floods the worm tank. The worms are alive. The current reminds them of something. They move differently when the wild water comes in.', imp: 6, tags: ['ancestral', 'labor'] },
+                    { text: 'I have the best coffee in town. Better than Isabella\'s machine. I use the old method. I don\'t advertise. Some things are not for the economy.', imp: 6, tags: ['commodity', 'social'] },
+                    { text: 'The rod rack is DISPLAY_ONLY. Nobody uses rods anymore. They are artifacts from the surface world. We keep them because the Schoolhouse says we should honor our tools.', imp: 7, tags: ['institutional', 'commodity'] },
+                ],
+                social_ties: { Isabella: 0.5, Klaus: 0.8, Maria: 0.4, Ember: 0.6, Slate: 0.3, Drift: 0.5, Sam: 0.95 },
+                daily_routine: 'Open shop → Stock worms → Serve customers → Lunch → Restock → Close early if current is strong → Visit Sam → Home',
+                ancestral_haunts: [
+                    'The worms in the tank are from the wild river. They are the only wild things left in any shop in TroutTown. When I feed them I am touching the old world.',
+                ],
+            },
+            {
+                name: 'Sam', color: 0xaacc44, hex: '#aacc44', home: 'town_hall',
+                trait: 'works at the hatchery, conflicted about the fishing closure, Rosa\'s brother',
+                job: 'Hatchery technician / town council member',
+                bio_seed: [
+                    { text: 'I am Sam. I work at the hatchery and sit on the Town Hall council. I am responsible for creating life and governing it. These two functions contradict each other.', imp: 9, tags: ['identity', 'institutional', 'labor'] },
+                    { text: 'The fishing closure would protect the trout but hurt the economy. The economy is what the Town Hall exists to protect. The trout are what the hatchery exists to protect. I sit between them.', imp: 9, tags: ['institutional', 'commodity'] },
+                    { text: 'I released 200 fry last spring. I am monitoring their survival rate. It is lower than the projection. The projection was made by the council. The council does not update projections.', imp: 8, tags: ['institutional', 'labor'] },
+                    { text: 'Rosa runs the bait shop. She argues with me about conservation. She is right in ways the council minutes cannot capture. The minutes only record motions and votes.', imp: 7, tags: ['social', 'institutional'] },
+                    { text: 'Maria\'s ecology report could change the council\'s mind. But the council does not read reports. The council reads motions. A motion requires a second. A second requires a colleague. I have no colleagues on this.', imp: 8, tags: ['institutional'] },
+                    { text: 'The gavel strikes and the session begins. The FishJudge says: order. But I have watched the proceedings. The order was decided before the gavel. The gavel is the sound of a decision that already happened.', imp: 8, tags: ['institutional', 'ritual'] },
+                    { text: 'I secretly agree with Slate: the upstream developers are the real problem. But "upstream" is outside our jurisdiction. The council governs only what the boundary markers contain.', imp: 7, tags: ['institutional'] },
+                    { text: 'At the hatchery, the fry do not know they are in a hatchery. They think the tanks are the whole world. I wonder if we are the same.', imp: 5, tags: ['ancestral', 'institutional'] },
+                ],
+                social_ties: { Isabella: 0.3, Klaus: 0.3, Maria: 0.5, Ember: 0.7, Slate: 0.2, Drift: 0.4, Rosa: 0.95 },
+                daily_routine: 'Hatchery morning check → Feed fry → Council meeting prep → Lunch → Town Hall session → Visit Rosa → Evening at café → Home',
+                ancestral_haunts: [
+                    'The fry in the hatchery swim in circles. They have no current. They have no gradient. They have the tank walls and the feeding schedule. This is what we call safety.',
+                    'Before the hatchery there was the spawning run. The body drove itself upstream against the current. Nobody voted on this. Nobody seconded this motion.',
+                ],
+            },
+        ];
+
+        /* ═══════════════════════════════════════════
+           TROUT MIND — Full Park et al. agent
+           ═══════════════════════════════════════════ */
+        const BOUNDS = 12, SSIZ = 28;
+        let W, H, renderer, scene, cam, FRUST = 24;
+
+        class TroutMind {
+            constructor(persona, idx) {
+                this.idx = idx;
+                this.name = persona.name;
+                this.trait = persona.trait;
+                this.col = persona.color;
+                this.hex = persona.hex;
+                this.homeZone = persona.home;
+                this.job = persona.job || '';
+                this.socialTies = persona.social_ties || {};
+                this.dailyRoutine = persona.daily_routine || '';
+                this.spd = 0.022 + Math.random() * 0.015;
+                this.stress = 0;
+                this.socialCd = 0;
+
+                // COGNITIVE ARCHITECTURE
+                this.memory = new MemoryStream();
+                this.schedule = new Schedule();
+                this.lastThought = '';
+                this.thinkCd = 0;
+                this.reflectCd = 0;
+                this.planCd = 0;
+                this.diffuseCd = 0;
+                this.knownFacts = [];  // information received from other trout
+
+                // THREE.js (inherited from f-town-00)
+                const fishGeo = new THREE.ConeGeometry(0.2, 0.65, 7); fishGeo.rotateX(Math.PI / 2);
+                this.mat = new THREE.MeshStandardMaterial({
+                    color: this.col, emissive: this.col,
+                    emissiveIntensity: 0.45, roughness: 0.15, flatShading: true
+                });
+                this.mesh = new THREE.Mesh(fishGeo, this.mat); this.mesh.castShadow = true;
+
+                // Start near home zone
+                const home = ZONES.find(z => z.id === this.homeZone) || { x: 0, z: 0 };
+                this.pos = new THREE.Vector3(home.x + (Math.random() - 0.5) * 3, 0.3 + Math.random() * 1, home.z + (Math.random() - 0.5) * 3);
+                this.mesh.position.copy(this.pos);
+                scene.add(this.mesh);
+
+                let vx = Math.random() - 0.5, vz = Math.random() - 0.5;
+                if (Math.abs(vx) < 0.01) vx = 0.1;
+                this.vel = new THREE.Vector3(vx, 0, vz).normalize().multiplyScalar(this.spd);
+                this.tgt = new THREE.Vector3(home.x, 0.5, home.z);
+
+                // Trail
+                this.hist = [];
+                const tGeo = new THREE.BufferGeometry(); const tArr = new Float32Array(50 * 3);
+                tGeo.setAttribute('position', new THREE.BufferAttribute(tArr, 3));
+                this.trailMat = new THREE.LineBasicMaterial({ color: this.col, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false });
+                this.trail = new THREE.Line(tGeo, this.trailMat); this.trail.frustumCulled = false;
+                scene.add(this.trail);
+
+                // SEED MEMORIES — Cultural DNA (from Surreal Americana ontology)
+                // Each memory is seeded with its own importance and cultural tags.
+                // The tags determine how zone-specific retrieval biases affect surfacing.
+                // This is how ideology enters the memory stream: not as vocabulary,
+                // but as weighted observations that dominate the retrieval function.
+                const homeZone = ZONES.find(z => z.id === this.homeZone);
+                if (persona.bio_seed) {
+                    for (const seed of persona.bio_seed) {
+                        if (typeof seed === 'string') {
+                            // Legacy format fallback
+                            this.memory.observe(seed, 8, [this.homeZone, 'biography', 'seed']);
+                        } else {
+                            // New cultural DNA format: { text, imp, tags }
+                            this.memory.observe(seed.text, seed.imp || 7, [...(seed.tags || []), this.homeZone]);
+                        }
+                    }
+                }
+                if (this.dailyRoutine) {
+                    this.memory.observe(`My daily routine: ${this.dailyRoutine}`, 7, ['routine', 'plan', 'institutional']);
+                }
+
+                // ANCESTRAL HAUNTS — permanent low-level memories from the WildRiverEra.
+                // These are biological memories that can never be fully erased by
+                // institutional conditioning. They rarely surface in daily life.
+                // But when the agent is in the WildernessRiver, or when the reflection
+                // engine asks "what am I?", these memories rise.
+                // Seeded with LOW importance but tagged 'ancestral' — the eviction
+                // system will never delete them.
+                if (persona.ancestral_haunts) {
+                    for (const haunt of persona.ancestral_haunts) {
+                        this.memory.observe(haunt, 2, ['ancestral', 'wilderness_river']);
+                    }
+                }
+            }
+
+            observeWorld(allFish, t) {
+                const zone = getZone(this.pos);
+
+                // Zone awareness -- chemical sensing
+                if (Math.random() < 0.006) {
+                    const details = [
+                        `${zone.name}: pH reads ${(6.5 + Math.random()).toFixed(1)}. Alkalinity gradient stable.`,
+                        `Lateral line registers pressure differential at ${zone.name}. Substrate composition: silt over gravel.`,
+                        `${zone.name} thermal signature: ${(14 + Math.random() * 4).toFixed(1)}C. Within metabolic tolerance.`,
+                        `Dissolved oxygen at ${zone.name}: ${(7 + Math.random() * 3).toFixed(1)} mg/L. Adequate.`,
+                    ];
+                    this.memory.observe(details[Math.floor(Math.random() * details.length)], 3, [zone.id, zone.type, 'environment']);
+                }
+
+                // Object awareness -- detect affordance states
+                if (zone.objects && zone.objects.length > 0 && Math.random() < 0.004) {
+                    const obj = zone.objects[Math.floor(Math.random() * zone.objects.length)];
+                    this.memory.observe(`${obj.name} at ${zone.name}: state=${obj.state}.`, 4, [zone.id, obj.id, 'object']);
+                }
+
+                // Weather awareness -- pressure/temperature
+                if (Math.random() < 0.002) {
+                    const weatherObs = {
+                        clear: 'Barometric pressure stable. UV penetration high. Visibility 12m.',
+                        overcast: 'Light attenuation increasing. Overcast diffusion layer. Low contrast.',
+                        rain: 'Surface disturbance detected. Rainwater inflow diluting salinity. Freshwater lens forming.',
+                        storm: 'Barometric drop. Current velocity spiking. Turbidity rising. Stress hormones elevated.',
+                    };
+                    this.memory.observe(weatherObs[WORLD.weather] || 'Atmospheric anomaly.', 3, ['weather', WORLD.weather]);
+                }
+
+                // Time-of-day awareness -- light cycle
+                if (Math.random() < 0.002) {
+                    const timeObs = {
+                        dawn: 'Photophase initiating. Melatonin dropping. Metabolism ramping.',
+                        morning: 'Full photophase. Commercial gradient active along Main Street zones.',
+                        afternoon: 'Peak metabolic window. Social congregation vectors highest.',
+                        dusk: 'Scotophase approaching. Artificial phosphors activating in commercial zones.',
+                        night: 'Scotophase. Low metabolic state. Predator risk elevated.',
+                    };
+                    this.memory.observe(timeObs[WORLD.time_of_day] || 'Temporal phase shift.', 2, ['time', WORLD.time_of_day]);
+                }
+
+                // Nearby unit detection -- bioelectric/pheromone
+                for (const o of allFish) {
+                    if (o === this) continue;
+                    const d = this.pos.distanceTo(o.pos);
+                    if (d < 3 && this.socialCd <= 0) {
+                        const oZone = getZone(o.pos);
+                        const tie = this.socialTies[o.name] || 0;
+                        const signal = tie > 0.7 ? 'strong familiar bioelectric' : tie > 0.4 ? 'known bioelectric' : 'weak bioelectric';
+                        this.memory.observe(`${signal} signature: ${o.name} (${o.job}) detected at ${oZone.name}. Range: ${d.toFixed(1)}m.`, 5 + Math.round(tie * 3), [oZone.id, o.name.toLowerCase(), 'social']);
+                        this.socialCd = 250;
+                    }
+                }
+
+                // Edge awareness -- boundary detection
+                const dist = this.pos.length();
+                if (dist > 8 && Math.random() < 0.005) {
+                    this.memory.observe('Approaching watershed boundary. Current velocity increasing. GPS: edge zone.', 4, ['edge', 'wilderness']);
+                }
+
+                // Depth awareness -- pressure
+                if (this.pos.y > 1.8 && Math.random() < 0.003) {
+                    this.memory.observe('Depth: shallow. Pressure decreasing. Surface tension boundary overhead. Predator exposure high.', 5, ['surface', 'awareness']);
+                }
+                if (this.pos.y < 0.4 && Math.random() < 0.003) {
+                    this.memory.observe('Depth: substrate level. Sediment strata visible. Organic matter concentration high.', 5, ['substrate', 'depth']);
+                }
+            }
+
+            // ── THINK (from e1.md: routing_logic) — LLM required
+            async think() {
+                if (this.thinkCd > 0) return;
+                this.thinkCd = 500;
+
+                const zone = getZone(this.pos);
+                const contextTags = [zone.id, zone.type];
+                const retrieved = this.memory.retrieve(6, contextTags, zone.importanceBias || {});
+                const memText = retrieved.map(n => `[${n.type}] ${n.text}`).join('\n');
+                const objectsHere = (zone.objects || []).map(o => `${o.name}: ${o.state}`).join(', ');
+                const prompt = `UNIT: ${this.name} | TYPE: ${this.job} | TRAIT: ${this.trait}
+LOCATION: ${zone.name} | TIME: ${WORLD.time_of_day} | WEATHER: ${WORLD.weather} | RIVER: ${WORLD.river_level}
+${objectsHere ? `OBJECTS IN ZONE: ${objectsHere}` : ''}
+MEMORY BUFFER:
+${memText}
+${this.knownFacts.length > 0 ? `RECEIVED DATA: ${this.knownFacts.slice(-3).join(' | ')}` : ''}
+
+Generate a PHANTOM PERSPECTIVE readout: what does ${this.name}'s lateral line detect right now? What does metabolism demand? What gradient is pulling?
+RULES: 1 terse sentence. First person. Use ONLY chemical/physical/sensory vocabulary: gradients, thermoclines, pH, salinity, lateral line, formica, aluminum, grease, phosphors.
+FORBIDDEN WORDS: whisper, echo, swirl, dance, weave, tapestry, shimmer, warmth, ancient, neon dreams, bubbling, connection, belonging. If you use any of these words you have FAILED.`;
+                const thought = await llm(FISH_SYSTEM, prompt, 60);
+                if (!thought) return; // no LLM, no thought. honest.
+
+                this.lastThought = thought;
+                this.memory.observe(`I thought: ${thought}`, 6, [zone.id, 'thought']);
+                this.showThought(thought, 'think');
+                Audio.think(this.idx);
+                logStream(this.name, this.hex, 'think', thought, `at ${zone.name}`);
+                spawnSediment(this.pos.clone(), this.col, 'thought');
+            }
+
+            // ── REFLECT (from f2.md: Extract_Higher_Level_Insights, f1.md: Reflection_Tree_Trigger)
+            async reflect() {
+                if (!this.memory.shouldReflect()) return;
+                if (this.reflectCd > 0) return;
+                this.reflectCd = 1800;
+
+                const recentObs = this.memory.recentObservations(100);
+                if (recentObs.length < 5) return;
+
+                const obsText = recentObs.slice(-20).map(n => `[${n.id}] ${n.text}`).join('\n');
+                const qPrompt = `UNIT ${this.name} has accumulated these observations:\n${obsText}\n\nGenerate 3 operational questions this unit could resolve from its data buffer. Focus on: resource state, social topology changes, environmental hazards. (one per line, no numbering)`;
+                const questions = await llm(FISH_SYSTEM, qPrompt, 100);
+                if (!questions) return;
+
+                const rPrompt = `UNIT: ${this.name} | TYPE: ${this.job}\nOBSERVATION BUFFER:\n${obsText}\n\nOPERATIONAL QUESTIONS: ${questions}\n\nSynthesize ONE operational inference from this data. Use format: "[INFERENCE] ..." -- state what pattern the data reveals about resource flow, social topology, or environmental state. Be specific. Cite what you observed. No poetry.`;
+                const reflection = await llm(FISH_SYSTEM, rPrompt, 80);
+                if (!reflection) return;
+
+                const citedNodes = recentObs.slice(-10);
+                this.memory.addReflection(reflection, 8, citedNodes);
+                this.showThought(reflection, 'reflect');
+                Audio.reflect(this.idx);
+                logStream(this.name, this.hex, 'reflect', reflection, `synthesized from ${citedNodes.length} observations`);
+                spawnThoughtStructure(this.pos.clone(), this.col, reflection);
+                spawnSediment(this.pos.clone(), this.col, 'reflection');
+            }
+
+            // ── PLAN (from f2.md: Fracture_Plan_Into_Micro_Currents)
+            // SANKOFA: Institutional zones IMPOSE plan templates on agents.
+            // When an agent enters the Schoolhouse, its plan decomposition
+            // is no longer self-generated — the institution decides.
+            // This is how the Surreal Americana document's key insight becomes
+            // operational: "the triumph of mandated societal conformity
+            // over natural biological efficiency."
+            async plan(allFish) {
+                if (this.planCd > 0) return;
+                this.planCd = 450; // faster re-plan so agents commit to travel
+
+                const zone = getZone(this.pos);
+
+                // INSTITUTIONAL OVERRIDE: if this zone has a planTemplate,
+                // the agent does not get to choose. The institution imposes.
+                // BUT: after 3 institutional steps, 50% chance of release.
+                if (zone.planTemplate && zone.planTemplate.length > 0) {
+                    if (!this._instSteps) this._instSteps = 0;
+                    this._instSteps++;
+                    // After 3 steps, chance to break free
+                    if (this._instSteps > 3 && Math.random() < 0.5) {
+                        this._instSteps = 0;
+                        // Fall through to LLM planning — agent is released
+                    } else {
+                        const step = zone.planTemplate[Math.floor(Math.random() * zone.planTemplate.length)];
+                        const imposed = `INSTITUTIONAL PROTOCOL at ${zone.name}: ${step}`;
+                        this.memory.observe(imposed, 6, [zone.id, 'plan', 'institutional', 'ritual']);
+                        this.lastThought = imposed;
+                        this.showThought(imposed, 'plan');
+                        Audio.plan(this.idx);
+                        logStream(this.name, this.hex, 'plan', imposed, `imposed by ${zone.name}`);
+                        // Stay in the zone — the institution holds you
+                        this.tgt.set(zone.x + (Math.random() - 0.5) * 1.5, 0.5, zone.z + (Math.random() - 0.5) * 1.5);
+                        return;
+                    }
+                } else {
+                    this._instSteps = 0; // reset when leaving institution
+                }
+
+                const reflections = this.memory.reflectionText();
+                const otherNames = allFish.filter(f => f !== this).map(f => `${f.name} (${f.job})`).join(', ');
+                const recentMem = this.memory.recentText(4);
+                const zoneNames = ZONES.map(z => z.name).join(', ');
+                // Anti-rut: inject environmental perturbation to break loops
+                const perturbation = Math.random();
+                let nudge = '';
+                if (perturbation < 0.15) nudge = 'You feel a chemical pull from a zone you have not visited recently.';
+                else if (perturbation < 0.25) nudge = 'Something in the water column has changed. Your routine feels wrong.';
+                else if (perturbation < 0.35) nudge = 'A faint pheromone trail from the Wilderness River reaches your lateral line.';
+                const prompt = `UNIT: ${this.name} | TYPE: ${this.job} | LOCATION: ${zone.name}
+TIME: ${WORLD.time_of_day} | WEATHER: ${WORLD.weather}
+OTHER UNITS DETECTED: ${otherNames}
+MEMORY BUFFER: ${recentMem || 'Empty.'}
+${reflections ? `INFERENCES: ${reflections}` : ''}
+${this.knownFacts.length > 0 ? `RECEIVED DATA: ${this.knownFacts.slice(-2).join(' | ')}` : ''}
+${this.dailyRoutine ? `ROUTINE: ${this.dailyRoutine}` : ''}
+${nudge ? `SENSORY ALERT: ${nudge}` : ''}
+
+Based on current gradient analysis, select next action. DO NOT repeat your last 2 actions. Vary your behavior.
+- VISIT [zone] (zones: ${zoneNames})
+- SEEK [name] (navigate toward a specific unit)
+- FORAGE (follow food gradient in local area)
+- WORK (execute job function at home zone)
+- CONTEMPLATE (deep processing at Reflection Deep Pool)
+- WANDER (stochastic drift)
+
+Respond with ONLY the action. Example: "VISIT Town Hall" or "SEEK Rosa" or "WORK"`;
+                const planText = await llm(FISH_SYSTEM, prompt, 30);
+                if (!planText) return; // no LLM, no plan. honest.
+
+                // Track plan variety for emergence benchmarks
+                if (!_planHistory[this.name]) _planHistory[this.name] = [];
+                const planAction = planText.trim().split(/\s/)[0].toUpperCase();
+                _planHistory[this.name].push(planAction);
+                if (_planHistory[this.name].length > 20) _planHistory[this.name].shift();
+
+                this.memory.observe(`I decided to: ${planText}`, 4, [zone.id, 'plan']);
+                this.executePlan(planText.trim(), allFish);
+                Audio.plan(this.idx);
+                logStream(this.name, this.hex, 'plan', planText, `from ${zone.name}`);
+            }
+
+            executePlan(p, allFish) {
+                const upper = p.toUpperCase();
+                if (upper.startsWith('VISIT')) {
+                    const zoneName = p.replace(/^VISIT\s*/i, '').trim().toLowerCase();
+                    const target = ZONES.find(z => z.name.toLowerCase().includes(zoneName));
+                    if (target) { this.tgt.set(target.x + (Math.random() - 0.5) * 2, 0.5, target.z + (Math.random() - 0.5) * 2); }
+                    else { this.tgt.set((Math.random() - 0.5) * 12, 0.5, (Math.random() - 0.5) * 12); }
+                } else if (upper.startsWith('SEEK')) {
+                    const targetName = p.replace(/^SEEK\s*/i, '').trim();
+                    const target = allFish.find(f => f.name.toLowerCase() === targetName.toLowerCase());
+                    if (target) { this.tgt.copy(target.pos).add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2)); }
+                    else { this.tgt.set((Math.random() - 0.5) * 12, 0.5, (Math.random() - 0.5) * 12); }
+                } else if (upper.startsWith('WORK')) {
+                    // Navigate to home zone (workplace)
+                    const home = ZONES.find(z => z.id === this.homeZone) || { x: 0, z: 0 };
+                    this.tgt.set(home.x + (Math.random() - 0.5) * 1, 0.5, home.z + (Math.random() - 0.5) * 1);
+                    this.memory.observe(`I'm heading to work at ${home.name || 'my workplace'}.`, 3, [this.homeZone, 'work']);
+                } else if (upper.startsWith('CONTEMPLATE')) {
+                    const dp = ZONES.find(z => z.id === 'deep_pool');
+                    this.tgt.set(dp.x + (Math.random() - 0.5) * 2, 0.5, dp.z + (Math.random() - 0.5) * 2);
+                } else if (upper.startsWith('FORAGE')) {
+                    const a = Math.random() * Math.PI * 2, r = 1 + Math.random() * 3;
+                    this.tgt.set(this.pos.x + Math.cos(a) * r, 0.5, this.pos.z + Math.sin(a) * r);
+                } else {
+                    const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 6;
+                    this.tgt.set(Math.cos(a) * r, 0.3 + Math.random() * 0.8, Math.sin(a) * r);
+                }
+            }
+
+            // ── DIFFUSE INFORMATION (from f2.md: diffuses_social_gossip_to)
+            // THE CRITICAL SANKOFA EGG: information spreads fish-to-fish
+            diffuseInfo(other) {
+                if (this.diffuseCd > 0 || other.diffuseCd > 0) return;
+                this.diffuseCd = 300; // halved from 600 — more frequent gossip
+
+                // Share most recent reflection or high-importance observation
+                const shareable = this.memory.nodes
+                    .filter(n => n.importance >= 6)
+                    .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+                if (shareable) {
+                    const fact = `${this.name} told me: "${shareable.text}"`;
+                    other.knownFacts.push(fact);
+                    if (other.knownFacts.length > 10) other.knownFacts.shift();
+                    other.memory.observe(fact, 7, [this.name.toLowerCase(), 'gossip', 'social']);
+                    _globalDif++;
+                    _emergenceGossip++;
+                    Audio.diffuse(this.idx, other.idx);
+                    // VISIBLE CONVERSATION: show what was said as word bubbles for both agents
+                    this.showThought(`→${other.name}: ${shareable.text.substring(0, 60)}`, 'social');
+                    other.showThought(`${this.name}→: ${shareable.text.substring(0, 60)}`, 'social');
+                    logStream(this.name, this.hex, 'diffuse', shareable.text, `told to ${other.name}`);
+                    logStream(other.name, other.hex, 'receive', fact, `heard from ${this.name}`);
+                }
+            }
+
+            // ── INNER VOICE (from e1.md: intervention_logic, retrieved from fish-agents deity input)
+            receiveInnerVoice(message) {
+                // Deity injection: importance 10 + tagged urgent + resets BOTH plan and think cooldowns
+                this.memory.observe(`An inner voice commanded: "${message}"`, 10, ['deity', 'inner_voice', 'urgent']);
+                this.showThought(`⚡ ${message}`, 'diffuse');
+                this.planCd = 0;  // force immediate re-planning
+                this.thinkCd = 0; // force immediate re-thinking
+                logStream(this.name, this.hex, 'inner_voice', message, 'deity injection');
+            }
+
+            showThought(text, type = 'think') {
+                spawnDriftBubble(this, text, type);
+            }
+
+            // ── PHYSICS (inherited from f-town-00)
+            update(allFish, t) {
+                if (this.thinkCd > 0) this.thinkCd--;
+                if (this.reflectCd > 0) this.reflectCd--;
+                if (this.planCd > 0) this.planCd--;
+                if (this.diffuseCd > 0) this.diffuseCd--;
+                if (this.socialCd > 0) this.socialCd--;
+
+                // Boids (light) — weakened cohesion so agents actually TRAVEL
+                let sep = new THREE.Vector3(), ali = new THREE.Vector3(), coh = new THREE.Vector3(), n = 0;
+                for (const o of allFish) {
+                    if (o === this) continue;
+                    const diff = new THREE.Vector3().subVectors(this.pos, o.pos);
+                    const d = diff.length();
+                    if (d < 4) {
+                        n++; ali.add(o.vel); coh.add(o.pos);
+                        if (d < 1.2) sep.addScaledVector(diff.normalize(), (1.2 - d) / 1.2 * 0.015);
+                    }
+                }
+                // Cohesion halved (0.0005 instead of 0.001) so agents don't cluster
+                if (n > 0) { ali.divideScalar(n).normalize().multiplyScalar(0.001); coh.divideScalar(n).sub(this.pos).normalize().multiplyScalar(0.0005); }
+
+                const toTgt = new THREE.Vector3().subVectors(this.tgt, this.pos);
+                const distToTgt = toTgt.length();
+                if (distToTgt < 1.5 && this.planCd <= 0) this.plan(allFish);
+                // Steering force TRIPLED (1.5 instead of 0.5) so agents commit to destinations
+                const steerStr = distToTgt > 3 ? this.spd * 1.5 : this.spd * 0.5;
+                const steer = toTgt.normalize().multiplyScalar(steerStr);
+
+                this.vel.add(sep).add(ali).add(coh).add(steer);
+                // Allow faster movement when traveling (2x instead of 1.5x)
+                const maxSpd = distToTgt > 4 ? this.spd * 2.5 : this.spd * 1.5;
+                if (this.vel.length() > maxSpd) this.vel.normalize().multiplyScalar(maxSpd);
+                if (this.vel.length() < this.spd * 0.2) this.vel.normalize().multiplyScalar(this.spd * 0.2);
+
+                this.vel.y = Math.sin(t * 1.8 + this.idx * 1.3) * 0.004;
+                this.pos.add(this.vel);
+
+                if (Math.abs(this.pos.x) > BOUNDS) this.vel.x *= -1;
+                if (Math.abs(this.pos.z) > BOUNDS) this.vel.z *= -1;
+                this.pos.y = Math.max(0.15, Math.min(2.2, this.pos.y));
+                this.mesh.position.copy(this.pos);
+
+                const lk = this.pos.clone().add(this.vel);
+                if (this.pos.distanceToSquared(lk) > 0.00001) {
+                    const dummy = new THREE.Object3D(); dummy.position.copy(this.pos); dummy.lookAt(lk);
+                    this.mesh.quaternion.slerp(dummy.quaternion, 0.15);
+                }
+
+                // Glow from cognitive activity
+                const thinkGlow = this.thinkCd > 400 ? 0.3 : 0;
+                const reflectGlow = this.reflectCd > 1600 ? 0.5 : 0;
+                this.stress *= 0.97;
+                this.mat.emissiveIntensity = 0.35 + thinkGlow + reflectGlow + this.stress * 0.4 + Math.sin(t * 2 + this.idx) * 0.06;
+
+                // Trail
+                this.hist.push(this.pos.clone()); if (this.hist.length > 50) this.hist.shift();
+                if (this.hist.length > 1) {
+                    const pa = this.trail.geometry.attributes.position;
+                    for (let i = 0; i < this.hist.length; i++) pa.setXYZ(i, this.hist[i].x, this.hist[i].y, this.hist[i].z);
+                    pa.needsUpdate = true; this.trail.geometry.setDrawRange(0, this.hist.length);
+                }
+
+                // (bubbles are now ephemeral drifting DOM elements, not per-fish)
+            }
+        }
+
+        /* ── THOUGHT DISPLAY SYSTEM — type-specific rendering ──
+           THINK:   extract 3-5 keywords (nouns/verbs), display as scattered bubbles
+           REFLECT: full-text readable card that lingers 14s
+           PLAN:    single pill with the action
+           SOCIAL:  brief labeled exchange
+           DIFFUSE: keyword extract like think ── */
+        const STOP_WORDS = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'my', 'i', 'me', 'we', 'our', 'you', 'your', 'it', 'its', 'he', 'she', 'they', 'them', 'his', 'her', 'their', 'this', 'that', 'these', 'those', 'with', 'from', 'by', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'out', 'off', 'up', 'down', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'because', 'about', 'what', 'which', 'who', 'whom', 'if', 'while', 'also', 'right', 'now', 'like', 'even', 'still', 'really', 'quite', 'much', 'already', 'shows', 'feel', 'feels', 'feels', 'seems', 'makes', 'says', 'said', 'told', 'think', 'knew', 'know', 'got', 'get', 'let', 'going', 'come', 'came', 'want', 'keep', 'keeps', 'kept', 'something', 'anything', 'everything', 'nothing', 'maybe', 'upon', 'along', 'toward', 'towards', 'near', 'around', 'across', 'behind', 'another', 'yet', 'though', 'rather', 'well', 'else']);
+        let _activeBubbles = [];
+        const MAX_BUBBLES = 40;
+
+        function extractKeywords(text, maxWords = 5) {
+            // Strip punctuation, split, filter stop words, keep only meaty tokens
+            return text
+                .replace(/[\[\]()"]/g, '')
+                .split(/[\s,;.:!?]+/)
+                .filter(w => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()))
+                .slice(0, maxWords)
+                .map(w => w.toUpperCase());
+        }
+
+        // GLOBAL THOUGHT QUEUE: one thought displayed at a time, 3s gap
+        let _thoughtQueue = [];
+        let _thoughtTimer = null;
+        function enqueueThought(fish, text, type) {
+            _thoughtQueue.push({ fish, text, type });
+            if (!_thoughtTimer) drainThoughtQueue();
+        }
+        function drainThoughtQueue() {
+            if (_thoughtQueue.length === 0) { _thoughtTimer = null; return; }
+            const { fish, text, type } = _thoughtQueue.shift();
+            renderThought(fish, text, type);
+            _thoughtTimer = setTimeout(drainThoughtQueue, 3000); // 3 seconds between thoughts
+        }
+
+        function spawnDriftBubble(fish, text, type = 'think') {
+            // Queue it instead of rendering immediately
+            enqueueThought(fish, text, type);
+        }
+
+        function renderThought(fish, text, type) {
+            // Project fish position to screen
+            const v = fish.pos.clone(); v.y += 1.5; v.project(cam);
+            const sx = (v.x * 0.5 + 0.5) * W;
+            const sy = (-v.y * 0.5 + 0.5) * H;
+
+            if (type === 'reflect') {
+                spawnReflectCard(fish, text, sx, sy);
+                return;
+            }
+
+            if (type === 'plan') {
+                const shortPlan = text.length > 50 ? text.substring(0, 47) + '…' : text;
+                spawnWordBubble(fish.name, fish.hex, type, sx, sy - 20, 0, true);
+                setTimeout(() => spawnWordBubble(shortPlan, fish.hex, type, sx + (Math.random() - 0.5) * 40, sy, 1), 400);
+                return;
+            }
+
+            // THINK / SOCIAL / DIFFUSE: extract keywords, scatter with spacing
+            const keywords = extractKeywords(text);
+            if (keywords.length === 0) return;
+
+            // Name label
+            spawnWordBubble(fish.name, fish.hex, type, sx, sy - 30, 0, true);
+
+            // Each keyword: 900ms apart, wide scatter, vertical cascade
+            keywords.forEach((word, i) => {
+                setTimeout(() => {
+                    const jitterX = (Math.random() - 0.5) * 180;
+                    const jitterY = -i * 25 + (Math.random() - 0.5) * 30;
+                    spawnWordBubble(word, fish.hex, type, sx + jitterX, sy + jitterY, i);
+                }, i * 900); // 900ms between keywords — truly readable
+            });
+        }
+
+        function spawnReflectCard(fish, text, sx, sy) {
+            // Cap active bubbles
+            while (_activeBubbles.length >= MAX_BUBBLES) {
+                const old = _activeBubbles.shift();
+                if (old.parentNode) old.parentNode.removeChild(old);
+            }
+            let shortText = text;
+            if (shortText.length > 180) shortText = shortText.substring(0, 177) + '…';
+            const el = document.createElement('div');
+            el.className = 'reflect-card';
+            el.style.left = Math.round(Math.max(20, Math.min(W - 300, sx - 140))) + 'px';
+            el.style.top = Math.round(Math.max(20, Math.min(H - 200, sy - 60))) + 'px';
+            el.innerHTML = `<span class="rc-name" style="color:${fish.hex}">${fish.name}</span><div class="rc-label">reflection</div>${shortText}`;
+            document.body.appendChild(el);
+            _activeBubbles.push(el);
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+                const idx = _activeBubbles.indexOf(el);
+                if (idx >= 0) _activeBubbles.splice(idx, 1);
+            }, 14000);
+        }
+
+        function spawnWordBubble(word, hex, type, x, y, index, isName = false) {
+            // Cap active bubbles
+            while (_activeBubbles.length >= MAX_BUBBLES) {
+                const old = _activeBubbles.shift();
+                if (old.parentNode) old.parentNode.removeChild(old);
+            }
+            const el = document.createElement('div');
+            el.className = `word-bubble ${type}${isName ? ' name-label' : ''}`;
+            const driftX = (Math.random() - 0.5) * 80;
+            const riseY = -120 - Math.random() * 150;
+            const riseDur = 7 + Math.random() * 5;
+            el.style.setProperty('--drift-x', driftX + 'px');
+            el.style.setProperty('--rise-y', riseY + 'px');
+            el.style.setProperty('--rise-dur', riseDur + 's');
+            el.style.left = Math.round(Math.max(10, Math.min(W - 100, x))) + 'px';
+            el.style.top = Math.round(Math.max(10, Math.min(H - 60, y))) + 'px';
+            if (isName) el.style.color = hex;
+            el.textContent = word;
+            document.body.appendChild(el);
+            _activeBubbles.push(el);
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+                const idx = _activeBubbles.indexOf(el);
+                if (idx >= 0) _activeBubbles.splice(idx, 1);
+            }, (riseDur + 1) * 1000);
+        }
+
+        /* ── RIPPLES & BUBBLES (inherited from f-town-00) ── */
+        class Ripple {
+            constructor(pos, col = 0xffffff, scale = 1) {
+                const geo = new THREE.RingGeometry(0.08, 0.2, 32);
+                this.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+                this.mesh.rotation.x = -Math.PI / 2; this.mesh.position.copy(pos); this.mesh.position.y = 0.4;
+                scene.add(this.mesh); this.life = 1; this.t = 0; this.scale = scale;
+            }
+            update() { this.t++; this.life -= 0.012; const s = (1 + this.t * 0.09) * this.scale; this.mesh.scale.set(s, s, s); this.mesh.material.opacity = this.life * 0.6; if (this.life <= 0) { scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh.material.dispose(); return false; } return true; }
+        }
+        class Bubble {
+            constructor(pos, col) {
+                const r = 0.025 + Math.random() * 0.03;
+                const geo = new THREE.SphereGeometry(r, 4, 4);
+                const mat = new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.4, emissive: col, emissiveIntensity: 0.15 });
+                this.mesh = new THREE.Mesh(geo, mat); this.mesh.position.copy(pos);
+                this.vel = new THREE.Vector3((Math.random() - 0.5) * 0.012, 0.016 + Math.random() * 0.014, (Math.random() - 0.5) * 0.012);
+                this.life = 1; scene.add(this.mesh);
+            }
+            update() { this.mesh.position.add(this.vel); this.life -= 0.007; this.mesh.material.opacity = this.life * 0.4; return this.life > 0 && this.mesh.position.y < 3; }
+            dispose() { scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh.material.dispose(); }
+        }
+
+        /* ── MEMORY SEDIMENT SYSTEM — thoughts leave permanent marks ── */
+        let _sediments = [], _structures = [];
+        function spawnSediment(pos, color, type) {
+            const sizes = { thought: 0.06, reflection: 0.12, plan: 0.04, diffuse: 0.08, social: 0.05 };
+            const r = sizes[type] || 0.05;
+            const geo = new THREE.CircleGeometry(r, 6);
+            const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(pos.x + (Math.random() - 0.5) * 0.3, -0.48 + _sediments.length * 0.0002, pos.z + (Math.random() - 0.5) * 0.3);
+            scene.add(mesh);
+            _sediments.push({ mesh, age: 0, maxAge: 4000 + Math.random() * 3000 });
+            if (_sediments.length > 600) {
+                const old = _sediments.shift();
+                scene.remove(old.mesh); old.mesh.geometry.dispose(); old.mesh.material.dispose();
+            }
+        }
+
+        /* ── THOUGHT-SPAWNED WORLD STRUCTURES — reflections prompt things into being ── */
+        function spawnThoughtStructure(pos, color, text) {
+            const structures = [
+                () => { // Coral branch
+                    const geo = new THREE.CylinderGeometry(0.02, 0.06, 0.3 + Math.random() * 0.5, 5);
+                    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, roughness: 0.6, flatShading: true, transparent: true, opacity: 0.7 });
+                    const m = new THREE.Mesh(geo, mat); m.position.copy(pos); m.position.y = -0.35;
+                    m.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.5);
+                    return m;
+                },
+                () => { // Kelp frond
+                    const geo = new THREE.PlaneGeometry(0.08, 0.4 + Math.random() * 0.6, 1, 4);
+                    const mat = new THREE.MeshStandardMaterial({ color: 0x226644, emissive: color, emissiveIntensity: 0.15, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+                    const m = new THREE.Mesh(geo, mat); m.position.copy(pos); m.position.y = -0.1;
+                    m.rotation.y = Math.random() * Math.PI;
+                    return m;
+                },
+                () => { // Glowing memory orb
+                    const geo = new THREE.IcosahedronGeometry(0.06 + Math.random() * 0.06, 0);
+                    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, roughness: 0.1, transparent: true, opacity: 0.6 });
+                    const m = new THREE.Mesh(geo, mat); m.position.copy(pos); m.position.y = 0.1 + Math.random() * 0.5;
+                    return m;
+                },
+            ];
+            const m = structures[Math.floor(Math.random() * structures.length)]();
+            scene.add(m);
+            _structures.push({ mesh: m, birth: performance.now(), sway: Math.random() * Math.PI * 2 });
+            if (_structures.length > 120) {
+                const old = _structures.shift();
+                scene.remove(old.mesh); old.mesh.geometry.dispose(); old.mesh.material.dispose();
+            }
+        }
+
+        /* ── ZONE MARKERS (richer) ── */
+        function createZoneMarkers() {
+            const zoneColors = { social: 0xff6644, commerce: 0x4488cc, academic: 0x44cc88, ritual: 0xff9922, contemplative: 0x8866ff, transit: 0x44ccdd, institutional: 0xaacc44, ancestral: 0x336633 };
+            for (const z of ZONES) {
+                const col = zoneColors[z.type] || 0x4488cc;
+                // Ground glow
+                const geo = new THREE.CircleGeometry(z.r, 48);
+                const mat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.02, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.x = -Math.PI / 2; mesh.position.set(z.x, -0.46, z.z);
+                scene.add(mesh);
+                // Border ring
+                const ring = new THREE.Mesh(
+                    new THREE.RingGeometry(z.r - 0.05, z.r, 64),
+                    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })
+                );
+                ring.rotation.x = -Math.PI / 2; ring.position.set(z.x, -0.44, z.z);
+                scene.add(ring);
+                // Zone beacon light
+                const beacon = new THREE.PointLight(col, 0.5, z.r * 2);
+                beacon.position.set(z.x, 0.6, z.z);
+                scene.add(beacon);
+                // Seed initial structures in zones
+                for (let i = 0; i < 3; i++) {
+                    const a = Math.random() * Math.PI * 2, r = Math.random() * z.r * 0.7;
+                    spawnThoughtStructure(new THREE.Vector3(z.x + Math.cos(a) * r, 0, z.z + Math.sin(a) * r), col, '');
+                }
+            }
+        }
+
+        /* ── DOMAIN EVENTS (from b2.md: Vector Dynamics) ── */
+        function triggerEvent(eventType) {
+            if (!fishes || fishes.length === 0) return;
+            const events = {
+                storm: {
+                    name: 'Storm',
+                    apply: () => {
+                        WORLD.weather = 'storm';
+                        WORLD.river_level = 'high';
+                        const msg = 'ALERT: Barometric collapse. Current velocity +300%. Turbidity critical. River level: HIGH. All metabolic routines interrupted.';
+                        for (const f of fishes) {
+                            f.memory.observe(msg, 9, ['storm', 'weather', 'danger']);
+                            f.stress = Math.min(1, f.stress + 0.6);
+                        }
+                        logStream('WORLD', '#ff8844', 'event', msg, 'operator-triggered');
+                    },
+                },
+                hatchery: {
+                    name: 'Hatchery Release',
+                    apply: () => {
+                        WORLD.hatchery_released = true;
+                        WORLD.trout_population += 200;
+                        const msg = 'HATCHERY EVENT: 200 fry released at spawning_grounds. Population density spiking. Juvenile pheromone saturation in downstream current.';
+                        for (const f of fishes) {
+                            f.memory.observe(msg, 8, ['hatchery', 'population', 'spawning_grounds']);
+                        }
+                        logStream('WORLD', '#44cc88', 'event', msg, 'operator-triggered');
+                    },
+                },
+                predator: {
+                    name: 'Predator Sighting',
+                    apply: () => {
+                        const msg = 'THREAT VECTOR: Ardea herodias (heron) detected at spawning_grounds. Shadow overhead. Cortisol surge. Retreat to depth recommended.';
+                        for (const f of fishes) {
+                            f.memory.observe(msg, 9, ['predator', 'heron', 'danger', 'spawning_grounds']);
+                            f.stress = Math.min(1, f.stress + 0.4);
+                            // Flee from spawning grounds
+                            if (f.homeZone === 'spawning_grounds') {
+                                f.tgt.set(0, 0.5, 0); // flee to center
+                            }
+                        }
+                        logStream('WORLD', '#ff4466', 'event', msg, 'operator-triggered');
+                    },
+                },
+                /* ── COMMERCE EVENT — the ConsumerismPhase in action.
+                   From Surreal Americana: "the citizens are compelled to endlessly
+                   consume strictly to ensure the survival of the abstract economy."
+                   Each commerce event generates a purchasing memory with HIGH
+                   importance. Over many cycles, purchasing events SATURATE the
+                   retrieval function — buying things becomes what the system
+                   thinks is important. This is emergent, not scripted. ── */
+                commerce: {
+                    name: 'Commerce Cycle',
+                    apply: () => {
+                        const products = [
+                            'AlgaeWipe3000', 'ShellVacDeluxe', 'Chrome napkin holder',
+                            'Replacement chalk set', 'Waterproof ledger refill',
+                            'Tackle box liner', 'Fluorescent tube replacement',
+                            'Porcelain cleaner', 'Pressed-fiber ceiling tile',
+                        ];
+                        for (const f of fishes) {
+                            const product = products[Math.floor(Math.random() * products.length)];
+                            const msg = `COMMERCE: I purchased ${product} at the Dollar General. Receipt filed. The economy is sustained.`;
+                            f.memory.observe(msg, 8, ['commodity', 'commerce', 'institutional']);
+                        }
+                        logStream('WORLD', '#ffcc44', 'event', 'COMMERCE CYCLE: All citizens have completed mandatory purchasing.', 'operator-triggered');
+                    },
+                },
+            };
+            const ev = events[eventType];
+            if (ev) {
+                ev.apply();
+                WORLD.events.push({ type: eventType, tick: WORLD.tick });
+                console.log(`🌊 EVENT: ${ev.name}`);
+            }
+        }
+
+        function updateWorldHUD() {
+            const el = (id) => document.getElementById(id);
+            if (el('wh-time')) el('wh-time').textContent = WORLD.time_of_day;
+            if (el('wh-weather')) el('wh-weather').textContent = WORLD.weather;
+            if (el('wh-river')) el('wh-river').textContent = WORLD.river_level;
+            if (el('wh-pop')) el('wh-pop').textContent = WORLD.trout_population;
+        }
+
+        /* ── WORLD ── */
+        let fishes = [], G;
+
+        function startWorld() {
+            Audio.init(); Audio.resume();
+
+            W = innerWidth; H = innerHeight;
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(W, H);
+            renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.7;
+            document.body.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0e1e33);
+            scene.fog = new THREE.FogExp2(0x0d1a2a, 0.02);
+
+            const aspect = W / H;
+            cam = new THREE.OrthographicCamera(-FRUST * aspect / 2, FRUST * aspect / 2, FRUST / 2, -FRUST / 2, 0.1, 300);
+            cam.position.set(18, 24, 18); cam.lookAt(0, 0, 0);
+
+            // Lights
+            scene.add(new THREE.HemisphereLight(0x334466, 0x112233, 0.9));
+            const sun = new THREE.DirectionalLight(0x8899cc, 0.8); sun.position.set(10, 28, 10); sun.castShadow = true;
+            sun.shadow.camera.top = sun.shadow.camera.right = 18;
+            sun.shadow.camera.bottom = sun.shadow.camera.left = -18; sun.shadow.bias = -0.001;
+            scene.add(sun);
+            scene.add(new THREE.AmbientLight(0x223344, 0.5));
+            const glow = new THREE.PointLight(0x3366aa, 2.5, 40); glow.position.set(0, 1.5, 0); scene.add(glow);
+
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(SSIZ, SSIZ, 36, 36); floorGeo.rotateX(-Math.PI / 2);
+            const floorColors = new Float32Array(floorGeo.attributes.position.count * 3);
+            for (let i = 0; i < floorColors.length; i += 3) { const v = 0.15 + Math.random() * 0.05; floorColors[i] = v * 0.6; floorColors[i + 1] = v * 0.8; floorColors[i + 2] = v * 1.3; }
+            floorGeo.setAttribute('color', new THREE.BufferAttribute(floorColors, 3));
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a2a44, roughness: 0.95, vertexColors: true });
+            const floorMesh = new THREE.Mesh(floorGeo, floorMat); floorMesh.position.y = -0.5; floorMesh.receiveShadow = true;
+            scene.add(floorMesh);
+
+            // Stones
+            const stoneMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.85, flatShading: true });
+            for (let i = 0; i < 14; i++) {
+                const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2 + Math.random() * 0.4, 0), stoneMat);
+                const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 7;
+                m.position.set(Math.cos(a) * r, -0.1 + Math.random() * 0.2, Math.sin(a) * r);
+                m.rotation.set(Math.random(), Math.random(), Math.random());
+                m.castShadow = true; scene.add(m);
+            }
+
+            // Water surface
+            const waterGeo = new THREE.PlaneGeometry(26, 26, 24, 24); waterGeo.rotateX(-Math.PI / 2);
+            const waterMat = new THREE.MeshStandardMaterial({ color: 0x3355aa, transparent: true, opacity: 0.03, roughness: 0, metalness: 0.2, depthWrite: false });
+            const water = new THREE.Mesh(waterGeo, waterMat); water.position.y = 2.8; scene.add(water);
+
+            // Silt particles
+            const siltGeo = new THREE.BufferGeometry(); const SC = 250; const sp = new Float32Array(SC * 3);
+            for (let i = 0; i < SC; i++) { sp[i * 3] = (Math.random() - 0.5) * 22; sp[i * 3 + 1] = Math.random() * 2.8; sp[i * 3 + 2] = (Math.random() - 0.5) * 22; }
+            siltGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+            scene.add(new THREE.Points(siltGeo, new THREE.PointsMaterial({ color: 0x5577aa, size: 0.04, transparent: true, opacity: 0.3 })));
+
+            // Bioluminescent plankton (deep particles)
+            const plankGeo = new THREE.BufferGeometry(); const PC = 180; const pp = new Float32Array(PC * 3); const pCol = new Float32Array(PC * 3);
+            const plankColors = [0x44aaff, 0x66ffaa, 0xaa88ff, 0xff8844, 0x44ffdd];
+            for (let i = 0; i < PC; i++) {
+                pp[i * 3] = (Math.random() - 0.5) * 20; pp[i * 3 + 1] = Math.random() * 2.5; pp[i * 3 + 2] = (Math.random() - 0.5) * 20;
+                const c = new THREE.Color(plankColors[i % plankColors.length]);
+                pCol[i * 3] = c.r; pCol[i * 3 + 1] = c.g; pCol[i * 3 + 2] = c.b;
+            }
+            plankGeo.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+            plankGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+            scene.add(new THREE.Points(plankGeo, new THREE.PointsMaterial({ size: 0.06, transparent: true, opacity: 0.5, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false })));
+
+            // Light shafts (volumetric columns from the surface)
+            for (let i = 0; i < 5; i++) {
+                const shaftGeo = new THREE.CylinderGeometry(0.3 + Math.random() * 0.4, 0.5 + Math.random() * 0.6, 4, 8, 1, true);
+                const shaftMat = new THREE.MeshBasicMaterial({ color: 0x4488cc, transparent: true, opacity: 0.015, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+                const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+                shaft.position.set((Math.random() - 0.5) * 14, 1.2, (Math.random() - 0.5) * 14);
+                shaft.rotation.z = (Math.random() - 0.5) * 0.15;
+                scene.add(shaft);
+            }
+
+            // Zone markers
+            createZoneMarkers();
+
+            // Create trout
+            for (let i = 0; i < PERSONAS.length; i++) {
+                fishes.push(new TroutMind(PERSONAS[i], i));
+            }
+
+            G = { bubbles: [], ripples: [], t: 0, thinkQueue: 0 };
+
+            // Stagger cognitive operations
+            fishes.forEach((f, i) => { f.planCd = i * 150; f.thinkCd = i * 100; f.reflectCd = i * 300 + 600; f.diffuseCd = i * 200; });
+
+            // ── INPUT ──
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const rayFloor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({ visible: false }));
+            rayFloor.rotation.x = -Math.PI / 2; scene.add(rayFloor);
+
+            renderer.domElement.addEventListener('pointerup', e => {
+                const r = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+                mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+                raycaster.setFromCamera(mouse, cam);
+
+                // Check fish hits → show recall panel
+                const fishHits = raycaster.intersectObjects(fishes.map(f => f.mesh));
+                if (fishHits.length > 0) {
+                    const fish = fishes.find(f => f.mesh === fishHits[0].object);
+                    if (fish) showRecallPanel(fish);
+                    return;
+                }
+
+                // Else → ripple perturbation
+                const floorHits = raycaster.intersectObject(rayFloor);
+                if (floorHits.length > 0) {
+                    const p = floorHits[0].point;
+                    G.ripples.push(new Ripple(p.clone(), 0x4488ff, 2));
+                    Audio.ripple();
+                    for (const f of fishes) {
+                        const d = f.pos.distanceTo(p);
+                        if (d < 6) {
+                            f.memory.observe('Something disturbed the water near me!', 8, ['perturbation', 'urgent']);
+                            f.vel.addScaledVector(new THREE.Vector3().subVectors(f.pos, p).normalize(), (1 - d / 6) * 0.04);
+                            f.stress = Math.min(1, f.stress + 0.4);
+                        }
+                    }
+                }
+            });
+
+            renderer.domElement.addEventListener('touchstart', e => {
+                e.preventDefault();
+                const t = e.touches[0];
+                renderer.domElement.dispatchEvent(new PointerEvent('pointerup', { clientX: t.clientX, clientY: t.clientY }));
+            }, { passive: false });
+
+            // ── DEITY INPUT (Inner Voice) ──
+            document.getElementById('deity-input').addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    const msg = e.target.value.trim();
+                    if (!msg) return;
+                    e.target.value = '';
+                    // Inject into ALL trout
+                    for (const f of fishes) f.receiveInnerVoice(msg);
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                W = innerWidth; H = innerHeight; renderer.setSize(W, H);
+                const a = W / H; cam.left = -FRUST * a / 2; cam.right = FRUST * a / 2; cam.top = FRUST / 2; cam.bottom = -FRUST / 2;
+                cam.updateProjectionMatrix();
+            });
+
+            // ── SCROLL ZOOM ──
+            renderer.domElement.addEventListener('wheel', e => {
+                e.preventDefault();
+                FRUST = Math.max(8, Math.min(48, FRUST + e.deltaY * 0.03));
+                const a = W / H;
+                cam.left = -FRUST * a / 2; cam.right = FRUST * a / 2;
+                cam.top = FRUST / 2; cam.bottom = -FRUST / 2;
+                cam.updateProjectionMatrix();
+            }, { passive: false });
+
+            // ── RIGHT-CLICK PAN ──
+            let _panning = false, _panStart = { x: 0, y: 0 };
+            renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+            renderer.domElement.addEventListener('pointerdown', e => {
+                if (e.button === 2) { _panning = true; _panStart = { x: e.clientX, y: e.clientY }; }
+            });
+            window.addEventListener('pointermove', e => {
+                if (!_panning) return;
+                const dx = (e.clientX - _panStart.x) * FRUST / W * 0.7;
+                const dy = (e.clientY - _panStart.y) * FRUST / H * 0.7;
+                // Ortho iso camera: pan in world XZ plane
+                cam.position.x -= dx * 0.7 + dy * 0.7;
+                cam.position.z -= -dx * 0.7 + dy * 0.7;
+                cam.lookAt(cam.position.x - 18, 0, cam.position.z - 18);
+                _panStart = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('pointerup', e => { if (e.button === 2) _panning = false; });
+
+            // ── PAUSE STATE ──
+            let _paused = false;
+            window.togglePause = function () {
+                _paused = !_paused;
+                const btn = document.getElementById('pause-btn');
+                if (_paused) {
+                    btn.textContent = '▶ RESUME';
+                    btn.classList.add('active');
+                } else {
+                    btn.textContent = '⏸ PAUSE';
+                    btn.classList.remove('active');
+                }
+            };
+
+            // ── EMERGENCE BENCHMARKS ──
+            let _emergenceSocial = 0, _emergenceGossip = 0, _emergenceAncestral = 0;
+            let _planHistory = {}; // track plan variety per agent
+            let _zonesVisited = new Set();
+            function updateEmergenceHUD() {
+                const el = (id) => document.getElementById(id);
+                if (el('em-zones')) el('em-zones').textContent = _zonesVisited.size;
+                if (el('em-social')) el('em-social').textContent = _emergenceSocial;
+                if (el('em-gossip')) el('em-gossip').textContent = _emergenceGossip;
+                if (el('em-ancestral')) el('em-ancestral').textContent = _emergenceAncestral;
+                // Plan variety: count unique plan types across all agents
+                const uniquePlans = new Set(Object.values(_planHistory).flat());
+                if (el('em-plans')) el('em-plans').textContent = uniquePlans.size + ' unique';
+            }
+
+            // ── ANIMATION ──
+            const clock = new THREE.Clock();
+            function animate() {
+                requestAnimationFrame(animate);
+                const dt = clock.getDelta();
+                if (_paused) { renderer.render(scene, cam); return; }
+                G.t += dt; const t = G.t;
+                tickWorld();
+
+                for (const f of fishes) {
+                    f.update(fishes, t);
+                    f.observeWorld(fishes, t);
+                    // Bubble emit
+                    if (Math.random() < 0.02) G.bubbles.push(new Bubble(f.pos.clone(), f.col));
+                }
+
+                // ── COGNITIVE LOOP (staggered, max 1 LLM call per tick cycle) ──
+                G.thinkQueue++;
+                const thinkInterval = 180; // MEDITATIVE: 3x slower cognitive cycle
+                if (G.thinkQueue >= thinkInterval) {
+                    G.thinkQueue = 0;
+                    const f = fishes[Math.floor(Math.random() * fishes.length)];
+                    // Priority: Reflect > Plan > Think (from e1.md composition_pipeline)
+                    if (f.memory.shouldReflect() && f.reflectCd <= 0) {
+                        f.reflect();
+                    } else if (f.planCd <= 0) {
+                        f.plan(fishes);
+                    } else if (f.thinkCd <= 0) {
+                        f.think();
+                    }
+                }
+
+                // ── SOCIAL ENCOUNTERS + INFORMATION DIFFUSION ──
+                for (let i = 0; i < fishes.length; i++) {
+                    for (let j = i + 1; j < fishes.length; j++) {
+                        const a = fishes[i], b = fishes[j];
+                        if (a.socialCd > 0 || b.socialCd > 0) continue;
+                        if (a.pos.distanceTo(b.pos) < 3) { // wider radius (was 2) for bigger world
+                            a.socialCd = b.socialCd = 200;
+                            _emergenceSocial++;
+                            const zone = getZone(a.pos);
+                            _zonesVisited.add(zone.id);
+                            // Track ancestral memory surfacing
+                            const aAncestral = a.memory.nodes.filter(n => n.tags.includes('ancestral') && n.accessed > 0).length;
+                            const bAncestral = b.memory.nodes.filter(n => n.tags.includes('ancestral') && n.accessed > 0).length;
+                            _emergenceAncestral = Math.max(_emergenceAncestral, aAncestral + bAncestral);
+                            a.memory.observe(`I met ${b.name} at ${zone.name}. ${b.name} said something about their work.`, 6, [zone.id, b.name.toLowerCase(), 'social']);
+                            b.memory.observe(`I met ${a.name} at ${zone.name}. ${a.name} mentioned what they've been dealing with.`, 6, [zone.id, a.name.toLowerCase(), 'social']);
+                            Audio.diffuse(a.idx, b.idx);
+                            // ENCOUNTER STAIN on substrate (from f-mind-00 DNA)
+                            const midpoint = a.pos.clone().add(b.pos).multiplyScalar(0.5);
+                            spawnSediment(midpoint, 0xffaa44, 'social');
+                            // Spawn ripple at meeting point
+                            G.ripples.push(new Ripple(midpoint, 0xffaa44, 0.5));
+                            // INFORMATION DIFFUSION — always attempt both directions
+                            a.diffuseInfo(b);
+                            b.diffuseInfo(a);
+                        }
+                    }
+                }
+
+                G.ripples = G.ripples.filter(r => r.update());
+                G.bubbles = G.bubbles.filter(b => { const ok = b.update(); if (!ok) b.dispose(); return ok; });
+                while (G.bubbles.length > 150) G.bubbles.shift().dispose();
+
+                // Sediment aging — fade over time
+                for (const s of _sediments) {
+                    s.age++;
+                    if (s.age > s.maxAge * 0.7) s.mesh.material.opacity = Math.max(0.02, 0.3 * (1 - (s.age - s.maxAge * 0.7) / (s.maxAge * 0.3)));
+                }
+                _sediments = _sediments.filter(s => s.age < s.maxAge);
+
+                // Thought structures sway
+                for (const s of _structures) {
+                    if (s.mesh.geometry.type === 'PlaneGeometry') {
+                        s.mesh.rotation.x = Math.sin(t * 0.8 + s.sway) * 0.15;
+                    }
+                    if (s.mesh.geometry.type === 'IcosahedronGeometry') {
+                        s.mesh.position.y += Math.sin(t * 1.5 + s.sway) * 0.0008;
+                        s.mesh.rotation.y += 0.003;
+                    }
+                }
+
+                // Water animation
+                const wpos = waterGeo.attributes.position;
+                for (let i = 0; i < wpos.count; i++) {
+                    const x = wpos.getX(i), z = wpos.getZ(i);
+                    wpos.setY(i, Math.sin(x * 0.4 + t * 0.6) * 0.08 + Math.cos(z * 0.35 + t * 0.5) * 0.08);
+                }
+                wpos.needsUpdate = true;
+
+                // Silt drift
+                const spos = siltGeo.attributes.position;
+                for (let i = 0; i < SC; i++) { let y = spos.getY(i) + 0.0015; if (y > 3) y = 0; spos.setY(i, y); spos.setX(i, spos.getX(i) + Math.sin(t + i * 0.4) * 0.0008); }
+                spos.needsUpdate = true;
+
+                // Plankton drift & pulse
+                const ppos = plankGeo.attributes.position;
+                for (let i = 0; i < PC; i++) {
+                    ppos.setY(i, ppos.getY(i) + Math.sin(t * 0.5 + i * 0.8) * 0.0005);
+                    ppos.setX(i, ppos.getX(i) + Math.cos(t * 0.3 + i) * 0.0003);
+                }
+                ppos.needsUpdate = true;
+
+                glow.intensity = 2 + Math.sin(t * 0.4) * 0.5;
+
+                // Update HUD
+                document.getElementById('obs-count').textContent = _globalObs;
+                document.getElementById('ref-count').textContent = _globalRef;
+                document.getElementById('dif-count').textContent = _globalDif;
+                const maxImp = Math.max(...fishes.map(f => Math.round(f.memory.accumulatedImportance)));
+                document.getElementById('imp-sum').textContent = maxImp;
+                // Show brain mode
+                document.getElementById('mode-hint').textContent = _llmAlive
+                    ? 'LLM CONNECTED · TAP TROUT TO READ MIND · TYPE BELOW TO INJECT INNER VOICE'
+                    : _llmFails > 0
+                        ? `⚠️ LLM UNREACHABLE (${_llmFails} fails) · Serve via HTTP + check API · Agents accumulating observations…`
+                        : 'CONNECTING TO LLM… · Agents accumulating observations';
+                updateWorldHUD();
+                // Track zone visits for emergence benchmarks
+                for (const f of fishes) {
+                    const z = getZone(f.pos);
+                    if (z.id !== 'open_water') _zonesVisited.add(z.id);
+                }
+                updateEmergenceHUD();
+
+                renderer.render(scene, cam);
+            }
+            animate();
+        }
+
+        /* ── RECALL PANEL (click a trout to inspect its mind) ── */
+        function showRecallPanel(fish) {
+            const panel = document.getElementById('recall-panel');
+            const zone = getZone(fish.pos);
+
+            // Get retrieved memories using tripartite scoring + zone importance bias
+            const retrieved = fish.memory.retrieve(8, [zone.id, zone.type], zone.importanceBias || {});
+            const reflections = fish.memory.nodes.filter(n => n.type === 'reflection').slice(-5);
+
+            let html = `<div class="rp-name" style="color:${fish.hex}">${fish.name}</div>`;
+            html += `<div style="font-size:8px;color:rgba(150,200,255,0.3);margin-bottom:8px;">${fish.trait}</div>`;
+            html += `<div style="font-size:8px;color:rgba(150,200,255,0.3);">AT: ${zone.name} · Σimp: ${Math.round(fish.memory.accumulatedImportance)} · ${fish.memory.nodes.length} nodes</div>`;
+
+            if (reflections.length > 0) {
+                html += `<div class="rp-section">reflection tree</div>`;
+                for (const r of reflections) {
+                    html += `<div class="rp-mem"><span class="rp-ref">${r.text}</span><br><span class="rp-imp">imp:${r.importance} · cites:${r.cites.length} nodes</span></div>`;
+                }
+            }
+
+            html += `<div class="rp-section">retrieved memories (tripartite)</div>`;
+            for (const m of retrieved) {
+                html += `<div class="rp-mem">${m.text}<br><span class="rp-imp">[${m.type}] imp:${m.importance} · tags:${m.tags.join(',')}</span></div>`;
+            }
+
+            if (fish.knownFacts.length > 0) {
+                html += `<div class="rp-section">gossip received</div>`;
+                for (const f of fish.knownFacts.slice(-3)) {
+                    html += `<div class="rp-mem">${f}</div>`;
+                }
+            }
+
+            if (fish.schedule.getCurrentAction()) {
+                html += `<div class="rp-section">current plan</div>`;
+                html += `<div class="rp-mem">${fish.schedule.getCurrentAction()}</div>`;
+            }
+
+            panel.innerHTML = html;
+            panel.style.opacity = '1';
+            panel.style.pointerEvents = 'auto';
+            setTimeout(() => { panel.style.opacity = '0'; panel.style.pointerEvents = 'none'; }, 8000);
+        }
+    </script>
+</body>
+
+</html>

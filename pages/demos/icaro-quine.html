@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ICARO-QUINE · Pretext Engine</title>
+    <meta name="description" content="Self-referential BEFLIX renderer powered by Pretext. The code that makes the image IS the image.">
+    <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
+    <style>
+        :root {
+            --bg: #f4f4f0;
+            --black: #000000;
+            --white: #ffffff;
+            --act-a: #0033cc;
+            --act-b: #c8a800;
+            --act-c: #e60000;
+            --bw: 3px;
+            --sh: 3px;
+            --tab-h: 60px;
+            --status-h: 44px;
+            --tl-h: 88px;
+            --safe-b: env(safe-area-inset-bottom, 0px);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            border-radius: 0 !important;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            position: fixed;
+            inset: 0;
+            height: 100dvh;
+            background: var(--bg);
+            color: var(--black);
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        svg { stroke-width: 3px; }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+        }
+
+        #status-bar {
+            flex: 0 0 var(--status-h);
+            display: flex;
+            align-items: stretch;
+            background: var(--black);
+            color: var(--white);
+            border-bottom: 2px solid #333;
+            z-index: 50;
+            gap: 0;
+        }
+
+        #canvas-zone {
+            flex: 1 1 0%;
+            position: relative;
+            overflow: hidden;
+            background: #e8e6e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #timeline-zone {
+            flex: 0 0 var(--tl-h);
+            background: var(--bg);
+            border-top: var(--bw) solid var(--black);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 40;
+        }
+
+        #tab-bar {
+            flex: 0 0 calc(var(--tab-h) + var(--safe-b));
+            display: flex;
+            border-top: var(--bw) solid var(--black);
+            background: var(--white);
+            z-index: 60;
+            padding-bottom: var(--safe-b);
+        }
+
+        .sb-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #333;
+            flex-shrink: 0;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .sb-label {
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            color: #555;
+            text-transform: uppercase;
+            display: block;
+        }
+
+        .sb-val {
+            font-size: 13px;
+            font-weight: 900;
+            color: var(--white);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sb-dot {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #555;
+            flex-shrink: 0;
+        }
+
+        .sb-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+        }
+
+        .fps-btn {
+            width: 28px;
+            height: 28px;
+            background: #222;
+            border: 1.5px solid #444;
+            color: var(--white);
+            font-size: 18px;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            line-height: 1;
+            transition: background 0.08s;
+        }
+
+        .fps-btn:active { background: #555; }
+
+        #sb-fps-val {
+            font-size: 13px;
+            font-weight: 900;
+            color: var(--white);
+            min-width: 30px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #sb-play-btn {
+            flex: 0 0 82px;
+            align-self: stretch;
+            background: var(--act-c);
+            border: none;
+            border-left: 2px solid #900;
+            color: var(--white);
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: background 0.08s;
+            flex-shrink: 0;
+        }
+
+        #sb-play-btn.playing { background: #333; border-left-color: #555; }
+        #sb-play-btn:active { filter: brightness(0.8); }
+
+        #play-overlay {
+            position: absolute; inset: 0; z-index: 25;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none; opacity: 0; transition: opacity 0.15s;
+        }
+        #play-overlay.visible { opacity: 1; pointer-events: all; }
+        #play-overlay-btn {
+            width: 72px; height: 72px;
+            background: rgba(0,0,0,0.75); border: 3px solid rgba(255,255,255,0.9);
+            color: var(--white); display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: transform 0.08s, background 0.08s;
+        }
+        #play-overlay-btn:active { transform: scale(0.9); background: rgba(230,0,0,0.85); }
+
+        #canvas-tap-zone {
+            position: absolute; inset: 0; z-index: 22; cursor: pointer; display: none;
+        }
+        #canvas-tap-zone.on { display: block; }
+
+        #canvas-wrapper {
+            position: relative; z-index: 10;
+            border: 2px solid #999; background: var(--white);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+        }
+        #primary-buffer {
+            image-rendering: pixelated; display: block;
+            touch-action: none; cursor: crosshair;
+        }
+        #net {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; opacity: 0; transition: opacity 0.15s;
+            image-rendering: pixelated; z-index: 20;
+        }
+        #net.on { opacity: 0.55; }
+
+        #draw-toolbar {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 30; display: none; align-items: center; gap: 6px;
+            background: rgba(0,0,0,0.88); border: 2px solid #555;
+            padding: 6px 10px; backdrop-filter: blur(4px);
+        }
+        #draw-toolbar.on { display: flex; }
+        .dt-btn {
+            height: 36px; min-width: 48px; border: 2px solid #555;
+            background: transparent; color: var(--white);
+            font-size: 10px; font-weight: 900; cursor: pointer;
+            text-transform: uppercase; padding: 0 10px; transition: background 0.1s;
+        }
+        .dt-btn.on { background: var(--white); color: var(--black); border-color: var(--white); }
+        .dt-swatch {
+            width: 28px; height: 28px; border: 2px solid #666;
+            cursor: pointer; flex-shrink: 0; transition: border-color 0.1s, transform 0.1s;
+        }
+        .dt-swatch.on { border: 3px solid var(--white); transform: scale(1.15); }
+        .dt-div { width: 1px; height: 28px; background: #444; flex-shrink: 0; }
+
+        #tl-controls {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 10px; border-bottom: 2px solid var(--black);
+            background: var(--bg); flex-shrink: 0;
+        }
+        .tl-ctrl-btn {
+            background: var(--white); color: var(--black);
+            border: 2px solid var(--black); padding: 5px 10px;
+            font-size: 10px; font-weight: 900; cursor: pointer;
+            text-transform: uppercase; box-shadow: 2px 2px 0 var(--black);
+            flex-shrink: 0; min-height: 32px; transition: transform 0.05s, box-shadow 0.05s;
+        }
+        .tl-ctrl-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--black); }
+        #tl-strip {
+            flex: 1; display: flex; gap: 6px; padding: 8px 10px;
+            overflow-x: auto; align-items: center; scrollbar-width: none;
+        }
+        #tl-strip::-webkit-scrollbar { display: none; }
+        .tl-frame {
+            position: relative; flex: 0 0 68px; height: 38px;
+            border: var(--bw) solid var(--black); cursor: pointer;
+            background: #1a1a1a; display: flex; align-items: center; justify-content: center;
+        }
+        .tl-frame.on { border-left: 5px solid var(--act-c); }
+        .tl-thumb {
+            width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated;
+            position: absolute; inset: 0; z-index: 1; opacity: 0.5;
+        }
+        .tl-num {
+            position: relative; z-index: 2; color: var(--white);
+            font-size: 14px; font-weight: 900; text-shadow: 1px 1px 0 var(--black);
+            pointer-events: none;
+        }
+
+        .tab-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: var(--tab-h);
+            font-size: 9px; font-weight: 900; text-transform: uppercase;
+            color: var(--black); cursor: pointer; background: var(--white);
+            border: none; border-right: 2px solid var(--black);
+            position: relative; letter-spacing: 0.05em; transition: background 0.1s;
+        }
+        .tab-btn:last-child { border-right: none; }
+        .tab-letter { font-size: 20px; line-height: 1; margin-bottom: 2px; font-weight: 900; }
+        .tab-btn.on-a { background: var(--act-a); color: var(--white); }
+        .tab-btn.on-b { background: var(--act-b); color: var(--black); }
+        .tab-btn.on-c { background: var(--act-c); color: var(--white); }
+        .tab-btn.on-d { background: var(--black); color: var(--white); }
+        .tab-badge {
+            position: absolute; top: 8px; right: 10px;
+            width: 10px; height: 10px; border: 1.5px solid currentColor;
+        }
+
+        #sheet-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0);
+            pointer-events: none; z-index: 70; transition: background 0.25s;
+        }
+        #sheet-backdrop.on { background: rgba(0,0,0,0.6); pointer-events: all; }
+        .sheet {
+            position: fixed; left: 0; right: 0;
+            bottom: calc(var(--tab-h) + var(--safe-b));
+            max-height: 80vh; background: var(--white);
+            border-top: var(--bw) solid var(--black);
+            border-left: var(--bw) solid var(--black);
+            border-right: var(--bw) solid var(--black);
+            z-index: 80; display: flex; flex-direction: column;
+            transform: translateY(calc(100% + var(--tab-h) + var(--safe-b)));
+            transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0.32s;
+            visibility: hidden; overflow: hidden; will-change: transform;
+        }
+        .sheet.on {
+            transform: translateY(0); visibility: visible;
+            transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0s;
+        }
+        .sheet-handle {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px 8px; background: var(--bg);
+            border-bottom: 2px solid var(--black); flex-shrink: 0;
+        }
+        .sheet-title { font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+        .sheet-close { font-size: 20px; font-weight: 900; background: none; border: none; cursor: pointer; line-height: 1; color: var(--black); }
+        .sheet-body {
+            overflow-y: auto; flex: 1; padding: 16px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .sh-btn {
+            display: flex; align-items: center; justify-content: center;
+            padding: 14px 16px; font-weight: 900; text-transform: uppercase;
+            font-size: 12px; background: var(--white);
+            border: var(--bw) solid var(--black); color: var(--black);
+            cursor: pointer; letter-spacing: 0.1em; width: 100%; flex-shrink: 0;
+            box-shadow: 3px 3px 0 var(--black);
+            transition: transform 0.05s, box-shadow 0.05s; min-height: 52px;
+        }
+        .sh-btn:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--black); }
+        .sh-btn.primary { background: var(--black); color: var(--white); }
+        .sh-row { display: flex; gap: 8px; }
+        .sh-row .sh-btn { flex: 1; }
+
+        #b-idea {
+            width: 100%; min-height: 80px; max-height: 120px;
+            border: var(--bw) solid var(--black); padding: 12px;
+            font-family: monospace; font-size: 14px; font-weight: bold;
+            background: var(--bg); color: var(--black); resize: none; outline: none;
+            user-select: text; -webkit-user-select: text;
+        }
+        #b-script {
+            width: 100%; min-height: 120px; max-height: 200px;
+            border: var(--bw) solid var(--black); padding: 12px;
+            font-family: monospace; font-size: 12px; font-weight: bold;
+            background: var(--white); color: var(--black); resize: none; outline: none;
+            user-select: text; -webkit-user-select: text; overflow-y: auto;
+        }
+        #b-script-info {
+            font-size: 10px; font-weight: 900; letter-spacing: 0.08em;
+            text-transform: uppercase; color: #999;
+            display: flex; justify-content: space-between; padding: 2px 0;
+        }
+        #b-script-info .warn { color: var(--act-c); animation: pulse-warn 1.5s ease-in-out infinite; }
+        @keyframes pulse-warn { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        #script-progress { width: 100%; height: 6px; background: var(--bg); border: 1px solid var(--black); overflow: hidden; display: none; }
+        #script-progress.on { display: block; }
+        #script-progress-bar { width: 0%; height: 100%; background: var(--act-a); transition: width 0.15s ease-out; }
+        .sh-label { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: #666; margin-bottom: 4px; }
+        details summary { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: #999; cursor: pointer; padding: 4px 0; text-transform: uppercase; }
+        #b-key { font-size: 12px; padding: 8px; width: 100%; border: 2px solid var(--black); font-family: monospace; font-weight: bold; background: var(--bg); margin-top: 4px; }
+
+        .ink-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .ink-swatch {
+            width: 48px; height: 48px; border: var(--bw) solid var(--black);
+            cursor: pointer; box-shadow: 3px 3px 0 var(--black);
+            transition: transform 0.05s, box-shadow 0.05s;
+        }
+        .ink-swatch.on { outline: 3px solid var(--black); outline-offset: 3px; transform: translate(3px,3px); box-shadow: 0 0 0 var(--black); }
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; border: 2px solid var(--black); height: 28px; outline: none; flex-shrink: 0; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 28px; width: 28px; background: var(--black); border: none; cursor: pointer; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 28px; }
+
+        #hud-toast {
+            position: fixed; top: calc(var(--status-h) + 10px);
+            left: 50%; transform: translateX(-50%);
+            background: var(--white); color: var(--black);
+            font-weight: 900; font-size: 13px; padding: 10px 18px;
+            opacity: 0; pointer-events: none; z-index: 9999;
+            text-transform: uppercase; border: var(--bw) solid var(--black);
+            transition: opacity 0.12s; letter-spacing: 0.1em;
+            box-shadow: 4px 4px 0 var(--black); white-space: nowrap;
+        }
+        #hud-toast.on { opacity: 1; }
+
+        #lock-screen {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+            z-index: 9000; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.15s;
+        }
+        #lock-screen.on { opacity: 1; pointer-events: all; }
+        #lock-msg { font-size: 13px; font-weight: 900; letter-spacing: 0.2em; color: var(--white); text-transform: uppercase; margin-top: 16px; }
+        #lock-counter { font-size: 28px; font-weight: 900; color: var(--act-c); margin-top: 8px; }
+
+        .hud-btn {
+            position: absolute; top: 8px; z-index: 30;
+            background: rgba(0,0,0,0.7); color: var(--white);
+            border: 1.5px solid #555; font-size: 10px; font-weight: 900;
+            padding: 5px 10px; cursor: pointer; text-transform: uppercase;
+            letter-spacing: 0.08em; transition: background 0.1s, color 0.1s;
+        }
+        .hud-btn:hover { background: rgba(0,0,0,0.9); }
+        .hud-btn.on { background: var(--white); color: var(--black); border-color: var(--black); }
+
+        #speed-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1 1 0%; min-width: 80px; max-width: 160px; }
+        #speed-label { font-size: 8px; font-weight: 900; color: #666; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+        #speed-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: transparent; border: 2px solid var(--black); outline: none; flex-shrink: 0; touch-action: none; cursor: pointer; }
+        #speed-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; background: var(--black); border: none; cursor: pointer; }
+        #speed-slider::-webkit-slider-runnable-track { height: 20px; }
+
+        /* Pretext performance HUD */
+        .pretext-hud {
+            position: absolute; bottom: 8px; left: 8px; z-index: 30;
+            background: rgba(0,0,0,0.8); color: #0f0;
+            font-family: monospace; font-size: 9px; font-weight: 900;
+            padding: 4px 8px; letter-spacing: 0.06em;
+            border: 1px solid #333; pointer-events: none;
+        }
+
+        /* ── CAMERA VIEW ── */
+        #cam-feed {
+            display: none; position: absolute; inset: 0; z-index: 60;
+            background: transparent; flex-direction: column; align-items: center;
+            justify-content: flex-end; padding-bottom: 24px; pointer-events: none;
+        }
+        #cam-vid {
+            display: block; position: absolute; top: 8px; right: 8px;
+            width: 120px; height: auto; border: 2px solid var(--black);
+            z-index: 70; transform: scaleX(-1); /* mirror */
+            pointer-events: none; background: #000;
+        }
+        .cam-btns {
+            display: flex; gap: 12px; pointer-events: auto;
+            background: rgba(0,0,0,0.85); padding: 12px; border: 2px solid #555;
+        }
+        .cam-btns button {
+            background: var(--white); color: var(--black);
+            border: 2px solid var(--black); padding: 10px 16px;
+            font-size: 11px; font-weight: 900; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            min-height: 42px; transition: transform 0.05s;
+        }
+        .cam-btns button:active { transform: scale(0.95); }
+
+        @media (max-width: 767px) {
+            #canvas-zone { flex: 0 0 calc(100vw * 0.75); min-height: 120px; }
+            #timeline-zone { flex: 1 1 0%; min-height: 0; overflow: hidden; }
+            #tl-strip { flex: 1 1 0%; min-height: 0; align-items: flex-start; padding: 6px 8px; }
+            .tl-frame { flex: 0 0 72px; height: 41px; }
+            #tl-controls { overflow-x: visible; flex-wrap: nowrap; padding: 4px 8px; gap: 5px; }
+            .tl-ctrl-btn { padding: 5px 8px; font-size: 9px; min-height: 30px; }
+        }
+        @media (min-width: 768px) {
+            #app { flex-direction: row; }
+            #tab-bar { flex: 0 0 80px; flex-direction: column; border-top: none; border-right: var(--bw) solid var(--black); order: -1; }
+            .tab-btn { flex: 1; height: auto; border-right: none; border-bottom: 2px solid var(--black); }
+            .tab-btn:last-child { border-bottom: none; }
+            #status-bar { display: none; }
+            .sheet { left: 80px; bottom: 0; max-height: 100vh; width: 380px; }
+            #canvas-zone { flex: 1 1 0%; }
+            #timeline-zone { flex: 0 0 var(--tl-h); }
+            #main-col { flex: 1 1 0%; display: flex; flex-direction: column; min-width: 0; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+
+        <!-- STATUS BAR -->
+        <div id="status-bar">
+            <div class="sb-group">
+                <div class="sb-col">
+                    <span class="sb-label">FRAME</span>
+                    <span class="sb-val" id="sb-frame">01/01</span>
+                </div>
+            </div>
+            <div class="sb-group">
+                <div class="sb-col">
+                    <span class="sb-label">TOOL</span>
+                    <span class="sb-val" id="sb-tool">PEN</span>
+                </div>
+            </div>
+            <div class="sb-group">
+                <div class="sb-col">
+                    <span class="sb-label">INK</span>
+                    <div class="sb-dot" id="sb-color" style="background:#000000;"></div>
+                </div>
+            </div>
+            <div class="sb-group" style="flex:0 0 auto; gap:4px;">
+                <div class="sb-col">
+                    <span class="sb-label">FPS</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <button class="fps-btn" id="fps-down">−</button>
+                        <span id="sb-fps-val">12</span>
+                        <button class="fps-btn" id="fps-up">+</button>
+                    </div>
+                </div>
+            </div>
+            <button id="sb-play-btn">
+                <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" id="play-icon">
+                    <polygon points="0,0 14,8 0,16" />
+                </svg>
+                <span id="play-label">PLAY</span>
+            </button>
+        </div>
+
+        <div id="main-col" style="flex:1 1 0%; display:flex; flex-direction:column; min-width:0; min-height:0;">
+
+            <!-- CANVAS ZONE -->
+            <div id="canvas-zone">
+                <button id="lbl-grid" class="hud-btn" style="left:8px;">GRID</button>
+                <button id="lbl-mode" class="hud-btn" style="left:68px;">MODE: DOTS</button>
+
+                <!-- PRETEXT: Live density control — exercises the zero-DOM resize hot path -->
+                <div id="quine-density-wrap"
+                    style="position:absolute; top:8px; left:168px; z-index:30; display:none; background:rgba(0,0,0,0.7); color:var(--white); border:1.5px solid #555; font-size:10px; font-weight:900; padding:5px 10px; text-transform:uppercase; letter-spacing:0.08em; align-items:center; gap:8px;">
+                    <span>DENSITY</span>
+                    <input type="range" id="quine-density" min="0.5" max="3.0" step="0.1" value="1.5"
+                        style="width:80px; height:12px; margin:0;">
+                </div>
+
+                <!-- PRETEXT: Obstacle-aware flow toggle -->
+                <button id="lbl-obstacle" class="hud-btn" style="right:8px; display:none;">FLOW: OFF</button>
+
+                <!-- Floating draw toolbar -->
+                <div id="draw-toolbar">
+                    <button class="dt-btn on" id="dtt-pen">PEN</button>
+                    <button class="dt-btn" id="dtt-rect">BOX</button>
+                    <button class="dt-btn" id="dtt-erase">×</button>
+                    <div class="dt-div"></div>
+                    <div id="dt-swatches" style="display:flex; gap:5px; align-items:center;"></div>
+                </div>
+
+                <div id="canvas-wrapper">
+                    <canvas id="primary-buffer"></canvas>
+                    <canvas id="net"></canvas>
+                </div>
+
+                <!-- Camera overlay -->
+                <div id="cam-feed">
+                    <video id="cam-vid" playsinline muted autoplay></video>
+                    <div class="cam-btns">
+                        <button id="btn-cam-capture" style="min-width:110px;">CAPTURE</button>
+                        <button id="btn-snap">SNAP</button>
+                        <button id="btn-cam-code">CODE</button>
+                        <button id="btn-cam-close">CLOSE</button>
+                    </div>
+                </div>
+
+                <div id="canvas-tap-zone"></div>
+
+                <div id="play-overlay">
+                    <button id="play-overlay-btn">
+                        <svg width="28" height="32" viewBox="0 0 28 32" fill="white">
+                            <polygon points="0,0 28,16 0,32" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Pretext performance HUD -->
+                <div class="pretext-hud" id="pretext-hud" style="display:none;"></div>
+            </div>
+
+            <!-- TIMELINE -->
+            <div id="timeline-zone">
+                <div id="tl-controls">
+                    <button class="tl-ctrl-btn" id="btn-step-back" style="font-size:15px; min-width:36px; padding:5px 10px;">◄</button>
+                    <button class="tl-ctrl-btn" id="btn-step-fwd" style="font-size:15px; min-width:36px; padding:5px 10px;">►</button>
+                    <div style="width:1px; height:18px; background:var(--black); flex-shrink:0;"></div>
+                    <button class="tl-ctrl-btn" id="btn-add-blank">+BLK</button>
+                    <button class="tl-ctrl-btn" id="btn-dup-frame">+CPY</button>
+                    <div style="width:1px; height:18px; background:var(--black); flex-shrink:0;"></div>
+                    <div id="speed-wrap">
+                        <span id="speed-label">SPD · 12</span>
+                        <input type="range" id="speed-slider" min="1" max="30" value="12" step="1">
+                    </div>
+                    <div style="flex-grow:1; min-width:4px;"></div>
+                </div>
+                <div id="tl-strip"></div>
+            </div>
+
+        </div>
+
+        <!-- TAB BAR -->
+        <nav id="tab-bar">
+            <button class="tab-btn" id="tab-a"><span class="tab-letter">A</span>ADD</button>
+            <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>BUILD</button>
+            <button class="tab-btn" id="tab-c">
+                <span class="tab-letter">C</span>COLOR
+                <div class="tab-badge" id="tab-c-badge" style="background:#000000;"></div>
+            </button>
+            <button class="tab-btn" id="tab-d"><span class="tab-letter">D</span>SAVE</button>
+        </nav>
+    </div>
+
+    <!-- SHEET BACKDROP -->
+    <div id="sheet-backdrop"></div>
+
+    <!-- SHEET A: ADD -->
+    <div class="sheet" id="sheet-a">
+        <div class="sheet-handle">
+            <span class="sheet-title" style="color:var(--act-a);">A · ADD MATERIAL</span>
+            <button class="sheet-close" id="close-a">×</button>
+        </div>
+        <div class="sheet-body">
+            <button class="sh-btn" id="btn-local-file">IMAGE / VIDEO FILE</button>
+            <button class="sh-btn" id="btn-camera" style="margin-top: 4px;">CAMERA</button>
+            <button class="sh-btn" id="btn-load-script-file" style="background: var(--act-a); color: var(--white); margin-top: 4px;">LOAD SCRIPT FILE</button>
+        </div>
+    </div>
+
+    <!-- SHEET B: BUILD -->
+    <div class="sheet" id="sheet-b">
+        <div class="sheet-handle">
+            <span class="sheet-title" style="color:var(--act-b);">B · BUILD / SCRIPT</span>
+            <button class="sheet-close" id="close-b">×</button>
+        </div>
+        <div class="sheet-body">
+            <div class="sh-label">Describe your animation</div>
+            <textarea id="b-idea" placeholder="e.g. A red ball bouncing under a yellow sun..."></textarea>
+            <div class="sh-row">
+                <button class="sh-btn" id="btn-copy-prompt" style="font-size:10px;">COPY PROMPT</button>
+            </div>
+            <div style="border-top:2px solid var(--black); padding-top:12px;">
+                <div class="sh-label">BEFLIX-128 SCRIPT</div>
+                <div id="script-progress"><div id="script-progress-bar"></div></div>
+                <textarea id="b-script" spellcheck="false">C DOT-MATRIX TEST
+CLR 0
+PNT 10 10 40 30 7
+PNT 14 14 32 22 3
+PNT 70 20 48 50 5
+LIN 10 10 118 86 7
+REC 1
+SHF 2 1 24</textarea>
+                <div id="b-script-info"><span id="b-script-lines">6 LINES</span><span id="b-script-warn"></span></div>
+                <button class="sh-btn primary" id="btn-run-script" style="margin-top:8px;">RUN SCRIPT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHEET C: COLOR -->
+    <div class="sheet" id="sheet-c">
+        <div class="sheet-handle">
+            <span class="sheet-title" style="color:var(--act-c);">C · COLOR / DRAW</span>
+            <button class="sheet-close" id="close-c">×</button>
+        </div>
+        <div class="sheet-body">
+            <div class="sh-label">TOOLS</div>
+            <div class="sh-row">
+                <button class="sh-btn on" id="tool-pen">PEN</button>
+                <button class="sh-btn" id="tool-rect">BOX</button>
+                <button class="sh-btn" id="tool-erase">ERASE</button>
+            </div>
+            <button class="sh-btn" style="background:var(--black);color:var(--white);" id="btn-wipe">WIPE ALL INK</button>
+            <div class="sh-label" style="margin-top:4px;">PALETTE</div>
+            <div class="ink-grid" id="c-ink-swatches"></div>
+            <div class="sh-label" style="margin-top:4px;">BRUSH SIZE</div>
+            <input type="range" min="1" max="24" value="5" id="brush-size">
+        </div>
+    </div>
+
+    <!-- SHEET D: EXPORT -->
+    <div class="sheet" id="sheet-d">
+        <div class="sheet-handle">
+            <span class="sheet-title">D · EXPORT OUTPUT</span>
+            <button class="sheet-close" id="close-d">×</button>
+        </div>
+        <div class="sheet-body">
+            <button class="sh-btn primary" id="btn-export-webm">WEBM VIDEO</button>
+            <button class="sh-btn" id="btn-export-gif">ANIMATED GIF</button>
+            <button class="sh-btn" id="btn-export-png">CURRENT FRAME (PNG)</button>
+            <button class="sh-btn" id="btn-export-sheet">CONTACT SHEET</button>
+            <div style="margin-top: 8px; border-top: 2px solid var(--black); padding-top: 10px;">
+                <div class="sh-label" style="font-size: 11px;">BEFLIX CODE</div>
+                <button class="sh-btn" style="background: var(--act-a); color: var(--white); margin-bottom: 8px; margin-top: 4px;" id="btn-view-code">VIEW LOGIC SCRIPT</button>
+                <div class="sh-row">
+                    <button class="sh-btn" id="btn-download-code">DOWNLOAD .TXT</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input id="script-input" type="file" accept=".txt,.bfx" style="display:none">
+    <input type="file" id="file-input" accept="image/*,video/*" style="display:none">
+    <div id="hud-toast">READY</div>
+
+    <div id="lock-screen">
+        <canvas id="lock-canvas" width="240" height="180"></canvas>
+        <div id="lock-msg">LOADING</div>
+        <div id="lock-counter">0</div>
+    </div>
+
+    <script type="module" src="./icaro-quine.ts"></script>
+</body>
+
+</html>

@@ -1,0 +1,2470 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ORCA // BLUE_HOUR_LIDAR_v18</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="ripple-ai.js"></script>
+    <style>
+        :root {
+            /* HOLLER PALETTE */
+            --color-bg: #0b0a08;
+            --color-primary: #d4af37;
+            /* Moonshine Gold */
+            --color-secondary: #8b4513;
+            /* Rust / Clay */
+            --color-highlight: #e0e0e0;
+            /* White Light */
+
+            --color-shack: #daa520;
+            /* Golden Rod */
+            --color-creek: #4682b4;
+            /* Steel Blue */
+            --color-ridge: #cd853f;
+            /* Peru */
+            --color-cave: #4b0082;
+            /* Indigo Depth */
+            --color-holler: #2f4f4f;
+            /* Dark Slate Gray */
+
+            /* UI PALETTE */
+            --ui-text: #ff8c00;
+            /* Amber Monitor */
+            --ui-dim: rgba(255, 140, 0, 0.2);
+            --font-stack: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-bg);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-stack);
+            color: var(--ui-text);
+        }
+
+        /* --- THE CHASSIS --- */
+        .monitor-frame {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        /* --- LAYERS --- */
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #layer-grid {
+            z-index: 10;
+            display: block;
+        }
+
+        #layer-raycaster {
+            z-index: 20;
+            display: none;
+            background: #000;
+        }
+
+        .active-mode-grid #layer-grid {
+            display: block;
+            pointer-events: auto;
+        }
+
+        .active-mode-grid #layer-raycaster {
+            display: none;
+            pointer-events: none;
+        }
+
+        .active-mode-void #layer-grid {
+            display: none;
+            pointer-events: none;
+        }
+
+        .active-mode-void #layer-raycaster {
+            display: block;
+            pointer-events: auto;
+        }
+
+        /* --- GRID UI --- */
+        .crt-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.15;
+            animation: flicker 0.1s infinite;
+        }
+
+        @keyframes flicker {
+            0% {
+                opacity: 0.15;
+            }
+
+            50% {
+                opacity: 0.12;
+            }
+
+            100% {
+                opacity: 0.18;
+            }
+        }
+
+        #viz-canvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .header-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-ui {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--color-secondary);
+            color: var(--color-secondary);
+            padding: 5px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        }
+
+        .btn-ui:hover {
+            border-color: var(--ui-text);
+            color: var(--ui-text);
+        }
+
+        .btn-void {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        .btn-void:hover {
+            border-color: #fff;
+            color: #fff;
+            background: var(--color-primary);
+        }
+
+        .reader-panel {
+            position: absolute;
+            left: 20px;
+            top: 80px;
+            bottom: 120px;
+            width: 320px;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .panel-header {
+            border-bottom: 1px solid var(--color-secondary);
+            padding-bottom: 5px;
+            color: var(--color-primary);
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .poem-text {
+            border-left: 2px solid var(--color-secondary);
+            padding-left: 15px;
+            min-height: 100px;
+            color: #ccc;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+            line-height: 1.4;
+            font-size: 0.95rem;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px;
+        }
+
+        .hud-overlay {
+            position: absolute;
+            bottom: 30px;
+            right: 20px;
+            z-index: 25;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+        }
+
+        .hud-panel {
+            color: var(--ui-text);
+            font-size: 0.7rem;
+            pointer-events: auto;
+        }
+
+        .hud-minimap {
+            width: 100px;
+            height: 100px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #333;
+            pointer-events: auto;
+        }
+
+        .controls-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            z-index: 30;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+            color: var(--color-secondary);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+        }
+
+        /* --- RAYCASTER UI --- */
+        #raycaster-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .scanner {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 85%;
+            max-width: 600px;
+            pointer-events: none;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            text-align: center;
+        }
+
+        .scanner-header {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .scanner-label {
+            font-size: 0.6rem;
+            background: var(--ui-text);
+            color: #000;
+            padding: 2px 6px;
+            font-weight: bold;
+        }
+
+        .scanner-btn {
+            font-size: 0.6rem;
+            background: transparent;
+            color: var(--ui-text);
+            border: 1px solid var(--ui-text);
+            padding: 2px 6px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .scanner-btn:hover {
+            background: var(--ui-text);
+            color: #000;
+        }
+
+        .scanner-text {
+            background: rgba(10, 8, 5, 0.98);
+            padding: 15px;
+            border: 2px solid var(--ui-text);
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.3;
+            max-height: 280px;
+            overflow-y: auto;
+            white-space: pre;
+            box-shadow: 0 0 30px rgba(0, 255, 100, 0.3);
+            backdrop-filter: blur(4px);
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(255, 140, 0, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 35;
+        }
+
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: var(--ui-text);
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        /* BOOT SCREEN */
+        #boot-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050403;
+            z-index: 30000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--color-primary);
+        }
+    </style>
+</head>
+
+<body class="active-mode-grid">
+
+    <div id="boot-screen">
+        <div
+            style="font-size: 2rem; letter-spacing: 4px; margin-bottom: 20px; animation: flicker 0.2s infinite alternate; color: var(--ui-text);">
+            HOLLER_OPTICS // SYSTEM_18
+        </div>
+        <div style="font-size: 0.9rem; color: var(--color-secondary); margin-bottom: 40px;">
+            LOADING APPALACHIAN PHYSICS ENGINE...<br>
+            CALIBRATING MASON JAR PRISMS...<br>
+            POLISHING HUB CAPS...
+        </div>
+        <button onclick="System.init()"
+            style="background: transparent; color: var(--ui-text); border: 1px solid var(--ui-text); padding: 15px 30px; font-family: inherit; font-size: 1rem; cursor: pointer; text-transform: uppercase;">
+            Enter the Holler
+        </button>
+    </div>
+
+    <div class="monitor-frame">
+        <div class="crt-overlay"></div>
+
+        <!-- HEADER (Global) -->
+        <div class="header-controls">
+            <button class="btn-ui" onclick="GridRenderer.toggleView()" id="view-btn">VIEW: TOPO</button>
+            <button class="btn-ui" onclick="GridRenderer.resetView()">RE-CENTER</button>
+            <button class="btn-ui btn-void" id="mode-toggle" onclick="System.toggleMode()">ENTER LIDAR</button>
+            <button class="btn-ui"
+                onclick="alert('GRID: Hover to inspect Quantum Anomalies.\nLIDAR: WASD to track Edgar. SPACE to scan.')">?</button>
+        </div>
+
+        <!-- LAYER 1: GRID -->
+        <div id="layer-grid" class="layer">
+            <canvas id="viz-canvas"></canvas>
+
+            <div class="reader-panel" id="reader-panel">
+                <div id="zone-header" class="panel-header">AWAITING INPUT...</div>
+                <div id="text-display" class="poem-text">
+                    "Grandpa wasn't a moonshiner.<br>
+                    He was a Quantum Optician."
+                </div>
+                <div style="font-size: 0.7rem; color: #666; margin-top: 5px;">
+                    DATA: <span id="data-display">-</span>
+                </div>
+            </div>
+
+            <div class="hud-overlay">
+                <div class="hud-panel" id="ui-coords">LOC: 0,0</div>
+
+                <!-- MOBILE CONTROLS: DUAL ANALOG JOYSTICKS -->
+                <div id="mobile-controls"
+                    style="position:fixed; bottom:20px; left:0; right:0; z-index:10000; display:none; justify-content:space-between; padding:0 20px; pointer-events:none;">
+
+                    <!-- LEFT JOYSTICK (MOVE) -->
+                    <div id="joystick-left"
+                        style="width:120px; height:120px; background:rgba(0,0,0,0.5); border:2px solid #00ffff; border-radius:50%; position:relative; pointer-events:auto; touch-action:none;">
+                        <div id="joystick-left-knob"
+                            style="width:50px; height:50px; background:#00ffff; border-radius:50%; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); opacity:0.8;">
+                        </div>
+                        <div
+                            style="position:absolute; top:-20px; left:50%; transform:translateX(-50%); font-size:10px; color:#00ffff; letter-spacing:2px;">
+                            MOVE</div>
+                    </div>
+
+                    <!-- CENTER: SCORE HUD -->
+                    <div id="game-hud"
+                        style="display:flex; flex-direction:column; align-items:center; gap:5px; pointer-events:none;">
+                        <div style="font-size:24px; color:#ffd700; font-weight:bold; text-shadow:0 0 10px #ffd700;"
+                            id="score-display">0</div>
+                        <div style="font-size:10px; color:#888; letter-spacing:2px;">GLYPHS</div>
+                        <button id="btn-scan"
+                            style="margin-top:10px; width:60px; height:60px; background:#ff8c00; border:none; color:#000; font-weight:bold; font-size:12px; border-radius:50%; pointer-events:auto; touch-action:manipulation;">PING</button>
+                    </div>
+
+                    <!-- RIGHT JOYSTICK (LOOK) -->
+                    <div id="joystick-right"
+                        style="width:120px; height:120px; background:rgba(0,0,0,0.5); border:2px solid #ff8c00; border-radius:50%; position:relative; pointer-events:auto; touch-action:none;">
+                        <div id="joystick-right-knob"
+                            style="width:50px; height:50px; background:#ff8c00; border-radius:50%; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); opacity:0.8;">
+                        </div>
+                        <div
+                            style="position:absolute; top:-20px; left:50%; transform:translateX(-50%); font-size:10px; color:#ff8c00; letter-spacing:2px;">
+                            LOOK</div>
+                    </div>
+                </div>
+                <canvas id="minimap-canvas" class="hud-minimap"></canvas>
+            </div>
+
+            <div class="controls-bar">
+                <div>USE REFRACTION TO FIND THE PATH // USE REFLECTION TO SEND THE SIGNAL</div>
+            </div>
+        </div>
+
+        <!-- LAYER 2: RAYCASTER (LIDAR) -->
+        <div id="layer-raycaster" class="layer">
+            <canvas id="raycaster-canvas"></canvas>
+            <div class="crosshair"></div>
+
+            <!-- LIDAR MINIMAP (Top-down view) -->
+            <canvas id="lidar-minimap"
+                style="position:absolute; top:10px; right:10px; width:150px; height:150px; border:2px solid #ff8c00; background:rgba(0,0,0,0.8); z-index:100;"></canvas>
+
+            <!-- FLASHLIGHT SELECTOR -->
+            <div id="flashlight-controls"
+                style="position:absolute; top:170px; right:10px; display:flex; flex-direction:column; gap:5px; z-index:100;">
+                <button class="btn-ui" onclick="RaycasterEngine.setFlashlight('WIDE')"
+                    style="font-size:0.7rem; padding:5px;">🔦 WIDE</button>
+                <button class="btn-ui" onclick="RaycasterEngine.setFlashlight('PRISM')"
+                    style="font-size:0.7rem; padding:5px;">💎 PRISM</button>
+                <button class="btn-ui" onclick="RaycasterEngine.setFlashlight('LASER')"
+                    style="font-size:0.7rem; padding:5px;">⚡ LASER</button>
+            </div>
+
+            <div class="scanner">
+                <div class="scanner-text" id="scanner-output">LIDAR STANDBY...</div>
+                <div class="scanner-header">
+                    <div class="scanner-label">COON DOG LIDAR v4</div>
+                    <button class="scanner-btn" onclick="RaycasterEngine.deepScan()">⚡ DEEP SCAN</button>
+                    <button class="scanner-btn" onclick="RaycasterEngine.speakBuffer()">🔊 VOCALIZE</button>
+                </div>
+            </div>
+
+            <!-- LIDAR TUTORIAL OVERLAY -->
+            <div id="lidar-tutorial"
+                style="position:absolute; inset:0; background:rgba(0,0,0,0.95); z-index:20000; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:40px; text-align:center;">
+                <div style="font-size:1.5rem; color:#00ffff; letter-spacing:4px; margin-bottom:20px;">BLUE HOUR LIDAR
+                </div>
+                <div style="font-size:0.9rem; color:#aaa; max-width:400px; line-height:1.6; margin-bottom:30px;">
+                    Navigate the darkness using echolocation pulses.<br><br>
+                    <span style="color:#00ffff;">◀ LEFT STICK:</span> Move forward/back<br>
+                    <span style="color:#ff8c00;">RIGHT STICK ▶:</span> Look around<br>
+                    <span style="color:#ffd700;">★ COLLECT GLYPHS:</span> Walk into gold symbols<br>
+                    <span style="color:#fff;">ARROWS:</span> Alternative D-pad controls<br>
+                    <span style="color:#fff;">LANDMARKS:</span> Tap to teleport
+                </div>
+                <button onclick="document.getElementById('lidar-tutorial').style.display='none'"
+                    style="background:#00ffff; color:#000; border:none; padding:15px 40px; font-family:inherit; font-size:1rem; cursor:pointer; font-weight:bold;">
+                    BEGIN EXPLORATION
+                </button>
+            </div>
+
+            <!-- D-PAD ARROWS (Alternative Controls) -->
+            <div id="dpad-controls"
+                style="position:absolute; bottom:160px; left:20px; z-index:10000; display:flex; flex-direction:column; gap:5px; opacity:0.7;">
+                <div style="display:flex; justify-content:center;">
+                    <button id="dpad-up" class="dpad-btn"
+                        style="width:50px; height:50px; background:rgba(0,255,255,0.2); border:2px solid #00ffff; color:#00ffff; font-size:20px; border-radius:8px;">▲</button>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <button id="dpad-left" class="dpad-btn"
+                        style="width:50px; height:50px; background:rgba(0,255,255,0.2); border:2px solid #00ffff; color:#00ffff; font-size:20px; border-radius:8px;">◀</button>
+                    <button id="dpad-down" class="dpad-btn"
+                        style="width:50px; height:50px; background:rgba(0,255,255,0.2); border:2px solid #00ffff; color:#00ffff; font-size:20px; border-radius:8px;">▼</button>
+                    <button id="dpad-right" class="dpad-btn"
+                        style="width:50px; height:50px; background:rgba(0,255,255,0.2); border:2px solid #00ffff; color:#00ffff; font-size:20px; border-radius:8px;">▶</button>
+                </div>
+            </div>
+
+            <!-- TELEPORT LANDMARKS -->
+            <div id="teleport-panel"
+                style="position:absolute; bottom:160px; right:20px; z-index:10000; display:flex; flex-direction:column; gap:5px;">
+                <div style="font-size:10px; color:#ffd700; letter-spacing:2px; text-align:center; margin-bottom:5px;">
+                    TELEPORT</div>
+                <button onclick="RaycasterEngine.teleportTo(3.5, 3.5)"
+                    style="background:rgba(255,215,0,0.2); border:1px solid #ffd700; color:#ffd700; padding:8px 12px; font-size:11px; cursor:pointer;">◆
+                    GLYPH 1</button>
+                <button onclick="RaycasterEngine.teleportTo(10.5, 6.5)"
+                    style="background:rgba(255,215,0,0.2); border:1px solid #ffd700; color:#ffd700; padding:8px 12px; font-size:11px; cursor:pointer;">★
+                    GLYPH 2</button>
+                <button onclick="RaycasterEngine.teleportTo(14.5, 10.5)"
+                    style="background:rgba(255,215,0,0.2); border:1px solid #ffd700; color:#ffd700; padding:8px 12px; font-size:11px; cursor:pointer;">●
+                    GLYPH 3</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- HOLLER DATA ---
+        const MOUNTAIN_LORE = {
+            shack: [
+                "Grandpa's Shack. Not a distillery, a lab.",
+                "Old vacuum tubes humming with quantum potential.",
+                "Edgar's empty dog house. No dog.",
+                "A note scribbled on a napkin: 'Light bends, time breaks.'",
+                "The prize-winning hound, gone into the photons."
+            ],
+            creek: [
+                "The Bending Creek. Refraction mechanics.",
+                "Mason Jar Prism: High-proof clear water.",
+                "Hold it to the sun. See the ghost tracks.",
+                "Light slows down in the medium.",
+                "Bending the laser around the rock.",
+                "Snell's Law applied to creek water."
+            ],
+            ridge: [
+                "The High Ridge. Reflection mechanics.",
+                "The Rusty Hubcap. A perfect concave mirror.",
+                "Polished rust focusing camp fire photons.",
+                "Signal beam cutting through the haint fog.",
+                "Angle of Incidence equals Angle of Reflection.",
+                "The Eye of the Owl telescope."
+            ],
+            cave: [
+                "The Dark Cave. LiDAR mechanics.",
+                "Edgar's Collar Thumper. Click... Click...",
+                "Measuring the speed of light return.",
+                "Is it a squirrel? Or a quantum displacement?",
+                "Inference in the dark.",
+                "14 inches between the glowing eyes."
+            ],
+            puddle: [
+                "The Oil Puddle. Thin-Film Interference.",
+                "A rainbow on the mud. Diffraction.",
+                "Smells like 1974 tractor oil.",
+                "Constructive interference of wavelengths.",
+                "The City Slicker sees magic. We see physics.",
+                "Shattered Shine."
+            ]
+        };
+
+        // --- CSPR FORENSIC ONTOLOGY ---
+        // Crime Scene Processing Report Evidence Catalog
+        const EVIDENCE_ONTOLOGY = {
+            "PRISM": {
+                itemNo: "101-A",
+                entityClass: "OPTICAL INSTRUMENT",
+                attributes: "Mason Jar, Clear Glass, 500ml capacity, Refraction Index 1.33.",
+                relationship: "Primary light-bending mechanism. Connected to Creek Zone optics.",
+                zone: "KITCHEN",
+                status: "UNCOLLECTED"
+            },
+            "GLASSES": {
+                itemNo: "101-B",
+                entityClass: "PERSONAL EFFECTS",
+                attributes: "Wire-frame spectacles, +2.5 diopter, fingerprint residue on left lens.",
+                relationship: "Belonged to Grandpa. Last seen on the nightstand. Specular reflection properties.",
+                zone: "DINING",
+                status: "UNCOLLECTED"
+            },
+            "LAMBCHOP": {
+                itemNo: "102-A",
+                entityClass: "BIO-TRACE / COMFORT OBJECT",
+                attributes: "Plush toy, Faded pink fabric, Scent: 14 years of dog saliva.",
+                relationship: "Edgar's primary possession. Scent trail indicates drag path to Office.",
+                zone: "OFFICE",
+                status: "UNCOLLECTED"
+            },
+            "ANTLER": {
+                itemNo: "102-B",
+                entityClass: "BIOLOGICAL SPECIMEN",
+                attributes: "Whitetail deer, 8-point, Cold to touch (thermal anomaly: -4°C delta).",
+                relationship: "Found on mantle. Estimated value: $40. Inconsistent temperature.",
+                zone: "BEDROOM",
+                status: "UNCOLLECTED"
+            },
+            "GLOW-BALL": {
+                itemNo: "103-A",
+                entityClass: "PHOSPHORESCENT OBJECT",
+                attributes: "Tennis ball, Fluorescent green, Photon retention: 4.2 seconds.",
+                relationship: "Edgar's fetch toy. Absorption/emission pattern indicates recent UV exposure.",
+                zone: "BATHROOM",
+                status: "UNCOLLECTED"
+            },
+            "OIL": {
+                itemNo: "103-B",
+                entityClass: "CHEMICAL TRACE",
+                attributes: "Petroleum residue, Thin-film, Rainbow iridescence, Circa 1974.",
+                relationship: "Puddle from Grandpa's tractor. Thin-film interference = ROYGBIV pattern.",
+                zone: "CLOSET",
+                status: "UNCOLLECTED"
+            },
+            "HUBCAP": {
+                itemNo: "104-A",
+                entityClass: "REFLECTIVE SURFACE",
+                attributes: "Chrome-plated steel, Concave curvature, Focal length: 42cm.",
+                relationship: "Repurposed as signal mirror. Angle of incidence = angle of reflection.",
+                zone: "DEN",
+                status: "UNCOLLECTED"
+            },
+            "SHADOW": {
+                itemNo: "104-B",
+                entityClass: "OPTICAL ANOMALY",
+                attributes: "Dark zone, No light penetration, Dimensions: 14in x 6in x 8in.",
+                relationship: "Mysterious Blank. Light-absorbing void. Edgar-shaped silhouette.",
+                zone: "LIVING ROOM",
+                status: "UNCOLLECTED"
+            },
+            "COLLAR": {
+                itemNo: "105-A",
+                entityClass: "PERSONAL EFFECTS / TRACKING",
+                attributes: "Leather, Brass buckle, Radio tag frequency: 433.92 MHz.",
+                relationship: "Edgar's collar. The 'Thumper' - LiDAR pulse emitter.",
+                zone: "LAUNDRY",
+                status: "UNCOLLECTED"
+            },
+            "DOG HOUSE": {
+                itemNo: "105-B",
+                entityClass: "STRUCTURE / LAST KNOWN LOCATION",
+                attributes: "Cedar wood, 36in x 28in x 30in, Entry faces East.",
+                relationship: "Edgar's domicile. No occupant. Quantum displacement event suspected.",
+                zone: "GARAGE",
+                status: "UNCOLLECTED"
+            }
+        };
+
+        // Evidence collection log
+        const COLLECTED_EVIDENCE = [];
+
+        function collectEvidence(key) {
+            if (EVIDENCE_ONTOLOGY[key] && EVIDENCE_ONTOLOGY[key].status === "UNCOLLECTED") {
+                EVIDENCE_ONTOLOGY[key].status = "COLLECTED";
+                COLLECTED_EVIDENCE.push(key);
+                return true;
+            }
+            return false;
+        }
+
+        function getCSPRReport(key) {
+            const ev = EVIDENCE_ONTOLOGY[key];
+            if (!ev) return "NO DATA";
+            return `╔══════════════════════════════════╗
+║ CSPR EVIDENCE LOG                ║
+╠══════════════════════════════════╣
+║ Item #: ${ev.itemNo.padEnd(24)}║
+║ Class:  ${ev.entityClass.substring(0, 24).padEnd(24)}║
+╠══════════════════════════════════╣
+║ ATTRIBUTES:                      ║
+║ ${ev.attributes.substring(0, 32).padEnd(32)} ║
+╠══════════════════════════════════╣
+║ RELATIONSHIP TO CASE:            ║
+║ ${ev.relationship.substring(0, 32).padEnd(32)} ║
+╠══════════════════════════════════╣
+║ Zone: ${ev.zone.padEnd(12)} [${ev.status}] ║
+╚══════════════════════════════════╝`;
+        }
+
+
+        const ZONES = {
+            SHACK: { name: "THE SHACK", color: "#daa520", minR: 0, maxR: 4, flavor: "HOME BASE" },
+            CREEK: { name: "THE CREEK", color: "#4682b4", minR: 4, maxR: 8, flavor: "REFRACTION ZONE" },
+            RIDGE: { name: "THE RIDGE", color: "#cd853f", minR: 8, maxR: 13, flavor: "REFLECTION ZONE" },
+            PUDDLE: { name: "THE PUDDLE", color: "#2f4f4f", minR: 13, maxR: 16, flavor: "INTERFERENCE ZONE" },
+            CAVE: { name: "THE CAVE", color: "#4b0082", minR: 16, maxR: 99, flavor: "LIDAR ZONE" }
+        };
+
+        // --- AUDIO (Simplified to avoid worklet errors) ---
+        const AudioEngine = {
+            initialized: false,
+            synth: null, droneSynth: null,
+            async init() {
+                if (this.initialized) return;
+                await Tone.start();
+                // Simple synth (no worklets)
+                this.synth = new Tone.Synth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 }
+                }).toDestination();
+                this.synth.volume.value = -10;
+
+                // Simple drone (no worklets)
+                this.droneSynth = new Tone.Synth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 1, decay: 0.5, sustain: 1, release: 2 }
+                }).toDestination();
+                this.droneSynth.volume.value = -25;
+
+                this.initialized = true;
+            },
+            trigger(zone) {
+                if (!this.initialized) return;
+                if (zone.includes("SHACK")) this.synth.triggerAttackRelease("G3", "8n");
+                else if (zone.includes("CREEK")) this.synth.triggerAttackRelease("D4", "8n");
+                else if (zone.includes("RIDGE")) this.synth.triggerAttackRelease("A3", "8n");
+                else if (zone.includes("PUDDLE")) this.synth.triggerAttackRelease("E4", "8n");
+                else this.droneSynth.triggerAttackRelease("C2", "8n");
+            },
+            ping() {
+                if (!this.initialized) return;
+                this.synth.triggerAttackRelease("C5", "32n");
+            }
+        };
+
+        // --- GRID RENDERER ---
+        const GridRenderer = {
+            canvas: document.getElementById('viz-canvas'),
+            ctx: document.getElementById('viz-canvas').getContext('2d'),
+            minimapCtx: document.getElementById('minimap-canvas').getContext('2d'),
+            gridSize: 32, center: 16,
+            gridState: [],
+            zoom: 1.2, PanX: 0, PanY: 0,
+            viewMode: 'TOPO',
+            isDragging: false, lastX: 0, lastY: 0, hoverCell: null, time: 0,
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                this.canvas.addEventListener('mousedown', e => {
+                    this.isDragging = false;
+                    this.startX = e.clientX; this.startY = e.clientY;
+                });
+                this.canvas.addEventListener('mousemove', e => {
+                    if (e.buttons === 1) {
+                        if (Math.hypot(e.clientX - this.startX, e.clientY - this.startY) > 5) this.isDragging = true;
+                        if (this.isDragging) {
+                            this.PanX += e.clientX - this.lastX;
+                            this.PanY += e.clientY - this.lastY;
+                        }
+                    }
+                    this.lastX = e.clientX; this.lastY = e.clientY;
+                    this.mousePos = { x: e.clientX - this.canvas.getBoundingClientRect().left, y: e.clientY - this.canvas.getBoundingClientRect().top };
+                });
+                this.canvas.addEventListener('mouseup', e => { this.isDragging = false; });
+                this.canvas.addEventListener('wheel', e => {
+                    this.zoom = Math.min(Math.max(0.5, this.zoom - e.deltaY * 0.001), 3.0);
+                });
+
+                // Generate Map
+                this.gridState = new Array(this.gridSize).fill(0).map((_, y) =>
+                    new Array(this.gridSize).fill(0).map((_, x) => this.compileCell(x, y))
+                );
+            },
+
+            resize() {
+                this.canvas.width = this.canvas.parentElement.offsetWidth;
+                this.canvas.height = this.canvas.parentElement.offsetHeight;
+                this.cx = this.canvas.width / 2; this.cy = this.canvas.height / 2;
+            },
+
+            resetView() { this.PanX = 0; this.PanY = 0; this.zoom = 1.2; },
+            toggleView() {
+                this.viewMode = this.viewMode === 'ORBIT' ? 'TOPO' : 'ORBIT';
+                document.getElementById('view-btn').innerText = "VIEW: " + this.viewMode;
+            },
+
+            compileCell(x, y) {
+                const dx = x - this.center; const dy = y - this.center;
+                const r = Math.sqrt(dx * dx + dy * dy);
+
+                let zone = ZONES.CAVE;
+                let content = MOUNTAIN_LORE.cave;
+
+                if (r < ZONES.SHACK.maxR) { zone = ZONES.SHACK; content = MOUNTAIN_LORE.shack; }
+                else if (r < ZONES.CREEK.maxR) { zone = ZONES.CREEK; content = MOUNTAIN_LORE.creek; }
+                else if (r < ZONES.RIDGE.maxR) { zone = ZONES.RIDGE; content = MOUNTAIN_LORE.ridge; }
+                else if (r < ZONES.PUDDLE.maxR) { zone = ZONES.PUDDLE; content = MOUNTAIN_LORE.puddle; }
+
+                const text = content[Math.floor(Math.abs(x + y * 3)) % content.length];
+                // Visual variation
+                const height = Math.sin(x / 2) + Math.cos(y / 2) * 2;
+
+                return { x, y, r, zone, text, color: zone.color, height };
+            },
+
+            loop() {
+                if (System.mode !== 'GRID') return;
+                this.time += 0.02;
+
+                this.ctx.fillStyle = '#0b0a08';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                const topoScale = 30 * this.zoom;
+                let closest = null; let minDist = 1000;
+
+                // Store projected points for relationship lines
+                const projectedPoints = [];
+
+                this.ctx.font = `${10 * this.zoom}px Courier New`;
+                this.ctx.textAlign = "center";
+                this.ctx.textBaseline = "middle";
+
+                for (let y = 0; y < this.gridSize; y++) {
+                    for (let x = 0; x < this.gridSize; x++) {
+
+                        const cell = this.gridState[y][x];
+                        const rx = x - this.center;
+                        const ry = y - this.center;
+
+                        // Z Wave - Flow
+                        let z = cell.height + Math.sin((Math.sqrt(rx * rx + ry * ry) * 0.5) - this.time) * 1.5;
+
+                        // Projection
+                        let sx, sy;
+                        if (this.viewMode === 'TOPO') {
+                            sx = this.cx + this.PanX + (rx - ry) * topoScale;
+                            sy = this.cy + this.PanY + (rx + ry) * (topoScale * 0.4) - (z * this.zoom * 10);
+                        } else {
+                            // ORBIT
+                            sx = this.cx + this.PanX + (rx * topoScale * 1.2);
+                            sy = this.cy + this.PanY + (ry * topoScale * 1.2);
+                        }
+
+                        // Store for connections
+                        projectedPoints.push({ x, y, sx, sy, cell });
+
+                        // Draw Character
+                        this.ctx.fillStyle = cell.zone.color;
+                        // Distant fade
+                        const dist = Math.abs(rx) + Math.abs(ry);
+                        let alpha = Math.max(0.1, 1 - dist / 20);
+
+                        // Highlight "flow"
+                        if (Math.sin(rx * 0.5 + this.time + ry * 0.5) > 0.8) {
+                            this.ctx.fillStyle = "#fff";
+                            alpha = 1;
+                        }
+
+                        this.ctx.globalAlpha = alpha;
+
+                        // Draw char instead of just point
+                        const char = cell.text ? cell.text.charAt(0) : ".";
+                        this.ctx.fillText(char, sx, sy);
+
+                        // Interact
+                        if (this.mousePos) {
+                            const d = Math.hypot(sx - this.mousePos.x, sy - this.mousePos.y);
+                            if (d < 30 * this.zoom && d < minDist) { minDist = d; closest = { ...cell, sx, sy }; }
+                        }
+                    }
+                }
+
+                // --- DYNAMIC RELATIONS & DELIGHT (New Layer) ---
+                if (closest) {
+                    // Update UI
+                    if (closest !== this.hoverCell) {
+                        this.hoverCell = closest;
+                        const txt = closest.text;
+                        document.getElementById('text-display').innerHTML = `> ${closest.zone.name}<br>"${txt}"`;
+                        document.getElementById('zone-header').innerText = closest.zone.flavor;
+                        document.getElementById('zone-header').style.color = closest.color;
+                        document.getElementById('reader-panel').style.borderColor = closest.color;
+                        AudioEngine.trigger(closest.zone.name);
+                    }
+
+                    // Highlight Ring (Ripple)
+                    this.ctx.strokeStyle = '#fff';
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    // "Breathing" ripple size
+                    const ringSize = (15 * this.zoom) + Math.sin(this.time * 4) * 5;
+                    this.ctx.arc(closest.sx, closest.sy, ringSize, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    document.getElementById('ui-coords').innerText = `LOC: ${closest.x - 16}, ${closest.y - 16}`;
+
+                    // SHOW WORD PATHS / RELATIONS
+                    // Draw lines to other cells in same ZONE or with "similar" content
+                    this.ctx.lineWidth = 1;
+                    this.ctx.globalAlpha = 0.3;
+                    this.ctx.strokeStyle = closest.zone.color;
+                    this.ctx.beginPath();
+
+                    let relationCount = 0;
+                    for (const p of projectedPoints) {
+                        if (p.cell.zone === closest.zone && p.cell !== closest && relationCount < 20) {
+                            // Connect if close or random subset
+                            const d = Math.hypot(p.sx - closest.sx, p.sy - closest.sy);
+                            if (d < 200 * this.zoom) {
+                                this.ctx.moveTo(closest.sx, closest.sy);
+                                // Curved path?
+                                const midX = (closest.sx + p.sx) / 2;
+                                const midY = (closest.sy + p.sy) / 2 - (20 * Math.sin(this.time + p.x)); // Arch
+                                this.ctx.quadraticCurveTo(midX, midY, p.sx, p.sy);
+                                relationCount++;
+                            }
+                        }
+                    }
+                    this.ctx.stroke();
+
+                    // Floating Label Tethered to Highlight
+                    // (Resolves "interference zone tethered to one spot")
+                    const labelX = closest.sx + 40 * this.zoom;
+                    const labelY = closest.sy - 40 * this.zoom;
+
+                    this.ctx.fillStyle = closest.zone.color;
+                    this.ctx.globalAlpha = 1;
+                    this.ctx.font = `bold ${12 * this.zoom}px Courier New`;
+                    this.ctx.fillText(closest.zone.name, labelX, labelY);
+
+                    // Connector Line
+                    this.ctx.strokeStyle = closest.zone.color;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(closest.sx, closest.sy);
+                    this.ctx.lineTo(labelX, labelY);
+                    this.ctx.stroke();
+                } else {
+                    // No interact? Show "Zone Centers" dynamically
+                    // Iterate zones and show a floating label at their visual center
+                    // (Simplified: just pick a few representative points)
+                }
+
+                // Minimap
+                this.minimapCtx.fillStyle = '#111'; this.minimapCtx.fillRect(0, 0, 100, 100);
+                if (closest) {
+                    this.minimapCtx.fillStyle = closest.color;
+                    this.minimapCtx.fillRect(closest.x * 3, closest.y * 3, 4, 4);
+                }
+            }
+        };
+
+        // --- RAYCASTER (LIDAR) ---
+        const RaycasterEngine = {
+            canvas: document.getElementById('raycaster-canvas'),
+            ctx: document.getElementById('raycaster-canvas').getContext('2d'),
+            map: [], textures: [],
+            player: { x: 16.5, y: 16.5, dirX: -1, dirY: 0, planeX: 0, planeY: 0.66 },
+            keys: { w: false, a: false, s: false, d: false },
+
+            init() {
+                // SIZE CANVAS TO VIEWPORT
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                this.genTextures();
+                // THE TEN ROOMS FLOOR PLAN (Hallways connected)
+                const plan = [
+                    "########################",
+                    "#......#......#.......#",
+                    "#..E.......E......E...#",
+                    "#......#......#.......#",
+                    "####.#####.######.#####",
+                    "#......#......#.......#",
+                    "#..E.......E......E...#",
+                    "#......#......#.......#",
+                    "####.#####.######.#####",
+                    "#...........#.........#",
+                    "#.....E..........E....#",
+                    "#...........#.........#",
+                    "############.##########",
+                    "#...........#.........#",
+                    "#.....E.....#...E.....#",
+                    "#...........#.........#",
+                    "########################"
+                ];
+                this.map = [];
+                let evIdx = 2;
+                for (let y = 0; y < plan.length; y++) {
+                    this.map[y] = [];
+                    for (let x = 0; x < plan[y].length; x++) {
+                        const c = plan[y][x];
+                        if (c === '#') this.map[y][x] = { type: 1, tex: 0 };
+                        else if (c === 'E') { this.map[y][x] = { type: 1, tex: evIdx++ }; }
+                        else this.map[y][x] = { type: 0 };
+                    }
+                }
+                // SPAWN IN OPEN AREA
+                this.player = { x: 1.5, y: 1.5, dirX: 1, dirY: 0, planeX: 0, planeY: 0.66 };
+
+                // KEYBOARD CONTROLS
+                window.addEventListener('keydown', e => {
+                    if (e.key === 'w') this.keys.w = true;
+                    if (e.key === 's') this.keys.s = true;
+                    if (e.key === 'a') this.keys.a = true;
+                    if (e.key === 'd') this.keys.d = true;
+                    if (e.key === 't') this.keys.t = true;
+                });
+                window.addEventListener('keyup', e => {
+                    if (e.key === 'w') this.keys.w = false;
+                    if (e.key === 's') this.keys.s = false;
+                    if (e.key === 'a') this.keys.a = false;
+                    if (e.key === 'd') this.keys.d = false;
+                    if (e.key === 't') this.keys.t = false;
+                });
+
+                // ON-SCREEN BUTTON CONTROLS
+                const bindBtn = (id, key) => {
+                    const btn = document.getElementById(id);
+                    if (btn) {
+                        btn.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
+                        btn.addEventListener('touchend', (e) => { e.preventDefault(); this.keys[key] = false; });
+                        btn.addEventListener('mousedown', (e) => { this.keys[key] = true; });
+                        btn.addEventListener('mouseup', (e) => { this.keys[key] = false; });
+                    }
+                };
+                bindBtn('btn-up', 'w');
+                bindBtn('btn-down', 's');
+                bindBtn('btn-left', 'a');
+                bindBtn('btn-right', 'd');
+
+                const btnScan = document.getElementById('btn-scan');
+                if (btnScan) {
+                    const doScan = (e) => { e.preventDefault(); this.scan(); };
+                    btnScan.addEventListener('touchstart', doScan);
+                    btnScan.addEventListener('mousedown', doScan);
+                }
+
+                // Show controls if likely touch device
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    document.getElementById('mobile-controls').style.display = 'flex';
+                }
+
+                // DUAL JOYSTICK SYSTEM
+                this.joystickLeft = { x: 0, y: 0, active: false };
+                this.joystickRight = { x: 0, y: 0, active: false };
+
+                const setupJoystick = (id, joystickState, knobId) => {
+                    const pad = document.getElementById(id);
+                    const knob = document.getElementById(knobId);
+                    if (!pad || !knob) return;
+
+                    const handleMove = (clientX, clientY) => {
+                        const rect = pad.getBoundingClientRect();
+                        const centerX = rect.left + rect.width / 2;
+                        const centerY = rect.top + rect.height / 2;
+                        const maxDist = rect.width / 2 - 25;
+
+                        let dx = clientX - centerX;
+                        let dy = clientY - centerY;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > maxDist) {
+                            dx = (dx / dist) * maxDist;
+                            dy = (dy / dist) * maxDist;
+                        }
+
+                        joystickState.x = dx / maxDist;
+                        joystickState.y = dy / maxDist;
+                        knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                    };
+
+                    pad.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        joystickState.active = true;
+                        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+                    }, { passive: false });
+
+                    pad.addEventListener('touchmove', (e) => {
+                        e.preventDefault();
+                        if (joystickState.active) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+                    }, { passive: false });
+
+                    pad.addEventListener('touchend', () => {
+                        joystickState.active = false;
+                        joystickState.x = 0;
+                        joystickState.y = 0;
+                        knob.style.transform = 'translate(-50%, -50%)';
+                    });
+                };
+
+                setupJoystick('joystick-left', this.joystickLeft, 'joystick-left-knob');
+                setupJoystick('joystick-right', this.joystickRight, 'joystick-right-knob');
+
+                // COLLECTIBLES SYSTEM
+                this.score = 0;
+                this.collectibles = [
+                    { x: 3.5, y: 3.5, collected: false, glyph: '◆' },
+                    { x: 8.5, y: 2.5, collected: false, glyph: '★' },
+                    { x: 15.5, y: 2.5, collected: false, glyph: '◆' },
+                    { x: 20.5, y: 2.5, collected: false, glyph: '★' },
+                    { x: 3.5, y: 6.5, collected: false, glyph: '●' },
+                    { x: 10.5, y: 6.5, collected: false, glyph: '◆' },
+                    { x: 18.5, y: 6.5, collected: false, glyph: '★' },
+                    { x: 5.5, y: 10.5, collected: false, glyph: '●' },
+                    { x: 14.5, y: 10.5, collected: false, glyph: '★' },
+                    { x: 5.5, y: 14.5, collected: false, glyph: '◆' },
+                    { x: 18.5, y: 14.5, collected: false, glyph: '●' }
+                ];
+
+                // FLASHLIGHT MODE
+                this.flashlightMode = 'WIDE';
+
+                // MINIMAP
+                this.minimapCanvas = document.getElementById('lidar-minimap');
+                this.minimapCtx = this.minimapCanvas.getContext('2d');
+                this.minimapCanvas.width = 150;
+                this.minimapCanvas.height = 150;
+
+                // Initialize D-Pad controls
+                this.initDPad();
+            },
+
+            setFlashlight(mode) {
+                this.flashlightMode = mode;
+                AudioEngine.ping();
+            },
+
+            teleportTo(x, y) {
+                // Smooth teleport with screen flash
+                const canvas = this.canvas;
+                canvas.style.transition = 'opacity 0.2s';
+                canvas.style.opacity = '0';
+                setTimeout(() => {
+                    this.player.x = x;
+                    this.player.y = y;
+                    canvas.style.opacity = '1';
+                    AudioEngine.ping();
+                    const scanOut = document.getElementById('scanner-output');
+                    if (scanOut) scanOut.innerHTML = `> TELEPORTED TO (${x.toFixed(1)}, ${y.toFixed(1)})`;
+                }, 200);
+            },
+
+            initDPad() {
+                const bindDPad = (id, key) => {
+                    const btn = document.getElementById(id);
+                    if (btn) {
+                        btn.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
+                        btn.addEventListener('touchend', (e) => { e.preventDefault(); this.keys[key] = false; });
+                        btn.addEventListener('mousedown', () => this.keys[key] = true);
+                        btn.addEventListener('mouseup', () => this.keys[key] = false);
+                        btn.addEventListener('mouseleave', () => this.keys[key] = false);
+                    }
+                };
+                bindDPad('dpad-up', 'w');
+                bindDPad('dpad-down', 's');
+                bindDPad('dpad-left', 'a');
+                bindDPad('dpad-right', 'd');
+            },
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            },
+
+            drawMinimap() {
+                const ctx = this.minimapCtx;
+                const w = 150, h = 150;
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, w, h);
+
+                const scale = 6;
+                const offsetX = w / 2 - this.player.x * scale;
+                const offsetY = h / 2 - this.player.y * scale;
+
+                // Draw map
+                for (let y = 0; y < this.map.length; y++) {
+                    for (let x = 0; x < this.map[y].length; x++) {
+                        const cell = this.map[y][x];
+                        const px = offsetX + x * scale;
+                        const py = offsetY + y * scale;
+                        if (px < -scale || px > w || py < -scale || py > h) continue;
+
+                        if (cell.type > 0) {
+                            ctx.fillStyle = cell.tex > 1 ? '#00ff00' : '#ff8c00';
+                            ctx.fillRect(px, py, scale - 1, scale - 1);
+                        }
+                    }
+                }
+
+                // Draw player
+                const px = w / 2;
+                const py = h / 2;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(px, py, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw direction
+                ctx.strokeStyle = '#ffcc00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + this.player.dirX * 15, py + this.player.dirY * 15);
+                ctx.stroke();
+
+                // Draw FOV cone
+                ctx.strokeStyle = 'rgba(255, 200, 100, 0.3)';
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + (this.player.dirX + this.player.planeX) * 30, py + (this.player.dirY + this.player.planeY) * 30);
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + (this.player.dirX - this.player.planeX) * 30, py + (this.player.dirY - this.player.planeY) * 30);
+                ctx.stroke();
+            },
+
+            genTextures() {
+                // EVIDENCE LABELS - Larger, clearer
+                const evidence = [
+                    { txt: "PRISM", color: "#00ffff" },
+                    { txt: "HUBCAP", color: "#ffd700" },
+                    { txt: "OIL=RAINBOW", color: "#ff00ff" },
+                    { txt: "EDGAR? 14in", color: "#00ff00" },
+                    { txt: "REFRACT", color: "#ff6600" },
+                    { txt: "REFLECT", color: "#6666ff" },
+                    { txt: "LIDAR:OK", color: "#00ff00" }
+                ];
+
+                evidence.forEach((e, i) => {
+                    const c = document.createElement('canvas');
+                    c.width = 128; c.height = 128;
+                    const x = c.getContext('2d');
+
+                    // Background - Dark with hint of color
+                    x.fillStyle = "#111";
+                    x.fillRect(0, 0, 128, 128);
+
+                    // Border - Thick, visible
+                    x.strokeStyle = e.color;
+                    x.lineWidth = 4;
+                    x.strokeRect(2, 2, 124, 124);
+
+                    // Text - Large and readable
+                    x.fillStyle = e.color;
+                    x.font = "bold 18px Courier New";
+                    x.textAlign = "center";
+                    x.textBaseline = "middle";
+                    x.fillText(e.txt, 64, 64);
+
+                    this.textures.push(c);
+                });
+            },
+
+            update() {
+                // GARDEN WALK PHYSICS (Heavier, Smoother)
+                const targetMS = 0.15;
+                const rs = 0.05; // Faster turning for mobile
+
+                // Initialize velocity if missing
+                if (!this.player.vx) this.player.vx = 0;
+                if (!this.player.vy) this.player.vy = 0;
+
+                const damping = 0.90;
+                const accel = 0.025;
+
+                // JOYSTICK INPUT (Mobile) or Keyboard
+                let moveX = 0, moveY = 0, rotateAmt = 0;
+
+                // Left joystick = move forward/back + strafe
+                if (this.joystickLeft && this.joystickLeft.active) {
+                    moveX = -this.joystickLeft.y; // Forward/back
+                    moveY = this.joystickLeft.x;  // Strafe (optional)
+                }
+                // Right joystick = rotation
+                if (this.joystickRight && this.joystickRight.active) {
+                    rotateAmt = this.joystickRight.x * rs * 2;
+                }
+
+                // Keyboard fallback
+                if (this.keys.w) moveX += 1;
+                if (this.keys.s) moveX -= 1;
+                if (this.keys.a) rotateAmt -= rs;
+                if (this.keys.d) rotateAmt += rs;
+
+                // Apply movement impulse
+                let dx = this.player.dirX * moveX;
+                let dy = this.player.dirY * moveX;
+
+                this.player.vx += dx * accel;
+                this.player.vy += dy * accel;
+                this.player.vx *= damping;
+                this.player.vy *= damping;
+
+                // Apply Velocity
+                let newX = this.player.x + this.player.vx;
+                let newY = this.player.y + this.player.vy;
+
+                // Collision with "Soft" Bounce
+                const wallCheck = (x, y) => this.map[Math.floor(y)] && this.map[Math.floor(y)][Math.floor(x)] && this.map[Math.floor(y)][Math.floor(x)].type === 0;
+
+                if (wallCheck(newX, this.player.y)) {
+                    this.player.x = newX;
+                } else {
+                    this.player.vx *= -0.5;
+                }
+
+                if (wallCheck(this.player.x, newY)) {
+                    this.player.y = newY;
+                } else {
+                    this.player.vy *= -0.5;
+                }
+
+                // Rotation (joystick or keyboard)
+                if (rotateAmt !== 0) {
+                    const oldDir = this.player.dirX;
+                    this.player.dirX = this.player.dirX * Math.cos(-rotateAmt) - this.player.dirY * Math.sin(-rotateAmt);
+                    this.player.dirY = oldDir * Math.sin(-rotateAmt) + this.player.dirY * Math.cos(-rotateAmt);
+                    const oldPlane = this.player.planeX;
+                    this.player.planeX = this.player.planeX * Math.cos(-rotateAmt) - this.player.planeY * Math.sin(-rotateAmt);
+                    this.player.planeY = oldPlane * Math.sin(-rotateAmt) + this.player.planeY * Math.cos(-rotateAmt);
+                }
+
+                // COLLECTIBLE PICKUP CHECK
+                if (this.collectibles) {
+                    for (const c of this.collectibles) {
+                        if (c.collected) continue;
+                        const dist = Math.hypot(this.player.x - c.x, this.player.y - c.y);
+                        if (dist < 0.6) {
+                            c.collected = true;
+                            this.score++;
+                            // Update score display
+                            const scoreEl = document.getElementById('score-display');
+                            if (scoreEl) {
+                                scoreEl.textContent = this.score;
+                                scoreEl.style.transform = 'scale(1.5)';
+                                setTimeout(() => scoreEl.style.transform = 'scale(1)', 200);
+                            }
+                            // Haptic feedback
+                            if (navigator.vibrate) navigator.vibrate(50);
+                            AudioEngine.ping();
+                        }
+                    }
+                }
+
+                // DIAGNOSTIC KEY (T) - Cycle Flashlights
+                if (this.keys.t && !this.prevT) {
+                    const modes = [null, 'PRISM', 'LASER'];
+                    const currentIdx = modes.indexOf(this.flashlightMode || null);
+                    this.flashlightMode = modes[(currentIdx + 1) % modes.length];
+                    const scanOut = document.getElementById('scanner-output');
+                    if (scanOut) scanOut.innerHTML = `> DIAGNOSTIC: FLASHLIGHT MODE > ${this.flashlightMode || 'WIDE'}`;
+                }
+                this.prevT = this.keys.t;
+            },
+
+            render() {
+                if (System.mode !== 'VOID') return;
+                this.update();
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // ECHO PULSE LOGIC (CALMER)
+                const time = Date.now() / 1000;
+                const pulseSpeed = 8; // Slower, calmer
+                const pulseDist = (time * pulseSpeed) % 40;
+                if (this.scanPulse > 0) this.scanPulse -= 0.02;
+
+                const LORE_SCRAMBLED = "|||||/////+++++=====.....:::::-----#####";
+                const LORE_CLEAR = "THE_SHIELD_OF_ACHILLES_HOLDS_THE_KEY_";
+
+                // Clear to PITCH BLACK
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, w, h);
+
+                // Configure text rendering
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                const fontSize = Math.max(10, Math.floor(w / 80));
+                this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+
+                // CAST RAYS
+                const rayStep = Math.max(2, Math.floor(w / 250));
+
+                for (let x = 0; x < w; x += rayStep) {
+                    const camX = 2 * x / w - 1;
+                    const rayDirX = this.player.dirX + this.player.planeX * camX;
+                    const rayDirY = this.player.dirY + this.player.planeY * camX;
+
+                    let mapX = Math.floor(this.player.x), mapY = Math.floor(this.player.y);
+                    let sideDistX, sideDistY, perpDist;
+                    let stepX, stepY, hit = 0, side;
+
+                    const deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+
+                    if (rayDirX < 0) { stepX = -1; sideDistX = (this.player.x - mapX) * deltaDistX; }
+                    else { stepX = 1; sideDistX = (mapX + 1.0 - this.player.x) * deltaDistX; }
+                    if (rayDirY < 0) { stepY = -1; sideDistY = (this.player.y - mapY) * deltaDistY; }
+                    else { stepY = 1; sideDistY = (mapY + 1.0 - this.player.y) * deltaDistY; }
+
+                    let depth = 0;
+
+                    while (hit === 0 && depth < 40) {
+                        if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+                        else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+                        if (this.map[mapY] && this.map[mapY][mapX] && this.map[mapY][mapX].type > 0) hit = 1;
+                        depth++;
+                    }
+
+                    if (hit) {
+                        if (side === 0) perpDist = (mapX - this.player.x + (1 - stepX) / 2) / rayDirX;
+                        else perpDist = (mapY - this.player.y + (1 - stepY) / 2) / rayDirY;
+
+                        const lineHeight = Math.floor(h / perpDist);
+                        const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+                        const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+
+                        // ECHOLOCATION BRIGHTNESS
+                        // Light up only where the pulse wave is crossing geometry
+                        const distDiff = Math.abs(perpDist - pulseDist);
+                        let brightness = 0;
+
+                        // Main Pulse
+                        if (distDiff < 2.0) { // Wave width
+                            brightness = Math.max(0, 1 - distDiff / 2.0);
+                        }
+
+                        // Close proximity glow (flashlight)
+                        const flashlight = Math.max(0, 1 - perpDist / 8);
+                        brightness = Math.max(brightness, flashlight * 0.5);
+
+                        // Scan Pulse (on SPACE)
+                        if (this.scanPulse > 0) {
+                            brightness += this.scanPulse;
+                        }
+
+                        if (brightness > 0.05) {
+                            const texIdx = this.map[mapY][mapX].tex % this.textures.length;
+                            const colors = ["#ff8c00", "#00ffff", "#ffd700", "#ff00ff", "#00ff00"];
+                            const color = colors[texIdx % colors.length];
+
+                            this.ctx.globalAlpha = brightness;
+                            this.ctx.fillStyle = color;
+
+                            // Draw Wall Text Column
+                            const charStep = Math.max(fontSize, 6);
+                            for (let y = drawStart; y < drawEnd; y += charStep) {
+                                // "ORCA" in the wall
+                                // Map y to texture coordinate
+                                const charIndex = (mapX + mapY + Math.floor(y / 10)) % wallText.length;
+                                const char = wallText[charIndex];
+
+                                this.ctx.fillText(char, x, y);
+                            }
+                        }
+                        this.ctx.globalAlpha = 1;
+                    }
+                }
+
+                // FLOOR ripple dots
+                this.ctx.fillStyle = '#333';
+                const floorStep = 20;
+                for (let y = h / 2; y < h; y += floorStep) {
+                    // Simple floor visualizer
+                    const rowDist = h / (2.0 * (y - h / 2)); // Distance to this floor row
+                    const distDiff = Math.abs(rowDist - pulseDist);
+                    if (distDiff < 0.5) {
+                        this.ctx.globalAlpha = (1 - distDiff / 0.5) * 0.5;
+                        this.ctx.fillRect(0, y, w, 1);
+                    }
+                }
+                this.ctx.globalAlpha = 1;
+
+                // Minimal HUD
+                this.ctx.fillStyle = '#ff8c00';
+                this.ctx.textAlign = 'left';
+                this.ctx.font = '12px Courier New';
+                this.ctx.fillText(`PULSE: ${pulseDist.toFixed(1)}m`, 10, h - 20);
+
+                // Crosshair
+                this.ctx.strokeStyle = 'rgba(255, 140, 0, 0.5)';
+                this.ctx.beginPath();
+                this.ctx.arc(w / 2, h / 2, 10, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                this.drawMinimap();
+            },
+
+            scan() {
+                // VISUAL PULSE SCAN, NO MODAL
+                this.scanPulse = 2.0;
+                AudioEngine.ping();
+
+                // Room detection based on position
+                const px = Math.floor(this.player.x);
+                const py = Math.floor(this.player.y);
+                let room = "UNKNOWN AREA";
+                const roomEvidence = {
+                    "KITCHEN": "PRISM", "DINING": "GLASSES", "OFFICE": "LAMBCHOP",
+                    "BEDROOM": "ANTLER", "BATHROOM": "GLOW-BALL", "CLOSET": "OIL",
+                    "DEN": "HUBCAP", "LIVING ROOM": "SHADOW",
+                    "LAUNDRY": "COLLAR", "GARAGE": "DOG HOUSE"
+                };
+
+                if (py >= 1 && py <= 3) {
+                    if (px >= 1 && px <= 6) room = "KITCHEN";
+                    else if (px >= 8 && px <= 13) room = "DINING";
+                    else if (px >= 15 && px <= 22) room = "OFFICE";
+                }
+                else if (py >= 5 && py <= 7) {
+                    if (px >= 1 && px <= 6) room = "BEDROOM";
+                    else if (px >= 8 && px <= 13) room = "BATHROOM";
+                    else if (px >= 15 && px <= 22) room = "CLOSET";
+                }
+                else if (py >= 9 && py <= 11) {
+                    if (px >= 1 && px <= 11) room = "DEN";
+                    else if (px >= 13 && px <= 22) room = "LIVING ROOM";
+                }
+                else if (py >= 13 && py <= 15) {
+                    if (px >= 1 && px <= 11) room = "LAUNDRY";
+                    else if (px >= 13 && px <= 22) room = "GARAGE";
+                }
+
+                document.getElementById('scanner-output').innerText = `LIDAR SCAN: ${room} [PULSE SENT]`;
+                this.currentRoom = room;
+
+                // Detect Evidence subtlety
+                const nearEv = roomEvidence[room];
+                this.currentEvidence = nearEv;
+
+                if (nearEv) {
+                    const wasNew = collectEvidence(nearEv);
+                    if (wasNew) {
+                        document.getElementById('scanner-output').innerText = `> ANOMALY DETECTED: ${nearEv}`;
+                        AudioEngine.ping();
+                    }
+                }
+            },
+
+            async deepScan() {
+                const room = this.currentRoom || "OUTDOORS";
+                const evidence = this.currentEvidence || "NONE";
+                const output = document.getElementById('scanner-output');
+
+                output.innerText = `> INITIATING DEEP SCAN: ${room}...`;
+                AudioEngine.ping();
+
+                try {
+                    const roomData = ZONES[room] || { flavor: "UNKNOWN" };
+                    const evData = EVIDENCE_ONTOLOGY[evidence] || { attributes: "N/A", relationship: "N/A" };
+
+                    const prompt = `ZONE: ${room} (${roomData.flavor})\nEVIDENCE: ${evidence}\nATTRIBUTES: ${evData.attributes}\nCONTEXT: ${evData.relationship}\n\nProvide a forensic, poetic analysis of this anomaly within the Appalachian Quantum context. Keep it to 2-3 sentences.`;
+
+                    const lore = await RIPPLE_AI.call(prompt, "You are a Forensic Ontologist specializing in Appalachian Quantum physics and the search for Edgar.");
+                    output.innerText = `> DEEP SCAN RESULT:\n${lore}`;
+                } catch (error) {
+                    console.error("[SHIELD] Deep scan failed:", error);
+                    output.innerText = `> ERROR: AI BRIDGE DISCONNECTED.\nCHECK OLLAMA HOST.`;
+                }
+            },
+
+            speakBuffer() {
+                const txt = document.getElementById('scanner-output').innerText.replace("> ", "");
+                const u = new SpeechSynthesisUtterance(txt);
+                u.rate = 0.9;
+                u.pitch = 0.8;
+                window.speechSynthesis.speak(u);
+            }
+        };
+
+        // --- SYSTEM ---
+        const System = {
+            mode: 'GRID',
+            init() {
+                document.getElementById('boot-screen').style.display = 'none';
+                AudioEngine.init();
+                GridRenderer.init();
+                RaycasterEngine.init();
+                this.loop();
+            },
+            toggleMode() {
+                const gridLayer = document.getElementById('layer-grid');
+                const voidLayer = document.getElementById('layer-raycaster');
+                const modeBtn = document.getElementById('mode-toggle');
+                const tutorial = document.getElementById('lidar-tutorial');
+
+                // Smooth crossfade transition
+                if (this.mode === 'GRID') {
+                    // Entering LIDAR
+                    this.mode = 'VOID';
+                    document.body.className = 'active-mode-void';
+                    modeBtn.innerText = 'EXIT LIDAR';
+
+                    // Show tutorial on first entry
+                    if (!this.tutorialShown) {
+                        tutorial.style.display = 'flex';
+                        this.tutorialShown = true;
+                    }
+
+                    // Fade in LIDAR
+                    voidLayer.style.transition = 'opacity 0.4s ease-out';
+                    voidLayer.style.opacity = '0';
+                    setTimeout(() => voidLayer.style.opacity = '1', 50);
+                } else {
+                    // Exiting LIDAR
+                    this.mode = 'GRID';
+                    document.body.className = 'active-mode-grid';
+                    modeBtn.innerText = 'ENTER LIDAR';
+
+                    // Fade in GRID
+                    gridLayer.style.transition = 'opacity 0.4s ease-out';
+                    gridLayer.style.opacity = '0';
+                    setTimeout(() => gridLayer.style.opacity = '1', 50);
+                }
+            },
+            loop() {
+                requestAnimationFrame(() => this.loop());
+                if (this.mode === 'GRID') GridRenderer.loop();
+                if (this.mode === 'VOID') RaycasterEngine.render();
+            }
+        };
+    </script>
+    <script>
+
+        // OVERRIDE INIT TO INCLUDE SPRITES
+        const oldInit = RaycasterEngine.init;
+        RaycasterEngine.init = function () {
+            oldInit.call(this);
+            this.sprites = [
+                { x: 10.5, y: 10.5, z: 0.5, text: "GARDEN" },
+                { x: 7.5, y: 7.5, z: 0.4, text: "ECHO" },
+                { x: 13.5, y: 13.5, z: 0.6, text: "VOID" },
+                { x: 16.5, y: 4.5, z: 0.5, text: "MEMORY" },
+                { x: 20.5, y: 11.5, z: 0.5, text: "FLOW" },
+                { x: 3.5, y: 16.5, z: 0.5, text: "ROOT" }
+            ];
+        };
+
+        // OVERRIDE RENDER FOR MORPHING TEXT & CALMER PULSE (BLUE HOUR)
+        RaycasterEngine.render = function () {
+            if (System.mode !== 'VOID') return;
+            this.update();
+            const w = this.canvas.width;
+            const h = this.canvas.height;
+
+            // Z-BUFFER for Sprites
+            const zBuffer = new Float32Array(w);
+
+            // ECHO PULSE LOGIC (CALMER - BLUE HOUR)
+            const time = Date.now() / 1000;
+            const pulseSpeed = 6; // Slower, calmer
+            const pulseDist = (time * pulseSpeed) % 40;
+            if (this.scanPulse > 0) this.scanPulse -= 0.01; // Slower fade
+
+            const LORE_SCRAMBLED = "|||||/////+++++=====.....:::::-----#####";
+            const LORE_CLEAR = "BLUE_HOUR_LIDAR_PROJECT_NON_VERBIS_SED_REBUS_";
+
+            // BLUE HOUR GRADIENT (Sky/Ground)
+            const gradSky = this.ctx.createLinearGradient(0, 0, 0, h / 2);
+            gradSky.addColorStop(0, "#000011"); // Deep blue/black
+            gradSky.addColorStop(1, "#1e0b36"); // Purple horizon
+            this.ctx.fillStyle = gradSky;
+            this.ctx.fillRect(0, 0, w, h / 2);
+
+            const gradGnd = this.ctx.createLinearGradient(0, h / 2, 0, h);
+            gradGnd.addColorStop(0, "#191925"); // Dark horizon
+            gradGnd.addColorStop(1, "#050010"); // Near black
+            this.ctx.fillStyle = gradGnd;
+            this.ctx.fillRect(0, h / 2, w, h / 2);
+
+            // TEXTURE OVERLAY (Noise/Grid hint)
+            this.ctx.fillStyle = "rgba(100, 100, 255, 0.03)";
+            for (let i = 0; i < w; i += 4) {
+                if (i % 8 === 0) this.ctx.fillRect(i, 0, 1, h);
+            }
+
+            // Configure text rendering
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            const fontSize = Math.max(10, Math.floor(w / 80));
+            this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+
+            // CAST RAYS
+            const rayStep = Math.max(2, Math.floor(w / 250));
+
+            for (let x = 0; x < w; x += rayStep) {
+                const camX = 2 * x / w - 1;
+                const rayDirX = this.player.dirX + this.player.planeX * camX;
+                const rayDirY = this.player.dirY + this.player.planeY * camX;
+
+                let mapX = Math.floor(this.player.x), mapY = Math.floor(this.player.y);
+                let sideDistX, sideDistY, perpDist;
+                let stepX, stepY, hit = 0, side;
+
+                const deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+
+                if (rayDirX < 0) { stepX = -1; sideDistX = (this.player.x - mapX) * deltaDistX; }
+                else { stepX = 1; sideDistX = (mapX + 1.0 - this.player.x) * deltaDistX; }
+                if (rayDirY < 0) { stepY = -1; sideDistY = (this.player.y - mapY) * deltaDistY; }
+                else { stepY = 1; sideDistY = (mapY + 1.0 - this.player.y) * deltaDistY; }
+
+                let depth = 0;
+
+                while (hit === 0 && depth < 40) {
+                    if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+                    else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+                    if (this.map[mapY] && this.map[mapY][mapX] && this.map[mapY][mapX].type > 0) hit = 1;
+                    depth++;
+                }
+
+                if (hit) {
+                    if (side === 0) perpDist = (mapX - this.player.x + (1 - stepX) / 2) / rayDirX;
+                    else perpDist = (mapY - this.player.y + (1 - stepY) / 2) / rayDirY;
+
+                    // Z-BUFFER FILL
+                    // Fill zBuffer for this ray's column width
+                    for (let zx = x; zx < x + rayStep && zx < w; zx++) {
+                        zBuffer[zx] = perpDist;
+                    }
+
+                    const lineHeight = Math.floor(h / perpDist);
+                    const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+                    const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+
+                    // ECHOLOCATION BRIGHTNESS
+                    const distDiff = Math.abs(perpDist - pulseDist);
+                    let brightness = 0;
+
+                    // Main Pulse
+                    if (distDiff < 4.0) { // Wider, calmer wave
+                        brightness = Math.max(0, 1 - distDiff / 4.0) * 0.8;
+                    }
+
+                    // Close proximity glow
+                    const flashlight = Math.max(0, 1 - perpDist / 8);
+                    brightness = Math.max(brightness, flashlight * 0.5);
+
+                    // Scan Pulse
+                    if (this.scanPulse > 0) brightness += this.scanPulse;
+
+                    if (brightness > 0.05) {
+                        const texIdx = this.map[mapY][mapX].tex % this.textures.length;
+                        const colors = ["#ff8c00", "#00ffff", "#ffd700", "#ff00ff", "#00ff00"];
+                        const color = colors[texIdx % colors.length];
+
+                        this.ctx.globalAlpha = brightness;
+                        this.ctx.fillStyle = color;
+
+                        // Draw Wall Text Column
+                        const charStep = Math.max(fontSize, 6);
+                        for (let y = drawStart; y < drawEnd; y += charStep) {
+                            // MORPHING TEXT LOGIC
+                            const isRevealed = (distDiff < 1.0) || (this.scanPulse > 0.5) || (perpDist < 3.0);
+                            const charIndex = (mapX + mapY + Math.floor(y / 10)) % LORE_CLEAR.length;
+                            let char = "";
+
+                            if (isRevealed) {
+                                char = LORE_CLEAR[charIndex];
+                            } else {
+                                const scrambleIdx = (mapX * mapY + Math.floor(y / 5) + Math.floor(time * 5)) % LORE_SCRAMBLED.length;
+                                char = LORE_SCRAMBLED[scrambleIdx];
+                            }
+
+                            this.ctx.fillText(char, x, y);
+                        }
+                    }
+                    this.ctx.globalAlpha = 1;
+                }
+            }
+
+            // FLOOR ripple dots
+            this.ctx.fillStyle = 'rgba(100,100,255,0.4)'; // Blueish floor
+            const floorStep = 15;
+            for (let y = h / 2; y < h; y += floorStep) {
+                const rowDist = h / (2.0 * (y - h / 2));
+                const distDiff = Math.abs(rowDist - pulseDist);
+                if (distDiff < 1.0) {
+                    this.ctx.globalAlpha = (1 - distDiff / 1.0) * 0.5;
+                    this.ctx.fillRect(0, y, w, 1);
+                }
+            }
+            this.ctx.globalAlpha = 1;
+
+            // --- SPRITE RENDERING (Floating Text) ---
+            if (this.sprites) {
+                // Sort far to near
+                const sortedSprites = this.sprites.map(s => {
+                    const dx = s.x - this.player.x;
+                    const dy = s.y - this.player.y;
+                    return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
+                }).sort((a, b) => b.dist - a.dist);
+
+                for (const sprite of sortedSprites) {
+                    const spriteX = sprite.x - this.player.x;
+                    const spriteY = sprite.y - this.player.y;
+
+                    // Inverse Camera Matrix
+                    const invDet = 1.0 / (this.player.planeX * this.player.dirY - this.player.dirX * this.player.planeY);
+                    const transformX = invDet * (this.player.dirY * spriteX - this.player.dirX * spriteY);
+                    const transformY = invDet * (-this.player.planeY * spriteX + this.player.planeX * spriteY); // Depth
+
+                    if (transformY > 0) {
+                        const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+
+                        // Check Z-Buffer at center of sprite
+                        if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
+                            // Calculate Bobbing
+                            const bob = Math.sin(time * 2 + sprite.x) * 0.2;
+                            const spriteHeight = Math.abs(h / transformY); // Screen height of sprite
+                            const spriteScreenY = (h / 2) - (spriteHeight / 2) + (bob * spriteHeight);
+
+                            // Draw Text
+                            const sFontSize = Math.floor(h / transformY / 2); // Scale font
+                            if (sFontSize > 8) {
+                                this.ctx.font = `bold ${sFontSize}px Courier New`;
+                                this.ctx.textAlign = "center";
+                                this.ctx.fillStyle = "#ffffff";
+
+                                // Glow if pulse is near
+                                const distDiff = Math.abs(sprite.dist - pulseDist);
+                                if (distDiff < 2.0) {
+                                    this.ctx.shadowBlur = 20;
+                                    this.ctx.shadowColor = "#00ffff";
+                                } else {
+                                    this.ctx.shadowBlur = 0;
+                                }
+
+                                this.ctx.fillText(sprite.text, spriteScreenX, spriteScreenY);
+                                this.ctx.shadowBlur = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Minimal HUD
+            this.ctx.fillStyle = '#aaaaff';
+            this.ctx.textAlign = 'left';
+            this.ctx.font = '12px Courier New';
+            this.ctx.fillText(`PULSE: ${pulseDist.toFixed(1)}m`, 10, h - 20);
+            this.ctx.fillText(`STATUS: BLUE_HOUR_ACTIVE`, 10, h - 35);
+
+            // Crosshair
+            this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
+            this.ctx.beginPath();
+            this.ctx.arc(w / 2, h / 2, 8, 0, Math.PI * 2);
+            this.ctx.stroke();
+
+            this.drawMinimap();
+        };
+
+        // OVERRIDE RENDER FOR ORGANIC GLASS / DENSER TEXT (BLUE HOUR)
+        RaycasterEngine.render = function () {
+            if (System.mode !== 'VOID') return;
+            this.update();
+            const w = this.canvas.width;
+            const h = this.canvas.height;
+
+            // Z-BUFFER for Sprites
+            const zBuffer = new Float32Array(w);
+
+            // ECHO PULSE LOGIC (ORGANIC)
+            const time = Date.now() / 1000;
+            const pulseSpeed = 6;
+            const pulseDist = (time * pulseSpeed) % 40;
+            if (this.scanPulse > 0) this.scanPulse -= 0.01;
+
+            // DENSE BLOCK TEXTURE
+            const LORE_SCRAMBLED = "█▓▒░█▓▒░█▓▒░"; // Dense blocks
+            const LORE_CLEAR = "BLUE_HOUR_LIDAR_PROJECT_NON_VERBIS_SED_REBUS_";
+
+            // BLUE HOUR GRADIENT
+            const gradSky = this.ctx.createLinearGradient(0, 0, 0, h / 2);
+            gradSky.addColorStop(0, "#000011");
+            gradSky.addColorStop(1, "#1e0b36");
+            this.ctx.fillStyle = gradSky;
+            this.ctx.fillRect(0, 0, w, h / 2);
+
+            const gradGnd = this.ctx.createLinearGradient(0, h / 2, 0, h);
+            gradGnd.addColorStop(0, "#191925");
+            gradGnd.addColorStop(1, "#050010");
+            this.ctx.fillStyle = gradGnd;
+            this.ctx.fillRect(0, h / 2, w, h / 2);
+
+            // TEXTURE OVERLAY
+            this.ctx.fillStyle = "rgba(100, 100, 255, 0.03)";
+            for (let i = 0; i < w; i += 4) {
+                if (i % 8 === 0) this.ctx.fillRect(i, 0, 1, h);
+            }
+
+            // Configure text rendering
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            const fontSize = Math.max(12, Math.floor(w / 60)); // Slightly larger/denser
+            this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+
+            // CAST RAYS
+            const rayStep = Math.max(1, Math.floor(w / 300)); // Higher resolution
+
+            for (let x = 0; x < w; x += rayStep) {
+                const camX = 2 * x / w - 1;
+                const rayDirX = this.player.dirX + this.player.planeX * camX;
+                const rayDirY = this.player.dirY + this.player.planeY * camX;
+
+                let mapX = Math.floor(this.player.x), mapY = Math.floor(this.player.y);
+                let sideDistX, sideDistY, perpDist;
+                let stepX, stepY, hit = 0, side;
+
+                const deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+
+                if (rayDirX < 0) { stepX = -1; sideDistX = (this.player.x - mapX) * deltaDistX; }
+                else { stepX = 1; sideDistX = (mapX + 1.0 - this.player.x) * deltaDistX; }
+                if (rayDirY < 0) { stepY = -1; sideDistY = (this.player.y - mapY) * deltaDistY; }
+                else { stepY = 1; sideDistY = (mapY + 1.0 - this.player.y) * deltaDistY; }
+
+                let depth = 0;
+                while (hit === 0 && depth < 40) {
+                    if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+                    else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+                    if (this.map[mapY] && this.map[mapY][mapX] && this.map[mapY][mapX].type > 0) hit = 1;
+                    depth++;
+                }
+
+                if (hit) {
+                    if (side === 0) perpDist = (mapX - this.player.x + (1 - stepX) / 2) / rayDirX;
+                    else perpDist = (mapY - this.player.y + (1 - stepY) / 2) / rayDirY;
+
+                    for (let zx = x; zx < x + rayStep && zx < w; zx++) zBuffer[zx] = perpDist;
+
+                    const lineHeight = Math.floor(h / perpDist);
+                    const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+                    const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+
+                    const distDiff = Math.abs(perpDist - pulseDist);
+                    let brightness = 0;
+
+                    // Organic Pulse (Smoother falloff)
+                    if (distDiff < 6.0) {
+                        brightness = Math.max(0, 1 - distDiff / 6.0);
+                        brightness = Math.pow(brightness, 1.5); // Soft curve
+                    }
+                    const flashlight = Math.max(0, 1 - perpDist / 8);
+                    brightness = Math.max(brightness, flashlight * 0.4);
+                    if (this.scanPulse > 0) brightness += this.scanPulse;
+
+                    // Force minimum brightness for "Structure" visibility if close
+                    if (perpDist < 5) brightness = Math.max(brightness, 0.1);
+
+                    if (brightness > 0.05) {
+                        this.ctx.globalAlpha = brightness;
+
+                        // Uniform Blue Hour Palette
+                        const hue = 220 + Math.sin(perpDist * 0.2) * 20; // 200-240 (Blue/Cyan)
+                        const color = `hsl(${hue}, 80%, 60%)`;
+                        this.ctx.fillStyle = color;
+
+                        // Draw Wall Text Column (DENSE, NO HOLES)
+                        const charStep = fontSize * 0.8; // Overlap slightly for density
+                        for (let y = drawStart; y < drawEnd; y += charStep) {
+                            const isRevealed = (distDiff < 2.0) || (this.scanPulse > 0.5) || (perpDist < 4.0);
+
+                            let char = "";
+                            if (isRevealed) {
+                                const charIndex = (mapX + mapY + Math.floor(y / 10)) % LORE_CLEAR.length;
+                                char = LORE_CLEAR[charIndex];
+                                this.ctx.fillStyle = "#ffffff"; // White for clear text
+                            } else {
+                                const scrambleIdx = (mapX ^ mapY ^ Math.floor(y)) % LORE_SCRAMBLED.length;
+                                char = LORE_SCRAMBLED[scrambleIdx];
+                                this.ctx.fillStyle = color; // Blue for structure
+                            }
+                            this.ctx.fillText(char, x, y);
+                        }
+                    }
+                    this.ctx.globalAlpha = 1;
+                }
+            }
+
+            // FLOOR ripple dots (Blue/Purple)
+            this.ctx.fillStyle = 'rgba(100, 150, 255, 0.4)';
+            const floorStep = 15;
+            for (let y = h / 2; y < h; y += floorStep) {
+                const rowDist = h / (2.0 * (y - h / 2));
+                const distDiff = Math.abs(rowDist - pulseDist);
+                if (distDiff < 2.0) {
+                    this.ctx.globalAlpha = (1 - distDiff / 2.0) * 0.3;
+                    this.ctx.fillRect(0, y, w, 1);
+                }
+            }
+            this.ctx.globalAlpha = 1;
+
+            // --- GLASSMORPHIC SPRITES (Droplets/Pins) ---
+            if (this.sprites) {
+                const sortedSprites = this.sprites.map(s => {
+                    const dx = s.x - this.player.x;
+                    const dy = s.y - this.player.y;
+                    return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
+                }).sort((a, b) => b.dist - a.dist);
+
+                for (const sprite of sortedSprites) {
+                    const spriteX = sprite.x - this.player.x;
+                    const spriteY = sprite.y - this.player.y;
+
+                    const invDet = 1.0 / (this.player.planeX * this.player.dirY - this.player.dirX * this.player.planeY);
+                    const transformX = invDet * (this.player.dirY * spriteX - this.player.dirX * spriteY);
+                    const transformY = invDet * (-this.player.planeY * spriteX + this.player.planeX * spriteY);
+
+                    if (transformY > 0) {
+                        const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+
+                        if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
+                            // Bobbing
+                            const bob = Math.sin(time + sprite.x) * 0.15;
+                            const spriteScale = h / transformY;
+                            const spriteScreenY = (h / 2) - (spriteScale / 4) + (bob * spriteScale);
+
+                            // Dimensions
+                            const pWidth = Math.max(60, 1200 / transformY);
+                            const pHeight = pWidth * 0.4;
+                            const fontSize = pHeight * 0.5;
+
+                            if (pWidth > 20) {
+                                this.ctx.save();
+
+                                // STEM to Ground
+                                const groundY = (h / 2) + (spriteScale / 2); // Approximate floor
+                                this.ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                                this.ctx.lineWidth = 1;
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(spriteScreenX, spriteScreenY);
+                                this.ctx.lineTo(spriteScreenX, groundY);
+                                this.ctx.stroke();
+
+                                // GLASS BUBBLE
+                                this.ctx.translate(spriteScreenX, spriteScreenY);
+                                this.ctx.fillStyle = "rgba(100, 200, 255, 0.1)"; // Glass tint
+                                this.ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"; // Rim light
+                                this.ctx.lineWidth = 2;
+
+                                // Shadow / Glow
+                                const distDiff = Math.abs(sprite.dist - pulseDist);
+                                if (distDiff < 3.0) {
+                                    this.ctx.shadowColor = "#00ffff";
+                                    this.ctx.shadowBlur = 15;
+                                }
+
+                                // Rounded Rect
+                                if (this.ctx.roundRect) {
+                                    this.ctx.beginPath();
+                                    this.ctx.roundRect(-pWidth / 2, -pHeight / 2, pWidth, pHeight, pHeight / 2);
+                                    this.ctx.fill();
+                                    this.ctx.stroke();
+                                } else {
+                                    this.ctx.fillStyle = "rgba(100, 200, 255, 0.3)"; // Fallback
+                                    this.ctx.fillRect(-pWidth / 2, -pHeight / 2, pWidth, pHeight);
+                                }
+                                this.ctx.shadowBlur = 0;
+
+                                // TEXT
+                                this.ctx.fillStyle = "#ffffff";
+                                this.ctx.textAlign = "center";
+                                this.ctx.textBaseline = "middle";
+                                this.ctx.font = `${fontSize}px 'Courier New'`;
+                                this.ctx.fillText(sprite.text, 0, 0);
+
+                                this.ctx.restore();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // RENDER COLLECTIBLE GLYPHS
+            if (this.collectibles) {
+                const collectibleSprites = this.collectibles
+                    .filter(c => !c.collected)
+                    .map(c => {
+                        const dx = c.x - this.player.x;
+                        const dy = c.y - this.player.y;
+                        return { ...c, dist: Math.sqrt(dx * dx + dy * dy), dx, dy };
+                    })
+                    .sort((a, b) => b.dist - a.dist);
+
+                for (const c of collectibleSprites) {
+                    const invDet = 1.0 / (this.player.planeX * this.player.dirY - this.player.dirX * this.player.planeY);
+                    const transformX = invDet * (this.player.dirY * c.dx - this.player.dirX * c.dy);
+                    const transformY = invDet * (-this.player.planeY * c.dx + this.player.planeX * c.dy);
+
+                    if (transformY > 0.3) {
+                        const screenX = Math.floor((w / 2) * (1 + transformX / transformY));
+                        const spriteSize = Math.abs(Math.floor(h / transformY * 0.6));
+                        const screenY = Math.floor(h / 2 + spriteSize * 0.2);
+
+                        if (screenX > 0 && screenX < w && (zBuffer[screenX] > transformY || !zBuffer[screenX])) {
+                            const floatOffset = Math.sin(time * 3 + c.x + c.y) * 10;
+
+                            this.ctx.save();
+                            this.ctx.translate(screenX, screenY + floatOffset);
+
+                            const distDiff = Math.abs(c.dist - pulseDist);
+                            if (distDiff < 5) {
+                                this.ctx.shadowColor = "#ffd700";
+                                this.ctx.shadowBlur = 20 + (5 - distDiff) * 5;
+                            }
+
+                            const glyphSize = Math.max(20, Math.min(60, spriteSize * 0.4));
+                            this.ctx.font = `bold ${glyphSize}px 'Courier New'`;
+                            this.ctx.fillStyle = "#ffd700";
+                            this.ctx.textAlign = "center";
+                            this.ctx.textBaseline = "middle";
+                            this.ctx.fillText(c.glyph, 0, 0);
+
+                            this.ctx.strokeStyle = "rgba(255, 215, 0, 0.5)";
+                            this.ctx.lineWidth = 2;
+                            this.ctx.beginPath();
+                            this.ctx.arc(0, 0, glyphSize * 0.7, 0, Math.PI * 2);
+                            this.ctx.stroke();
+
+                            this.ctx.shadowBlur = 0;
+                            this.ctx.restore();
+                        }
+                    }
+                }
+            }
+
+            // Minimal HUD
+            this.ctx.fillStyle = '#aaaaff';
+            this.ctx.textAlign = 'left';
+            this.ctx.font = '12px Courier New';
+            this.ctx.fillText(`PULSE: ${pulseDist.toFixed(1)}m`, 10, h - 20);
+            this.ctx.fillText(`STATUS: BLUE_HOUR_ACTIVE`, 10, h - 35);
+
+            // Crosshair
+            this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
+            this.ctx.beginPath();
+            this.ctx.arc(w / 2, h / 2, 8, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.drawMinimap();
+        };
+
+
+
+
+        // OVERRIDE RENDER FOR TEXTUAL REALITY (DENSE + EXTRUSION + TETHER + FLASHLIGHTS)
+        RaycasterEngine.render = function () {
+            if (System.mode !== 'VOID') return;
+            this.update();
+            const w = this.canvas.width;
+            const h = this.canvas.height;
+
+            const infoPanel = document.getElementById('info-panel');
+            if (infoPanel && infoPanel.style.display !== 'none') infoPanel.style.display = 'none';
+
+            const zBuffer = new Float32Array(w);
+
+            // ECHO PULSE LOGIC (VERY SLOW / BREATHING)
+            const time = Date.now() / 1000;
+            const pulseSpeed = 0.8; // User requested "slow them down even more"
+            const pulseDist = (time * pulseSpeed) % 40;
+            if (this.scanPulse > 0) this.scanPulse -= 0.01;
+
+            const LORE_SCRAMBLED = "█▓▒░▆▅▃▂ ";
+            const LORE_CLEAR = "BLUE_HOUR_LIDAR_PROJECT_NON_VERBIS_SED_REBUS_";
+
+            // BLUE HOUR GRADIENT
+            const gradSky = this.ctx.createLinearGradient(0, 0, 0, h / 2);
+            gradSky.addColorStop(0, "#000510");
+            gradSky.addColorStop(1, "#100520");
+            this.ctx.fillStyle = gradSky;
+            this.ctx.fillRect(0, 0, w, h / 2);
+
+            const gradGnd = this.ctx.createLinearGradient(0, h / 2, 0, h);
+            gradGnd.addColorStop(0, "#0a0a1a");
+            gradGnd.addColorStop(1, "#000000");
+            this.ctx.fillStyle = gradGnd;
+            this.ctx.fillRect(0, h / 2, w, h / 2);
+
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            const fontSize = Math.max(14, Math.floor(w / 60));
+            this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+
+            let centerHit = null;
+
+            // CAST RAYS
+            const rayStep = Math.max(1, Math.floor(w / 400));
+
+            for (let x = 0; x < w; x += rayStep) {
+                const camX = 2 * x / w - 1;
+                const rayDirX = this.player.dirX + this.player.planeX * camX;
+                const rayDirY = this.player.dirY + this.player.planeY * camX;
+
+                let mapX = Math.floor(this.player.x), mapY = Math.floor(this.player.y);
+                let sideDistX, sideDistY, perpDist;
+                let stepX, stepY, hit = 0, side;
+                const deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+
+                if (rayDirX < 0) { stepX = -1; sideDistX = (this.player.x - mapX) * deltaDistX; }
+                else { stepX = 1; sideDistX = (mapX + 1.0 - this.player.x) * deltaDistX; }
+                if (rayDirY < 0) { stepY = -1; sideDistY = (this.player.y - mapY) * deltaDistY; }
+                else { stepY = 1; sideDistY = (mapY + 1.0 - this.player.y) * deltaDistY; }
+
+                let depth = 0;
+                while (hit === 0 && depth < 40) {
+                    if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+                    else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+                    if (this.map[mapY] && this.map[mapY][mapX] && this.map[mapY][mapX].type > 0) hit = 1;
+                    depth++;
+                }
+
+                if (hit) {
+                    if (side === 0) perpDist = (mapX - this.player.x + (1 - stepX) / 2) / rayDirX;
+                    else perpDist = (mapY - this.player.y + (1 - stepY) / 2) / rayDirY;
+
+                    for (let zx = x; zx < x + rayStep && zx < w; zx++) zBuffer[zx] = perpDist;
+
+                    const lineHeight = Math.floor(h / perpDist);
+                    const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+                    const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+
+                    const distDiff = Math.abs(perpDist - pulseDist);
+                    let brightness = 0;
+
+                    // PULSE (Softened)
+                    if (distDiff < 6.0) {
+                        let b = Math.max(0, 1 - distDiff / 6.0);
+                        brightness = b * b; // Smooth quadratic falloff
+                    }
+                    if (this.scanPulse > 0) brightness += this.scanPulse;
+
+                    // FLASHLIGHT LOGIC
+                    let flashRadius = 4.0;
+                    let flashCone = 1.0; // Full width
+
+                    if (this.flashlightMode === 'LASER') {
+                        flashRadius = 20.0; // Long range
+                        flashCone = 0.15;   // Very narrow
+                    } else if (this.flashlightMode === 'PRISM') {
+                        flashRadius = 8.0;
+                    }
+
+                    // Cone calculation (distance from center of screen)
+                    const screenDist = Math.abs(camX);
+                    if (screenDist < flashCone) {
+                        // Narrower beam means brighter center
+                        const beamStrength = Math.max(0, 1 - (screenDist / flashCone));
+                        if (perpDist < flashRadius) {
+                            brightness = Math.max(brightness, beamStrength * (1.0 - perpDist / flashRadius));
+                        }
+                    }
+
+                    // Ambient
+                    if (perpDist < 6) brightness = Math.max(brightness, 0.15);
+
+                    if (brightness > 0.05) {
+                        const charStep = fontSize * 0.9; // Dense 
+
+                        for (let y = drawStart; y < drawEnd; y += charStep) {
+                            const isRevealed = (brightness > 0.5) || (distDiff < 2.0);
+
+                            let char = "";
+                            let isClear = false;
+
+                            if (isRevealed) {
+                                const charIndex = (mapX + mapY + Math.floor(y / 20)) % LORE_CLEAR.length;
+                                char = LORE_CLEAR[charIndex];
+                                isClear = true;
+                            } else {
+                                const scrambleIdx = (mapX ^ mapY ^ Math.floor(y)) % LORE_SCRAMBLED.length;
+                                char = LORE_SCRAMBLED[scrambleIdx];
+                            }
+
+                            // PRISM EFFECT (Split channels)
+                            if (this.flashlightMode === 'PRISM' && isClear) {
+                                // R
+                                this.ctx.globalAlpha = brightness * 0.8;
+                                this.ctx.fillStyle = "#ff0000";
+                                this.ctx.fillText(char, x - 2, y);
+                                // B
+                                this.ctx.fillStyle = "#0000ff";
+                                this.ctx.fillText(char, x + 2, y);
+                                // G (Main)
+                                this.ctx.fillStyle = "#ffffff";
+                                this.ctx.fillText(char, x, y);
+                            }
+                            // EXTRUSION (Normal / Laser / Wide)
+                            else if (isClear && perpDist < 10) {
+                                this.ctx.globalAlpha = brightness * 0.5;
+                                this.ctx.fillStyle = "rgba(0, 100, 255, 0.5)";
+                                const off = 20 / perpDist;
+                                this.ctx.fillText(char, x + off, y + off);
+
+                                this.ctx.globalAlpha = brightness;
+                                this.ctx.fillStyle = (this.flashlightMode === 'LASER') ? "#ffcccc" : "#ffffff";
+                                this.ctx.fillText(char, x, y);
+                            } else {
+                                this.ctx.globalAlpha = brightness;
+                                this.ctx.fillStyle = isRevealed ? "#fff" : `rgba(50, 100, 200, 0.5)`;
+                                this.ctx.fillText(char, x, y);
+                            }
+                        }
+                    }
+                    this.ctx.globalAlpha = 1;
+
+                    if (Math.abs(x - w / 2) < rayStep) {
+                        centerHit = { mapX, mapY, perpDist, lineHeight };
+                    }
+                }
+            }
+
+            // FLOOR
+            this.ctx.fillStyle = 'rgba(50, 100, 200, 0.3)';
+            const floorStep = 20;
+            for (let y = h / 2; y < h; y += floorStep) {
+                const rowDist = h / (2.0 * (y - h / 2));
+                const distDiff = Math.abs(rowDist - pulseDist);
+                if (distDiff < 3.0) {
+                    this.ctx.globalAlpha = (1 - distDiff / 3.0) * 0.3;
+                    this.ctx.fillRect(0, y, w, 1);
+                }
+            }
+            this.ctx.globalAlpha = 1;
+
+            // --- SPRITES ---
+            const dynamicSprites = [...(this.sprites || [])];
+            dynamicSprites.push(
+                { x: 12.5, y: 12.5, z: 0.5, text: "THE SHACK", type: "ZONE" },
+                { x: 12.5, y: 6.5, z: 0.5, text: "THE CREEK", type: "ZONE" },
+                { x: 18.5, y: 12.5, z: 0.5, text: "THE RIDGE", type: "ZONE" },
+                { x: 6.5, y: 12.5, z: 0.5, text: "THE PUDDLE", type: "ZONE" }
+            );
+
+            if (dynamicSprites) {
+                const sortedSprites = dynamicSprites.map(s => {
+                    const dx = s.x - this.player.x;
+                    const dy = s.y - this.player.y;
+                    return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
+                }).sort((a, b) => b.dist - a.dist);
+
+                for (const sprite of sortedSprites) {
+                    const spriteX = sprite.x - this.player.x;
+                    const spriteY = sprite.y - this.player.y;
+                    const invDet = 1.0 / (this.player.planeX * this.player.dirY - this.player.dirX * this.player.planeY);
+                    const transformX = invDet * (this.player.dirY * spriteX - this.player.dirX * spriteY);
+                    const transformY = invDet * (-this.player.planeY * spriteX + this.player.planeX * spriteY);
+
+                    if (transformY > 0) {
+                        const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+                        if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
+                            const bob = Math.sin(time + sprite.x) * 0.15;
+                            const spriteScale = h / transformY;
+                            const spriteScreenY = (h / 2) - (spriteScale / 4) + (bob * spriteScale);
+                            const pWidth = Math.max(80, 1600 / transformY);
+                            const pHeight = pWidth * 0.3;
+                            const fontSize = pHeight * 0.4;
+                            if (pWidth > 30) {
+                                this.ctx.save();
+                                const groundY = (h / 2) + (spriteScale / 2);
+                                this.ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                                this.ctx.lineWidth = 1;
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(spriteScreenX, spriteScreenY);
+                                this.ctx.lineTo(spriteScreenX, groundY);
+                                this.ctx.stroke();
+
+                                this.ctx.translate(spriteScreenX, spriteScreenY);
+                                if (sprite.type === "ZONE") {
+                                    this.ctx.fillStyle = "rgba(0, 255, 255, 0.15)";
+                                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.6)";
+                                } else {
+                                    this.ctx.fillStyle = "rgba(100, 200, 255, 0.1)";
+                                    this.ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                                }
+                                this.ctx.lineWidth = 2;
+                                const distDiff = Math.abs(sprite.dist - pulseDist);
+                                if (distDiff < 4.0) {
+                                    this.ctx.shadowColor = sprite.type === "ZONE" ? "#00ffff" : "#ffffff";
+                                    this.ctx.shadowBlur = 20;
+                                }
+                                if (this.ctx.roundRect) {
+                                    this.ctx.beginPath();
+                                    this.ctx.roundRect(-pWidth / 2, -pHeight / 2, pWidth, pHeight, pHeight / 2);
+                                    this.ctx.fill();
+                                    this.ctx.stroke();
+                                } else {
+                                    this.ctx.fillRect(-pWidth / 2, -pHeight / 2, pWidth, pHeight);
+                                }
+                                this.ctx.shadowBlur = 0;
+                                this.ctx.fillStyle = "#ffffff";
+                                this.ctx.textAlign = "center";
+                                this.ctx.textBaseline = "middle";
+                                this.ctx.font = `${fontSize}px 'Courier New'`;
+                                this.ctx.fillText(sprite.text, 0, 0);
+                                this.ctx.restore();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- DELIGHTFUL RETICLE TETHER ---
+            if (centerHit && centerHit.perpDist < 10.0) {
+                const { mapX, mapY } = centerHit;
+                let zoneName = "UNKNOWN SECTOR";
+                if (this.map[mapY] && this.map[mapY][mapX] && this.map[mapY][mapX].tex) {
+                    const dx = mapX - 16.5; const dy = mapY - 16.5;
+                    const r = Math.sqrt(dx * dx + dy * dy);
+                    if (r < 4) zoneName = "THE SHACK";
+                    else if (r < 8) zoneName = "THE CREEK";
+                    else if (r < 13) zoneName = "THE RIDGE";
+                    else zoneName = "THE PUDDLE";
+                }
+
+                const cx = w / 2;
+                const cy = h / 2;
+                const lx = cx + 80 + Math.sin(time) * 10;
+                const ly = cy - 60 + Math.cos(time * 0.8) * 10;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)";
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(cx, cy);
+                this.ctx.quadraticCurveTo(cx + 20, cy - 20, lx, ly);
+                this.ctx.stroke();
+
+                this.ctx.fillStyle = "rgba(0, 20, 40, 0.8)";
+                this.ctx.strokeStyle = "#00ffff";
+                this.ctx.lineWidth = 1;
+                this.ctx.fillRect(lx, ly - 15, 120, 30);
+                this.ctx.strokeRect(lx, ly - 15, 120, 30);
+
+                this.ctx.fillStyle = "#ffffff";
+                this.ctx.font = "12px Courier New";
+                this.ctx.textAlign = "left";
+                this.ctx.fillText(zoneName, lx + 10, ly);
+
+                const ringSize = 10 + Math.sin(time * 5) * 3;
+                this.ctx.beginPath();
+                this.ctx.arc(cx, cy, ringSize, 0, Math.PI * 2);
+                this.ctx.strokeStyle = "rgba(0, 255, 255, 0.5)";
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            this.ctx.fillStyle = '#aaaaff';
+            this.ctx.textAlign = 'left';
+            this.ctx.font = '12px Courier New';
+            this.ctx.fillText(`PULSE: ${pulseDist.toFixed(1)}m | MODE: ${this.flashlightMode || 'WIDE'}`, 10, h - 20);
+
+            this.drawMinimap();
+        };
+    </script>
+</body>
+
+</html>

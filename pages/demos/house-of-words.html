@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="A House of Words and Memory">
+  <title>MIND // PALACE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=JetBrains+Mono:wght@100;200;300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      color-scheme: dark;
+      --bg: #020101;
+      --amber: #ff8c00;
+      --cyan: #00ffcc;
+      --pink: #e024c3;
+      --ui-font: 'JetBrains Mono', 'Courier New', monospace;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--ui-font);
+      color: var(--amber);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #boot-screen {
+      position: fixed; inset: 0; z-index: 10000; background: var(--bg); display: flex;
+      flex-direction: column; justify-content: center; align-items: center; gap: 24px;
+      animation: bootFlicker 0.15s infinite alternate;
+    }
+    @keyframes bootFlicker { 0% { opacity: 0.92; } 100% { opacity: 1; } }
+    .boot-title { font-size: 28px; letter-spacing: 6px; text-transform: uppercase; color: var(--amber); text-shadow: 0 0 20px rgba(255,140,0,0.5); text-align: center; }
+    .boot-sub { font-size: 12px; color: rgba(255,140,0,0.5); letter-spacing: 2px; line-height: 1.8; text-align: center; }
+    .boot-btn { margin-top: 20px; background: transparent; border: 1px solid var(--amber); color: var(--amber); padding: 14px 36px; font-family: var(--ui-font); font-size: 14px; letter-spacing: 3px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .boot-btn:hover { background: var(--amber); color: #000; }
+    
+    #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--cyan); font-size: 16px; pointer-events: none; z-index: 150; opacity: 0.5; }
+    
+    .crt { 
+      position: fixed; inset: 0; pointer-events: none; z-index: 100; 
+      background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.04), rgba(0,255,0,0.02), rgba(0,0,255,0.04)); 
+      background-size: 100% 3px, 3px 100%; opacity: 0.15; 
+    }
+    
+    /* HUD Overlay */
+    .hud { position: fixed; z-index: 200; pointer-events: none; font-size: 11px; letter-spacing: 1px; }
+    .hud-tl { top: 16px; left: 16px; }
+    .hud-tr { top: 16px; right: 16px; text-align: right; }
+    .hud-label { color: rgba(255,140,0,0.4); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+    .hud-value { color: var(--amber); margin-top: 4px; }
+    
+    /* Chat Interface */
+    #chat-container {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      width: 400px;
+      z-index: 250;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: auto;
+    }
+    
+    #chat-log {
+      max-height: 250px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      mask-image: linear-gradient(to top, black 80%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to top, black 80%, transparent 100%);
+      padding-bottom: 20px;
+    }
+
+    .chat-msg {
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 8px;
+      background: rgba(255, 140, 0, 0.05);
+      border-left: 2px solid var(--amber);
+      text-shadow: 0 0 5px rgba(255, 140, 0, 0.2);
+    }
+    
+    .chat-msg.agent {
+      border-left-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 255, 204, 0.05);
+    }
+
+    #chat-input-wrapper {
+      display: flex;
+      align-items: center;
+      background: rgba(0,0,0,0.8);
+      border: 1px solid rgba(255,140,0,0.3);
+      padding: 8px 12px;
+    }
+
+    #chat-input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: var(--ui-font);
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+    }
+    
+    #chat-input::placeholder {
+      color: rgba(255,140,0,0.3);
+    }
+
+    #minimap { 
+      position: fixed; top: 16px; right: 16px; 
+      width: 150px; height: 150px; 
+      border: 1px solid rgba(255,140,0,0.3); 
+      background: rgba(0,0,0,0.7); z-index: 200; 
+      image-rendering: pixelated; pointer-events: none; 
+    }
+
+    .controls-hint { 
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); 
+      z-index: 200; pointer-events: none; font-size: 10px; color: rgba(255,140,0,0.5); 
+      letter-spacing: 2px; text-align: center; background: rgba(0,0,0,0.5); 
+      padding: 4px 12px; border: 1px solid rgba(255,140,0,0.2); 
+    }
+  </style>
+</head>
+<body>
+  <div id="boot-screen">
+    <div class="boot-title">MIND // PALACE</div>
+    <div class="boot-sub">
+      ESTABLISHING WEBSOCKET...<br>
+      CONNECTING TO CONTEXT GRAPH...<br>
+      AWAITING ARCHITECTURAL COMMAND...
+    </div>
+    <button class="boot-btn" id="boot-btn">Enter the Construct</button>
+  </div>
+  
+  <canvas id="game-canvas"></canvas>
+  <div id="crosshair">◇</div>
+  <div class="crt"></div>
+  
+  <div class="hud hud-tl">
+    <div class="hud-label">Current Node</div>
+    <div class="hud-value" id="hud-zone">room_core</div>
+  </div>
+  
+  <canvas id="minimap" width="150" height="150"></canvas>
+  
+  <div id="chat-container">
+    <div id="chat-log"></div>
+    <div id="chat-input-wrapper">
+      <span style="color: var(--amber); margin-right: 8px;">></span>
+      <input type="text" id="chat-input" placeholder="Speak to construct..." autocomplete="off">
+    </div>
+  </div>
+  
+  <div class="controls-hint">
+    WASD: MOVE &nbsp;|&nbsp; MOUSE: AIM &nbsp;|&nbsp; ESC: FREE CURSOR
+  </div>
+  
+  <script type="module" src="./house-of-words.ts"></script>
+</body>
+</html>

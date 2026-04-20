@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GOLDEN LENS · Pretext Engine</title>
+    <meta name="description" content="Appalachian lore as living text material. Pretext layout engine renders flowing prose that coalesces from spatial noise into readable text as you approach.">
+    <style>
+        :root {
+            --bg: #0b0a08;
+            --gold: #d4af37;
+            --amber: #ff8c00;
+            --rust: #8b4513;
+            --blue: #4682b4;
+            --indigo: #4b0082;
+            --font: 'Courier New', Courier, monospace;
+            --bw: 2px;
+            --status-h: 40px;
+            --tab-h: 56px;
+            --safe-b: env(safe-area-inset-bottom, 0px);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            border-radius: 0 !important;
+        }
+
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            overflow: hidden; position: fixed; inset: 0;
+            height: 100dvh;
+            background: var(--bg); color: var(--amber);
+            font-family: var(--font);
+            user-select: none; -webkit-user-select: none;
+        }
+
+        #app {
+            display: flex; flex-direction: column;
+            width: 100%; height: 100%; height: 100dvh;
+        }
+
+        /* ── STATUS BAR ── */
+        #status-bar {
+            flex: 0 0 var(--status-h);
+            display: flex; align-items: center;
+            background: #000; color: var(--amber);
+            border-bottom: 2px solid #333;
+            z-index: 50; font-size: 11px; padding: 0 8px; gap: 0;
+        }
+        .sb-group {
+            display: flex; align-items: center; gap: 5px;
+            padding: 0 10px; border-right: 1px solid #333;
+            flex: 1; justify-content: center;
+        }
+        .sb-group:last-child { border-right: none; }
+        .sb-label { font-size: 9px; font-weight: 900; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
+        .sb-val { font-size: 13px; font-weight: 900; color: var(--amber); font-variant-numeric: tabular-nums; }
+
+        /* ── CANVAS ZONE ── */
+        #canvas-zone {
+            flex: 1 1 0%; position: relative; overflow: hidden;
+            background: var(--bg);
+        }
+        #viz-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+        /* ── READER PANEL ── */
+        #reader-panel {
+            position: absolute; left: 16px; top: 60px; bottom: 100px;
+            width: 280px; z-index: 30;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        #zone-header {
+            border-bottom: 1px solid var(--rust);
+            padding-bottom: 5px; color: var(--gold);
+            font-weight: bold; letter-spacing: 2px;
+            text-transform: uppercase; font-size: 11px;
+        }
+        #text-display {
+            border-left: 2px solid var(--rust);
+            padding-left: 12px; min-height: 60px;
+            color: #ccc; text-shadow: 0 0 5px rgba(0,0,0,0.8);
+            line-height: 1.4; font-size: 13px;
+            background: rgba(0,0,0,0.4); padding: 10px;
+            overflow-y: auto; max-height: 300px;
+        }
+        #data-display { font-size: 10px; color: #555; }
+
+        /* ── PRETEXT READER (enhanced panel) ── */
+        #pretext-reader {
+            border-left: 2px solid var(--gold);
+            padding-left: 12px; min-height: 40px;
+            color: var(--gold); line-height: 1.3; font-size: 12px;
+            background: rgba(0,0,0,0.6); padding: 8px;
+            display: none;
+        }
+        #pretext-reader.visible { display: block; }
+        #pretext-reader .pt-label {
+            font-size: 9px; color: #0fa; letter-spacing: 0.1em;
+            text-transform: uppercase; margin-bottom: 4px;
+        }
+        #pretext-reader canvas {
+            width: 100%; image-rendering: auto; display: block;
+            background: rgba(0,0,0,0.3);
+        }
+
+        /* ── HUD OVERLAY ── */
+        .hud-overlay {
+            position: absolute; bottom: 20px; right: 16px;
+            z-index: 25; pointer-events: none;
+            display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+        }
+        .hud-panel { color: var(--amber); font-size: 11px; pointer-events: auto; }
+        #minimap-canvas {
+            width: 100px; height: 100px;
+            background: rgba(0,0,0,0.7); border: 1px solid #333;
+            pointer-events: auto;
+        }
+
+        /* ── HEADER CONTROLS ── */
+        .header-controls {
+            position: absolute; top: 12px; right: 12px;
+            z-index: 50; display: flex; gap: 8px;
+        }
+        .btn-ui {
+            background: rgba(0,0,0,0.5); border: 1px solid var(--rust);
+            color: var(--rust); padding: 4px 10px; cursor: pointer;
+            font-family: var(--font); font-size: 11px;
+            backdrop-filter: blur(4px); transition: all 0.2s;
+        }
+        .btn-ui:hover { border-color: var(--amber); color: var(--amber); }
+
+        /* ── CRT OVERLAY ── */
+        .crt-overlay {
+            position: absolute; inset: 0; pointer-events: none; z-index: 100;
+            background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.15) 50%),
+                        linear-gradient(90deg, rgba(255,80,0,0.03), rgba(0,200,100,0.01), rgba(0,80,255,0.03));
+            background-size: 100% 3px, 3px 100%;
+            opacity: 0.15;
+        }
+
+        /* ── AMBIENT GLOW ── */
+        .ambient-glow {
+            position: absolute; inset: 0; pointer-events: none; z-index: 5;
+            background: radial-gradient(ellipse at 50% 45%, rgba(212,175,55,0.04) 0%, transparent 70%);
+            animation: glow-breathe 6s ease-in-out infinite;
+        }
+        @keyframes glow-breathe {
+            0%,100% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+        }
+
+        /* ── LIDAR LAYER ── */
+        #lidar-layer {
+            position: absolute; inset: 0; z-index: 20;
+            display: none; background: #000;
+        }
+        #lidar-layer.active { display: block; }
+        #lidar-canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+        .crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 24px; height: 24px; transform: translate(-50%,-50%);
+            border: 1px solid rgba(255,140,0,0.5); border-radius: 50%;
+            pointer-events: none; z-index: 35;
+        }
+        .crosshair::after {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            width: 4px; height: 4px; background: var(--amber);
+            transform: translate(-50%,-50%); border-radius: 50%;
+        }
+        #scanner-output {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            width: 85%; max-width: 600px; z-index: 40;
+            background: rgba(10,8,5,0.98); padding: 12px;
+            border: 2px solid var(--amber); color: #00ff88;
+            font-family: var(--font); font-size: 12px; line-height: 1.3;
+            max-height: 200px; overflow-y: auto; white-space: pre-wrap;
+            box-shadow: 0 0 30px rgba(0,255,100,0.2);
+            display: none;
+        }
+        #scanner-output.visible { display: block; }
+
+        .btn-lidar {
+            background: rgba(0,0,0,0.5); border: 1px solid var(--gold);
+            color: var(--gold); padding: 4px 10px; cursor: pointer;
+            font-family: var(--font); font-size: 11px;
+            backdrop-filter: blur(4px); transition: all 0.2s;
+        }
+        .btn-lidar:hover { background: var(--gold); color: #000; }
+
+        /* ── CONTROLS BAR ── */
+        .controls-bar {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            height: 32px; z-index: 30; pointer-events: none;
+            display: flex; justify-content: center; align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+            color: var(--rust); font-size: 10px; letter-spacing: 2px;
+        }
+
+        /* ── TAB BAR ── */
+        #tab-bar {
+            flex: 0 0 calc(var(--tab-h) + var(--safe-b));
+            display: flex; border-top: var(--bw) solid #333;
+            background: #111; z-index: 60; padding-bottom: var(--safe-b);
+        }
+        .tab-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: var(--tab-h);
+            font-size: 9px; font-weight: 900; text-transform: uppercase;
+            color: var(--amber); cursor: pointer; background: #111;
+            border: none; border-right: 1px solid #333;
+            letter-spacing: 0.05em; transition: background 0.1s;
+        }
+        .tab-btn:last-child { border-right: none; }
+        .tab-letter { font-size: 18px; line-height: 1; margin-bottom: 2px; font-weight: 900; }
+        .tab-btn.on { background: var(--gold); color: #000; }
+
+        /* ── SHEET SYSTEM ── */
+        #sheet-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0);
+            pointer-events: none; z-index: 70; transition: background 0.25s;
+        }
+        #sheet-backdrop.on { background: rgba(0,0,0,0.6); pointer-events: all; }
+        .sheet {
+            position: fixed; left: 0; right: 0;
+            bottom: calc(var(--tab-h) + var(--safe-b));
+            max-height: 70vh; background: #0d0c0a;
+            border-top: 2px solid var(--gold);
+            z-index: 80; display: flex; flex-direction: column;
+            transform: translateY(calc(100% + var(--tab-h) + var(--safe-b)));
+            transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0.32s;
+            visibility: hidden; overflow: hidden; will-change: transform;
+        }
+        .sheet.on {
+            transform: translateY(0); visibility: visible;
+            transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0s;
+        }
+        .sheet-handle {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: #000;
+            border-bottom: 1px solid #333; flex-shrink: 0;
+        }
+        .sheet-title { font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+        .sheet-close { font-size: 20px; font-weight: 900; background: none; border: none; cursor: pointer; line-height: 1; color: var(--gold); }
+        .sheet-body {
+            overflow-y: auto; flex: 1; padding: 16px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .sh-btn {
+            display: flex; align-items: center; justify-content: center;
+            padding: 12px 16px; font-weight: 900; text-transform: uppercase;
+            font-size: 11px; background: #000;
+            border: 2px solid var(--gold); color: var(--gold);
+            cursor: pointer; letter-spacing: 0.1em; width: 100%;
+            box-shadow: 2px 2px 0 var(--gold);
+            transition: transform 0.05s, box-shadow 0.05s; min-height: 44px;
+            font-family: var(--font);
+        }
+        .sh-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--gold); }
+        .sh-btn.primary { background: var(--gold); color: #000; }
+        .sh-row { display: flex; gap: 8px; }
+        .sh-row .sh-btn { flex: 1; }
+        .sh-label { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rust); margin-bottom: 4px; }
+        .sh-range { width: 100%; accent-color: var(--gold); height: 20px; }
+
+        /* Pretext HUD */
+        #pretext-hud {
+            position: absolute; bottom: 36px; left: 16px; z-index: 30;
+            font-size: 9px; color: #0fa; pointer-events: none;
+            font-family: var(--font); letter-spacing: 0.06em;
+        }
+
+        @media (max-width: 600px) {
+            #reader-panel { width: 200px; left: 8px; top: 50px; bottom: 80px; }
+            #reader-panel #text-display { font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="status-bar">
+            <div class="sb-group">
+                <span class="sb-label">GOLDEN LENS</span>
+                <span class="sb-val" id="sb-mode">TOPO</span>
+            </div>
+            <div class="sb-group">
+                <span class="sb-label">ZONE</span>
+                <span class="sb-val" id="sb-zone">—</span>
+            </div>
+            <div class="sb-group">
+                <span class="sb-label">PRETEXT</span>
+                <span class="sb-val" id="sb-layout">—</span>
+            </div>
+            <div class="sb-group">
+                <span class="sb-label">LLM</span>
+                <span class="sb-val" id="sb-llm" style="font-size:8px">—</span>
+            </div>
+        </div>
+
+        <div id="canvas-zone">
+            <div class="ambient-glow"></div>
+            <canvas id="viz-canvas"></canvas>
+
+            <!-- LIDAR LAYER -->
+            <div id="lidar-layer">
+                <canvas id="lidar-canvas"></canvas>
+                <div class="crosshair"></div>
+                <div id="scanner-output">LIDAR STANDBY...</div>
+            </div>
+
+            <div class="crt-overlay"></div>
+
+            <div class="header-controls">
+                <button class="btn-ui" id="btn-view">VIEW: TOPO</button>
+                <button class="btn-ui" id="btn-recenter">RE-CENTER</button>
+                <button class="btn-ui" id="btn-size-up">SIZE +</button>
+                <button class="btn-ui" id="btn-size-dn">SIZE −</button>
+                <button class="btn-lidar" id="btn-lidar">ENTER LIDAR</button>
+            </div>
+
+            <div id="reader-panel">
+                <div id="zone-header">AWAITING INPUT...</div>
+                <div id="text-display">"Grandpa wasn't a moonshiner.<br>He was a Quantum Optician."</div>
+                <div id="pretext-reader">
+                    <div class="pt-label">PRETEXT LAYOUT</div>
+                    <canvas id="pt-reader-canvas" width="256" height="200"></canvas>
+                </div>
+                <div style="font-size:10px; color:#555; margin-top:4px;">DATA: <span id="data-display">—</span></div>
+            </div>
+
+            <div class="hud-overlay">
+                <div class="hud-panel" id="ui-coords">LOC: 0,0</div>
+                <canvas id="minimap-canvas" width="100" height="100"></canvas>
+            </div>
+
+            <div class="controls-bar" id="grid-controls">
+                <div>SCROLL TO ZOOM · DRAG TO PAN · HOVER TO READ</div>
+            </div>
+
+            <div id="pretext-hud"></div>
+        </div>
+
+        <nav id="tab-bar">
+            <button class="tab-btn" id="tab-a"><span class="tab-letter">A</span>LORE</button>
+            <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>CSPR</button>
+            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>LENS</button>
+            <button class="tab-btn" id="tab-d"><span class="tab-letter">D</span>SAVE</button>
+        </nav>
+    </div>
+
+    <!-- SHEET BACKDROP -->
+    <div id="sheet-backdrop"></div>
+
+    <!-- SHEET A: LORE -->
+    <div class="sheet" id="sheet-a">
+        <div class="sheet-handle">
+            <span class="sheet-title">A · LORE MATERIAL</span>
+            <button class="sheet-close" id="close-a">×</button>
+        </div>
+        <div class="sheet-body" id="lore-body">
+            <!-- filled dynamically -->
+        </div>
+    </div>
+
+    <!-- SHEET B: CSPR -->
+    <div class="sheet" id="sheet-b">
+        <div class="sheet-handle">
+            <span class="sheet-title">B · CLUE JOURNAL</span>
+            <button class="sheet-close" id="close-b">×</button>
+        </div>
+        <div class="sheet-body" id="cspr-body">
+            <!-- filled dynamically -->
+        </div>
+    </div>
+
+    <!-- SHEET C: LENS CONFIG -->
+    <div class="sheet" id="sheet-c">
+        <div class="sheet-handle">
+            <span class="sheet-title">C · LENS CONFIG</span>
+            <button class="sheet-close" id="close-c">×</button>
+        </div>
+        <div class="sheet-body">
+            <div class="sh-label">Character Size</div>
+            <input type="range" class="sh-range" id="range-size" min="6" max="24" value="10" step="1">
+            <div class="sh-label">Coalescence Radius</div>
+            <input type="range" class="sh-range" id="range-coalesce" min="0" max="300" value="120" step="10">
+            <div class="sh-label">Wave Speed</div>
+            <input type="range" class="sh-range" id="range-speed" min="0" max="100" value="40" step="5">
+            <div class="sh-label">Relationship Lines</div>
+            <div class="sh-row">
+                <button class="sh-btn" id="btn-rel-on">ON</button>
+                <button class="sh-btn" id="btn-rel-off">OFF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHEET D: SAVE -->
+    <div class="sheet" id="sheet-d">
+        <div class="sheet-handle">
+            <span class="sheet-title">D · EXPORT</span>
+            <button class="sheet-close" id="close-d">×</button>
+        </div>
+        <div class="sheet-body">
+            <button class="sh-btn primary" id="btn-export-png">CURRENT FRAME (PNG)</button>
+            <button class="sh-btn" id="btn-export-lore">EXPORT ALL LORE</button>
+        </div>
+    </div>
+
+    <script type="module" src="./golden-lens.ts"></script>
+</body>
+</html>

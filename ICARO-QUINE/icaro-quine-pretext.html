@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICARO-QUINE · Code Is Image</title>
+    <meta name="description" content="Self-referential renderer where BEFLIX source code characters become the pixels of the image they describe.">
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Ctext x='32' y='40' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-size='36' font-weight='bold'%3EQ%3C/text%3E%3C/svg%3E">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@400;700;900&display=swap');
+
+        :root {
+            --bg: #0a0a0c;
+            --surface: #111116;
+            --surface-2: #1a1a22;
+            --border: #2a2a35;
+            --text: #c8c8d0;
+            --text-dim: #666680;
+            --accent: #00ff88;
+            --accent-dim: #00cc6a;
+            --accent-glow: rgba(0, 255, 136, 0.15);
+            --warn: #ff4466;
+            --code-font: 'JetBrains Mono', 'Courier New', monospace;
+            --ui-font: 'Inter', -apple-system, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--ui-font);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── LAYOUT ── */
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            height: 100dvh;
+        }
+
+        #header {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+            z-index: 10;
+        }
+
+        #header h1 {
+            font-family: var(--code-font);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        /* ── BUTTONS ── */
+        .btn {
+            font-family: var(--code-font);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: all 0.12s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--border);
+            border-color: var(--text-dim);
+        }
+
+        .btn.accent {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
+        }
+
+        .btn.accent:hover {
+            background: var(--accent-dim);
+            border-color: var(--accent-dim);
+        }
+
+        .btn.active {
+            background: var(--accent-glow);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        /* ── MAIN AREA ── */
+        #main {
+            flex: 1 1 0%;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR ── */
+        #sidebar {
+            flex: 0 0 320px;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-label {
+            font-family: var(--code-font);
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-dim);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        #script-area {
+            flex: 1 1 0%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        #script-editor {
+            flex: 1 1 0%;
+            width: 100%;
+            resize: none;
+            background: var(--bg);
+            color: var(--accent);
+            font-family: var(--code-font);
+            font-size: 10px;
+            line-height: 1.5;
+            padding: 10px 12px;
+            border: none;
+            outline: none;
+            overflow-y: auto;
+            tab-size: 4;
+        }
+
+        #script-editor::placeholder {
+            color: var(--text-dim);
+        }
+
+        #script-info {
+            flex: 0 0 auto;
+            padding: 6px 12px;
+            background: var(--surface-2);
+            border-top: 1px solid var(--border);
+            font-family: var(--code-font);
+            font-size: 9px;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── CANVAS ZONE ── */
+        #canvas-zone {
+            flex: 1 1 0%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            background: var(--bg);
+        }
+
+        #canvas-viewport {
+            flex: 1 1 0%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #quine-canvas {
+            image-rendering: auto;
+            cursor: crosshair;
+        }
+
+        /* ── CONTROLS BAR ── */
+        #controls-bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+        }
+
+        #frame-display {
+            font-family: var(--code-font);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .speed-control label {
+            font-family: var(--code-font);
+            font-size: 9px;
+            color: var(--text-dim);
+            letter-spacing: 0.1em;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 80px;
+            height: 4px;
+            background: var(--border);
+            outline: none;
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        /* ── ZOOM DISPLAY ── */
+        #zoom-display {
+            font-family: var(--code-font);
+            font-size: 9px;
+            color: var(--text-dim);
+            padding: 4px 8px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        /* ── DROP ZONE ── */
+        #drop-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 255, 136, 0.08);
+            border: 3px dashed var(--accent);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        #drop-overlay.active {
+            display: flex;
+        }
+
+        #drop-overlay span {
+            font-family: var(--code-font);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        /* ── TOAST ── */
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--accent);
+            color: var(--bg);
+            font-family: var(--code-font);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 10px 20px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            z-index: 9999;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── MODE INDICATOR ── */
+        .mode-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .mode-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .mode-label {
+            font-family: var(--code-font);
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.12em;
+        }
+
+        /* ── RENDER MODE TOGGLE ── */
+        .toggle-group {
+            display: flex;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .toggle-group .btn {
+            border: none;
+            border-right: 1px solid var(--border);
+        }
+
+        .toggle-group .btn:last-child {
+            border-right: none;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            #sidebar {
+                display: none;
+            }
+        }
+
+        /* ── LOADING OVERLAY ── */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 500;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        #loading.active {
+            display: flex;
+        }
+
+        #loading-msg {
+            font-family: var(--code-font);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        #loading-sub {
+            font-family: var(--code-font);
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- ── HEADER ── -->
+        <div id="header">
+            <h1>ICARO-QUINE</h1>
+            <div class="mode-indicator">
+                <div class="mode-dot"></div>
+                <span class="mode-label">CODE = IMAGE</span>
+            </div>
+            <div class="header-controls">
+                <div class="toggle-group">
+                    <button class="btn active" id="mode-quine" onclick="setRenderMode('quine')">QUINE</button>
+                    <button class="btn" id="mode-dots" onclick="setRenderMode('dots')">DOTS</button>
+                </div>
+                <button class="btn" onclick="document.getElementById('file-input').click()">LOAD SCRIPT</button>
+                <button class="btn" onclick="document.getElementById('media-input').click()">LOAD IMAGE</button>
+                <button class="btn" onclick="exportPNG()">PNG</button>
+                <button class="btn" onclick="exportGIF()">GIF</button>
+            </div>
+        </div>
+
+        <!-- ── MAIN ── -->
+        <div id="main">
+            <!-- ── SIDEBAR ── -->
+            <div id="sidebar">
+                <div class="sidebar-section">
+                    <span class="sidebar-label">BEFLIX SCRIPT</span>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn accent" onclick="runScript()" style="flex:1;">▶ RUN</button>
+                        <button class="btn" onclick="clearScript()">CLR</button>
+                    </div>
+                </div>
+                <div id="script-area">
+                    <textarea id="script-editor" spellcheck="false" placeholder="Paste BEFLIX-128 code here..."></textarea>
+                    <div id="script-info">
+                        <span id="line-count">0 LINES</span>
+                        <span id="char-count">0 CHARS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── CANVAS ── -->
+            <div id="canvas-zone">
+                <div id="drop-overlay"><span>DROP IMAGE OR SCRIPT</span></div>
+                <div id="canvas-viewport">
+                    <canvas id="quine-canvas"></canvas>
+                </div>
+                <div id="controls-bar">
+                    <button class="btn" onclick="stepFrame(-1)">◄</button>
+                    <button class="btn accent" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+                    <button class="btn" onclick="stepFrame(1)">►</button>
+                    <span id="frame-display">01/01</span>
+                    <div class="speed-control">
+                        <label>FPS</label>
+                        <input type="range" id="fps-slider" min="1" max="30" value="12" oninput="setFPS(this.value)">
+                        <span id="fps-val" style="font-family:var(--code-font);font-size:11px;color:var(--accent);min-width:20px;">12</span>
+                    </div>
+                    <div class="spacer"></div>
+                    <span id="zoom-display">100%</span>
+                    <button class="btn" onclick="zoomCanvas(-1)">−</button>
+                    <button class="btn" onclick="zoomCanvas(1)">+</button>
+                    <button class="btn" onclick="zoomFit()">FIT</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div id="loading-msg">LOADING</div>
+        <div id="loading-sub"></div>
+    </div>
+
+    <input type="file" id="file-input" accept=".txt,.bfx" style="display:none" onchange="loadScriptFile(event)">
+    <input type="file" id="media-input" accept="image/*,video/*" style="display:none" onchange="loadMedia(event)">
+
+    <script>
+        // ─────────────────────────────────────────────────────────
+        // ICARO-QUINE ENGINE
+        // The code that makes the image IS the image.
+        // ─────────────────────────────────────────────────────────
+
+        const G_COLS = 128, G_ROWS = 96;
+        const CELL_W = 7, CELL_H = 9; // px per cell for the quine text
+        const CW = G_COLS * CELL_W, CH = G_ROWS * CELL_H; // canvas size
+        const DOT_CW = 640, DOT_CH = 480, DOT_BSZ = 5; // dot mode sizes
+
+        let renderMode = 'quine'; // 'quine' or 'dots'
+        let fps = 12;
+        let playing = false;
+        let playRAF = null;
+        let lastFrameTime = 0;
+        let currentFrame = 0;
+        let frames = []; // each frame is a Uint8Array[G_ROWS * G_COLS] of intensity 0-7
+        let sourceCode = ''; // the BEFLIX script text (the quine body)
+        let zoom = 1;
+
+        const cvs = document.getElementById('quine-canvas');
+        const ctx = cvs.getContext('2d');
+
+        // ── QUINE CHARACTER MAP ──
+        // Pre-compute which character goes in each grid cell
+        function getQuineChar(cellIndex) {
+            if (!sourceCode || sourceCode.length === 0) return ' ';
+            // Strip newlines for continuous flow, but keep spaces
+            return sourceCode[cellIndex % sourceCode.length];
+        }
+
+        // ── INTENSITY TO OPACITY ──
+        function intensityToOpacity(v) {
+            // 0 = invisible, 7 = fully opaque
+            const map = [0.0, 0.08, 0.16, 0.28, 0.42, 0.58, 0.78, 1.0];
+            return map[Math.max(0, Math.min(7, v))];
+        }
+
+        // ── DOT STAMPS (for dot mode) ──
+        const DOT_STAMPS = [];
+        function buildDotStamps() {
+            const maxR = DOT_BSZ * 0.45;
+            for (let v = 0; v < 8; v++) {
+                const c = document.createElement('canvas');
+                c.width = DOT_BSZ; c.height = DOT_BSZ;
+                if (v > 0) {
+                    const dc = c.getContext('2d');
+                    const r = maxR * (v / 7);
+                    dc.fillStyle = '#000000';
+                    dc.beginPath();
+                    dc.arc(DOT_BSZ / 2, DOT_BSZ / 2, Math.max(0.4, r), 0, Math.PI * 2);
+                    dc.fill();
+                }
+                DOT_STAMPS[v] = c;
+            }
+        }
+        buildDotStamps();
+
+        // ── RENDER: QUINE MODE ──
+        function renderQuine(frame) {
+            cvs.width = CW;
+            cvs.height = CH;
+
+            // Black background
+            ctx.fillStyle = '#0a0a0c';
+            ctx.fillRect(0, 0, CW, CH);
+
+            if (!frame) return;
+
+            // Prepare the source code flow — include newlines as visible chars
+            const codeChars = sourceCode || '';
+            const codeLen = codeChars.length;
+            if (codeLen === 0) return;
+
+            ctx.font = '7px "JetBrains Mono", "Courier New", monospace';
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+
+            let charIdx = 0;
+            for (let gy = 0; gy < G_ROWS; gy++) {
+                for (let gx = 0; gx < G_COLS; gx++) {
+                    const intensity = frame[gy * G_COLS + gx];
+                    const opacity = intensityToOpacity(intensity);
+
+                    if (opacity < 0.01) {
+                        charIdx++;
+                        continue; // invisible — skip
+                    }
+
+                    const ch = codeChars[charIdx % codeLen];
+                    charIdx++;
+
+                    if (ch === '\n' || ch === '\r') continue; // skip newlines visually
+
+                    const px = gx * CELL_W;
+                    const py = gy * CELL_H;
+
+                    ctx.globalAlpha = opacity;
+                    // Color tint: high intensity = pure white, low = greenish
+                    if (intensity >= 6) {
+                        ctx.fillStyle = '#ffffff';
+                    } else if (intensity >= 4) {
+                        ctx.fillStyle = '#c0ffd0';
+                    } else {
+                        ctx.fillStyle = '#00ff88';
+                    }
+                    ctx.fillText(ch, px, py + 1);
+                }
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        // ── RENDER: DOT MODE (classic) ──
+        function renderDots(frame) {
+            cvs.width = DOT_CW;
+            cvs.height = DOT_CH;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, DOT_CW, DOT_CH);
+
+            // Fine ruled lines
+            ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+            ctx.lineWidth = 0.5;
+            for (let gy = 0; gy < G_ROWS; gy++) {
+                const py = gy * DOT_BSZ + DOT_BSZ * 0.5;
+                ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(DOT_CW, py); ctx.stroke();
+            }
+
+            if (!frame) return;
+
+            for (let gy = 0; gy < G_ROWS; gy++) {
+                for (let gx = 0; gx < G_COLS; gx++) {
+                    const val = frame[gy * G_COLS + gx];
+                    if (val > 0 && DOT_STAMPS[val]) {
+                        ctx.drawImage(DOT_STAMPS[val], gx * DOT_BSZ, gy * DOT_BSZ);
+                    }
+                }
+            }
+        }
+
+        // ── RENDER DISPATCH ──
+        function render() {
+            const frame = frames[currentFrame] || null;
+            if (renderMode === 'quine') {
+                renderQuine(frame);
+            } else {
+                renderDots(frame);
+            }
+            updateScaleCSS();
+        }
+
+        // ── CANVAS SCALING ──
+        function updateScaleCSS() {
+            const vp = document.getElementById('canvas-viewport');
+            const w = cvs.width, h = cvs.height;
+            const scaleW = (vp.clientWidth - 20) / w;
+            const scaleH = (vp.clientHeight - 20) / h;
+            const fit = Math.min(scaleW, scaleH, 4);
+            const scale = fit * zoom;
+            cvs.style.width = (w * scale) + 'px';
+            cvs.style.height = (h * scale) + 'px';
+            document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
+        }
+
+        function zoomCanvas(dir) {
+            zoom = Math.max(0.25, Math.min(4, zoom + dir * 0.25));
+            updateScaleCSS();
+        }
+
+        function zoomFit() {
+            zoom = 1;
+            updateScaleCSS();
+        }
+
+        // ── BEFLIX EXECUTOR ──
+        function executeBEFLIX(code) {
+            const lines = code.toUpperCase().split('\n');
+            const result = [];
+            let mat = Array.from({ length: G_ROWS }, () => new Uint8Array(G_COLS));
+
+            for (let li = 0; li < lines.length; li++) {
+                const l = lines[li].trim();
+                if (!l || l.startsWith('C')) continue;
+                const p = l.split(/\s+/);
+                const cmd = p[0];
+                const a = p.slice(1).map(Number);
+
+                if (cmd === 'CLR') {
+                    const v = a[0] || 0;
+                    for (let y = 0; y < G_ROWS; y++)
+                        for (let x = 0; x < G_COLS; x++)
+                            mat[y][x] = v;
+                }
+                else if (cmd === 'PNT') {
+                    const [px, py, pw, ph, pv] = a;
+                    for (let y = py; y < py + ph; y++)
+                        for (let x = px; x < px + pw; x++)
+                            if (y >= 0 && y < G_ROWS && x >= 0 && x < G_COLS)
+                                mat[y][x] = pv;
+                }
+                else if (cmd === 'LIN') {
+                    const [x1, y1, x2, y2, lv] = a;
+                    let dx = Math.abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+                    let dy = -Math.abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+                    let err = dx + dy, cx = x1, cy = y1, lim = 2000;
+                    while (lim-- > 0) {
+                        if (cx >= 0 && cx < G_COLS && cy >= 0 && cy < G_ROWS) mat[cy][cx] = lv;
+                        if (cx === x2 && cy === y2) break;
+                        const e2 = 2 * err;
+                        if (e2 >= dy) { err += dy; cx += sx; }
+                        if (e2 <= dx) { err += dx; cy += sy; }
+                    }
+                }
+                else if (cmd === 'REC') {
+                    const n = Math.min(a[0] || 1, 5000);
+                    for (let i = 0; i < n; i++) {
+                        const snap = new Uint8Array(G_ROWS * G_COLS);
+                        for (let y = 0; y < G_ROWS; y++)
+                            for (let x = 0; x < G_COLS; x++)
+                                snap[y * G_COLS + x] = mat[y][x];
+                        result.push(snap);
+                    }
+                }
+                else if (cmd === 'SHF') {
+                    const [sdx, sdy, sn] = a;
+                    const count = Math.min(sn || 1, 5000);
+                    for (let f = 0; f < count; f++) {
+                        const next = Array.from({ length: G_ROWS }, () => new Uint8Array(G_COLS));
+                        for (let y = 0; y < G_ROWS; y++)
+                            for (let x = 0; x < G_COLS; x++) {
+                                const nx = x - sdx, ny = y - sdy;
+                                if (nx >= 0 && nx < G_COLS && ny >= 0 && ny < G_ROWS)
+                                    next[y][x] = mat[ny][nx];
+                            }
+                        mat = next;
+                        const snap = new Uint8Array(G_ROWS * G_COLS);
+                        for (let y = 0; y < G_ROWS; y++)
+                            for (let x = 0; x < G_COLS; x++)
+                                snap[y * G_COLS + x] = mat[y][x];
+                        result.push(snap);
+                    }
+                }
+            }
+
+            // If no REC/SHF, snapshot final state
+            if (result.length === 0) {
+                const snap = new Uint8Array(G_ROWS * G_COLS);
+                for (let y = 0; y < G_ROWS; y++)
+                    for (let x = 0; x < G_COLS; x++)
+                        snap[y * G_COLS + x] = mat[y][x];
+                result.push(snap);
+            }
+
+            return result;
+        }
+
+        // ── RUN SCRIPT ──
+        function runScript() {
+            const editor = document.getElementById('script-editor');
+            const code = editor.value;
+            if (!code.trim()) { toast('NO SCRIPT'); return; }
+
+            showLoading('COMPILING BEFLIX...', '');
+            setTimeout(() => {
+                try {
+                    sourceCode = code; // The quine body
+                    frames = executeBEFLIX(code);
+                    currentFrame = 0;
+                    render();
+                    updateFrameDisplay();
+                    hideLoading();
+                    toast(frames.length + ' FRAMES · QUINE READY');
+                } catch (e) {
+                    hideLoading();
+                    toast('ERROR: ' + e.message);
+                    console.error(e);
+                }
+            }, 50);
+        }
+
+        // ── PLAYBACK ──
+        function togglePlay() {
+            if (frames.length <= 1) return;
+            playing = !playing;
+            const btn = document.getElementById('play-btn');
+            btn.textContent = playing ? '■ STOP' : '▶ PLAY';
+            btn.classList.toggle('active', playing);
+            if (playing) {
+                lastFrameTime = performance.now();
+                playRAF = requestAnimationFrame(playLoop);
+            } else {
+                cancelAnimationFrame(playRAF);
+            }
+        }
+
+        function playLoop(now) {
+            if (!playing) return;
+            playRAF = requestAnimationFrame(playLoop);
+            const elapsed = now - lastFrameTime;
+            if (elapsed >= 1000 / fps) {
+                lastFrameTime = now - (elapsed % (1000 / fps));
+                currentFrame = (currentFrame + 1) % frames.length;
+                render();
+                updateFrameDisplay();
+            }
+        }
+
+        function stepFrame(dir) {
+            if (playing) togglePlay();
+            if (!frames.length) return;
+            currentFrame = (currentFrame + dir + frames.length) % frames.length;
+            render();
+            updateFrameDisplay();
+        }
+
+        function setFPS(val) {
+            fps = parseInt(val);
+            document.getElementById('fps-val').textContent = fps;
+        }
+
+        function updateFrameDisplay() {
+            document.getElementById('frame-display').textContent =
+                String(currentFrame + 1).padStart(2, '0') + '/' +
+                String(frames.length).padStart(2, '0');
+        }
+
+        // ── RENDER MODE ──
+        function setRenderMode(mode) {
+            renderMode = mode;
+            document.getElementById('mode-quine').classList.toggle('active', mode === 'quine');
+            document.getElementById('mode-dots').classList.toggle('active', mode === 'dots');
+            render();
+        }
+
+        // ── FILE LOADING ──
+        function loadScriptFile(e) {
+            const f = e.target.files[0];
+            if (!f) return;
+            e.target.value = '';
+            showLoading('LOADING SCRIPT...', f.name);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const text = ev.target.result;
+                document.getElementById('script-editor').value = text;
+                updateScriptInfo();
+                hideLoading();
+                toast(text.split('\n').length + ' LINES LOADED');
+                // Auto-run
+                sourceCode = text;
+                frames = executeBEFLIX(text);
+                currentFrame = 0;
+                render();
+                updateFrameDisplay();
+            };
+            reader.onerror = () => { hideLoading(); toast('FILE READ FAILED'); };
+            reader.readAsText(f);
+        }
+
+        // ── IMAGE/VIDEO INGEST ──
+        function loadMedia(e) {
+            const f = e.target.files[0];
+            if (!f) return;
+            e.target.value = '';
+
+            if (f.type.startsWith('video/')) {
+                ingestVideo(f);
+            } else {
+                ingestImage(f);
+            }
+        }
+
+        function ingestImage(file) {
+            showLoading('LOADING IMAGE...', file.name);
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                // Posterize to 128x96 grid of intensities
+                const tmpC = document.createElement('canvas');
+                tmpC.width = G_COLS; tmpC.height = G_ROWS;
+                const tmpCtx = tmpC.getContext('2d');
+                tmpCtx.imageSmoothingEnabled = true;
+                tmpCtx.drawImage(img, 0, 0, G_COLS, G_ROWS);
+                const px = tmpCtx.getImageData(0, 0, G_COLS, G_ROWS).data;
+
+                const snap = new Uint8Array(G_ROWS * G_COLS);
+                for (let i = 0; i < G_ROWS * G_COLS; i++) {
+                    const pi = i * 4;
+                    const lum = px[pi] * 0.299 + px[pi + 1] * 0.587 + px[pi + 2] * 0.114;
+                    snap[i] = Math.round((255 - lum) / 255 * 7);
+                }
+
+                // Generate BEFLIX code from the image (decompile)
+                const code = decompileFrame(snap);
+                document.getElementById('script-editor').value = code;
+                updateScriptInfo();
+                sourceCode = code;
+                frames = [snap];
+                currentFrame = 0;
+                render();
+                updateFrameDisplay();
+
+                URL.revokeObjectURL(url);
+                hideLoading();
+                toast('IMAGE → QUINE');
+            };
+            img.onerror = () => { hideLoading(); toast('IMAGE FAILED'); URL.revokeObjectURL(url); };
+            img.src = url;
+        }
+
+        async function ingestVideo(file) {
+            showLoading('RIPPING VIDEO...', file.name);
+            const url = URL.createObjectURL(file);
+            const vid = document.createElement('video');
+            vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
+
+            try {
+                await new Promise((res, rej) => {
+                    vid.onloadedmetadata = res;
+                    vid.onerror = () => rej(new Error('unreadable'));
+                    setTimeout(() => rej(new Error('timeout')), 8000);
+                });
+            } catch (e) {
+                hideLoading(); toast('VIDEO FAILED'); URL.revokeObjectURL(url); return;
+            }
+
+            const dur = vid.duration;
+            if (!isFinite(dur) || dur <= 0) { hideLoading(); toast('VIDEO UNREADABLE'); return; }
+
+            const maxF = Math.min(15 * fps, Math.ceil(dur * fps));
+            const interval = 1 / fps;
+            const capturedFrames = [];
+            let lastCap = -Infinity;
+
+            const tmpC = document.createElement('canvas');
+            tmpC.width = G_COLS; tmpC.height = G_ROWS;
+            const tmpCtx = tmpC.getContext('2d');
+            tmpCtx.imageSmoothingEnabled = true;
+
+            await new Promise(resolve => {
+                function onRAF() {
+                    if (capturedFrames.length >= maxF || vid.ended) { resolve(); return; }
+                    if (vid.videoWidth && vid.currentTime - lastCap >= interval - 0.001) {
+                        lastCap = vid.currentTime;
+                        tmpCtx.drawImage(vid, 0, 0, G_COLS, G_ROWS);
+                        const px = tmpCtx.getImageData(0, 0, G_COLS, G_ROWS).data;
+                        const snap = new Uint8Array(G_ROWS * G_COLS);
+                        for (let i = 0; i < G_ROWS * G_COLS; i++) {
+                            const pi = i * 4;
+                            const lum = px[pi] * 0.299 + px[pi + 1] * 0.587 + px[pi + 2] * 0.114;
+                            snap[i] = Math.round((255 - lum) / 255 * 7);
+                        }
+                        capturedFrames.push(snap);
+                        document.getElementById('loading-sub').textContent =
+                            capturedFrames.length + ' frames captured';
+                    }
+                    requestAnimationFrame(onRAF);
+                }
+                requestAnimationFrame(onRAF);
+                vid.play().catch(() => { });
+                setTimeout(resolve, (dur + 3) * 1000);
+            });
+
+            vid.pause();
+            URL.revokeObjectURL(url);
+
+            if (!capturedFrames.length) { hideLoading(); toast('NO FRAMES CAPTURED'); return; }
+
+            // Generate BEFLIX code for first frame as the quine source
+            const code = decompileFrame(capturedFrames[0]);
+            document.getElementById('script-editor').value = code;
+            updateScriptInfo();
+
+            sourceCode = code;
+            frames = capturedFrames;
+            currentFrame = 0;
+            render();
+            updateFrameDisplay();
+
+            hideLoading();
+            toast(capturedFrames.length + ' FRAMES → QUINE');
+        }
+
+        // ── DECOMPILE: frame → BEFLIX code ──
+        function decompileFrame(snap) {
+            let code = 'C ICARO-QUINE FRAME\n';
+
+            // Find background ink (most common)
+            const counts = new Uint32Array(8);
+            for (let i = 0; i < snap.length; i++) counts[snap[i]]++;
+            let bgInk = 0, maxCount = 0;
+            for (let i = 0; i < 8; i++) {
+                if (counts[i] > maxCount) { maxCount = counts[i]; bgInk = i; }
+            }
+
+            code += 'CLR ' + bgInk + '\n';
+
+            // RLE encode rows
+            for (let gy = 0; gy < G_ROWS; gy++) {
+                let gx = 0;
+                while (gx < G_COLS) {
+                    const ink = snap[gy * G_COLS + gx];
+                    if (ink !== bgInk) {
+                        const startX = gx;
+                        while (gx < G_COLS && snap[gy * G_COLS + gx] === ink) gx++;
+                        code += 'PNT ' + startX + ' ' + gy + ' ' + (gx - startX) + ' 1 ' + ink + '\n';
+                    } else {
+                        gx++;
+                    }
+                }
+            }
+
+            code += 'REC 1\n';
+            return code;
+        }
+
+        // ── EXPORT ──
+        function exportPNG() {
+            if (!frames.length) { toast('NO FRAMES'); return; }
+            // Render at 2x for quality
+            const exportScale = 2;
+            const ec = document.createElement('canvas');
+            const ew = cvs.width * exportScale;
+            const eh = cvs.height * exportScale;
+            ec.width = ew; ec.height = eh;
+            ec.getContext('2d').drawImage(cvs, 0, 0, ew, eh);
+            const link = document.createElement('a');
+            link.download = 'ICARO_QUINE_' + Date.now() + '.png';
+            link.href = ec.toDataURL('image/png');
+            link.click();
+            toast('PNG EXPORTED');
+        }
+
+        async function exportGIF() {
+            if (frames.length < 2) { toast('NEED MULTIPLE FRAMES'); return; }
+            showLoading('ENCODING GIF...', '');
+
+            // We'll render each frame to canvas and capture
+            const exportScale = 2;
+            const ew = cvs.width * exportScale;
+            const eh = cvs.height * exportScale;
+
+            // Build frames as data URLs, then assemble
+            const frameImages = [];
+            const savedMode = renderMode;
+            const savedFrame = currentFrame;
+
+            for (let i = 0; i < frames.length; i++) {
+                currentFrame = i;
+                render();
+                const ec = document.createElement('canvas');
+                ec.width = ew; ec.height = eh;
+                ec.getContext('2d').drawImage(cvs, 0, 0, ew, eh);
+                frameImages.push(ec);
+                document.getElementById('loading-sub').textContent =
+                    'Frame ' + (i + 1) + '/' + frames.length;
+                await new Promise(r => setTimeout(r, 0));
+            }
+
+            // Restore state
+            currentFrame = savedFrame;
+            render();
+
+            // Use simple animated GIF encoder (inline minimal encoder)
+            // For now, export as individual PNGs or a contact sheet
+            const cols = Math.min(5, frameImages.length);
+            const rows = Math.ceil(frameImages.length / cols);
+            const sheet = document.createElement('canvas');
+            sheet.width = cols * ew;
+            sheet.height = rows * eh;
+            const sctx = sheet.getContext('2d');
+            for (let i = 0; i < frameImages.length; i++) {
+                sctx.drawImage(frameImages[i], (i % cols) * ew, Math.floor(i / cols) * eh);
+            }
+
+            const link = document.createElement('a');
+            link.download = 'ICARO_QUINE_SHEET_' + frames.length + 'f.png';
+            link.href = sheet.toDataURL('image/png');
+            link.click();
+
+            hideLoading();
+            toast('CONTACT SHEET EXPORTED · ' + frames.length + ' FRAMES');
+        }
+
+        // ── DRAG & DROP ──
+        const dropTarget = document.getElementById('canvas-zone');
+        dropTarget.addEventListener('dragenter', e => {
+            e.preventDefault();
+            document.getElementById('drop-overlay').classList.add('active');
+        });
+        dropTarget.addEventListener('dragover', e => e.preventDefault());
+        dropTarget.addEventListener('dragleave', e => {
+            document.getElementById('drop-overlay').classList.remove('active');
+        });
+        dropTarget.addEventListener('drop', e => {
+            e.preventDefault();
+            document.getElementById('drop-overlay').classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            if (file.type.startsWith('image/')) {
+                ingestImage(file);
+            } else if (file.type.startsWith('video/')) {
+                ingestVideo(file);
+            } else if (file.name.endsWith('.txt') || file.name.endsWith('.bfx')) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const text = ev.target.result;
+                    document.getElementById('script-editor').value = text;
+                    updateScriptInfo();
+                    sourceCode = text;
+                    frames = executeBEFLIX(text);
+                    currentFrame = 0;
+                    render();
+                    updateFrameDisplay();
+                    toast('SCRIPT DROPPED · ' + frames.length + ' FRAMES');
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // ── UI HELPERS ──
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        function showLoading(msg, sub) {
+            document.getElementById('loading-msg').textContent = msg;
+            document.getElementById('loading-sub').textContent = sub || '';
+            document.getElementById('loading').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('active');
+        }
+
+        function clearScript() {
+            document.getElementById('script-editor').value = '';
+            sourceCode = '';
+            frames = [];
+            currentFrame = 0;
+            render();
+            updateFrameDisplay();
+            updateScriptInfo();
+            toast('CLEARED');
+        }
+
+        function updateScriptInfo() {
+            const v = document.getElementById('script-editor').value;
+            document.getElementById('line-count').textContent = v.split('\n').length + ' LINES';
+            document.getElementById('char-count').textContent = v.length + ' CHARS';
+        }
+
+        // Track editor changes
+        document.getElementById('script-editor').addEventListener('input', updateScriptInfo);
+
+        // ── BOOT ──
+        window.addEventListener('load', () => {
+            window.addEventListener('resize', () => { if (frames.length) render(); });
+
+            // Load the default LEGOS-GPT script
+            loadDefaultScript();
+        });
+
+        function loadDefaultScript() {
+            // Embedded abc-macro (9) — the LEGOS-GPT robot image
+            const defaultScript = `C FRAME 1
+CLR 1
+PNT 0 0 128 1 7
+PNT 0 1 128 1 7
+PNT 0 2 128 1 7
+PNT 0 3 128 1 7
+PNT 0 4 128 1 7
+PNT 115 5 1 1 0
+PNT 36 8 1 1 0
+PNT 121 8 1 1 0
+PNT 60 15 8 1 2
+PNT 60 16 1 1 6
+PNT 61 16 1 1 4
+PNT 62 16 1 1 5
+PNT 63 16 2 1 4
+PNT 65 16 1 1 5
+PNT 66 16 1 1 4
+PNT 67 16 1 1 6
+PNT 60 17 1 1 6
+PNT 61 17 1 1 5
+PNT 62 17 1 1 4
+PNT 63 17 2 1 5
+PNT 65 17 1 1 4
+PNT 66 17 1 1 5
+PNT 67 17 1 1 6
+PNT 60 18 1 1 6
+PNT 61 18 2 1 5
+PNT 63 18 2 1 4
+PNT 65 18 2 1 5
+PNT 67 18 1 1 6
+PNT 60 19 1 1 6
+PNT 61 19 6 1 4
+PNT 67 19 1 1 6
+PNT 38 20 24 1 6
+PNT 62 20 1 1 4
+PNT 63 20 2 1 5
+PNT 65 20 1 1 4
+PNT 66 20 1 1 5
+PNT 67 20 23 1 6
+PNT 38 21 1 1 3
+PNT 42 21 1 1 0
+PNT 51 21 1 1 3
+PNT 60 21 2 1 6
+PNT 62 21 1 1 4
+PNT 63 21 2 1 5
+PNT 65 21 1 1 4
+PNT 66 21 2 1 6
+PNT 76 21 1 1 2
+PNT 80 21 1 1 2
+PNT 85 21 1 1 0
+PNT 89 21 1 1 3
+PNT 38 22 1 1 3
+PNT 42 22 1 1 0
+PNT 51 22 1 1 3
+PNT 60 22 1 1 6
+PNT 61 22 6 1 5
+PNT 67 22 1 1 6
+PNT 76 22 1 1 2
+PNT 80 22 1 1 2
+PNT 85 22 1 1 0
+PNT 89 22 1 1 3
+PNT 38 23 1 1 3
+PNT 42 23 1 1 0
+PNT 51 23 1 1 3
+PNT 60 23 1 1 4
+PNT 67 23 1 1 3
+PNT 76 23 1 1 2
+PNT 80 23 1 1 2
+PNT 85 23 1 1 0
+PNT 89 23 1 1 3
+PNT 38 24 1 1 3
+PNT 42 24 1 1 0
+PNT 51 24 1 1 3
+PNT 60 24 1 1 4
+PNT 67 24 1 1 3
+PNT 76 24 1 1 2
+PNT 80 24 1 1 2
+PNT 85 24 1 1 0
+PNT 89 24 1 1 3
+PNT 102 24 1 1 0
+PNT 38 25 1 1 3
+PNT 40 25 1 1 0
+PNT 42 25 1 1 0
+PNT 43 25 3 1 5
+PNT 46 25 2 1 4
+PNT 48 25 1 1 5
+PNT 49 25 1 1 4
+PNT 50 25 6 1 5
+PNT 56 25 1 1 0
+PNT 60 25 1 1 4
+PNT 67 25 1 1 3
+PNT 71 25 1 1 3
+PNT 72 25 4 1 4
+PNT 76 25 1 1 5
+PNT 77 25 3 1 4
+PNT 80 25 1 1 6
+PNT 85 25 1 1 0
+PNT 88 25 1 1 0
+PNT 89 25 1 1 3
+PNT 38 26 1 1 3
+PNT 42 26 1 1 0
+PNT 43 26 5 1 4
+PNT 48 26 1 1 5
+PNT 49 26 1 1 4
+PNT 50 26 2 1 5
+PNT 52 26 4 1 4
+PNT 60 26 1 1 4
+PNT 67 26 1 1 3
+PNT 71 26 1 1 3
+PNT 72 26 4 1 4
+PNT 76 26 2 1 5
+PNT 78 26 1 1 4
+PNT 79 26 1 1 5
+PNT 80 26 1 1 6
+PNT 85 26 1 1 0
+PNT 89 26 1 1 3
+PNT 38 27 1 1 3
+PNT 42 27 1 1 0
+PNT 43 27 1 1 5
+PNT 44 27 6 1 4
+PNT 50 27 2 1 5
+PNT 52 27 4 1 4
+PNT 60 27 1 1 4
+PNT 67 27 1 1 3
+PNT 71 27 1 1 3
+PNT 72 27 4 1 4
+PNT 76 27 1 1 5
+PNT 77 27 3 1 4
+PNT 80 27 1 1 6
+PNT 85 27 1 1 0
+PNT 89 27 1 1 3
+PNT 38 28 1 1 3
+PNT 42 28 1 1 0
+PNT 43 28 1 1 5
+PNT 44 28 2 1 6
+PNT 46 28 2 1 4
+PNT 48 28 1 1 5
+PNT 49 28 1 1 6
+PNT 50 28 1 1 4
+PNT 51 28 1 1 5
+PNT 52 28 4 1 4
+PNT 60 28 1 1 4
+PNT 67 28 1 1 3
+PNT 71 28 1 1 3
+PNT 72 28 4 1 4
+PNT 76 28 1 1 5
+PNT 77 28 1 1 4
+PNT 78 28 1 1 6
+PNT 79 28 1 1 4
+PNT 80 28 1 1 6
+PNT 85 28 1 1 0
+PNT 89 28 1 1 3
+PNT 38 29 1 1 4
+PNT 39 29 4 1 3
+PNT 43 29 8 1 4
+PNT 51 29 10 1 5
+PNT 61 29 6 1 3
+PNT 67 29 10 1 5
+PNT 77 29 3 1 4
+PNT 80 29 1 1 6
+PNT 81 29 8 1 3
+PNT 89 29 1 1 4
+PNT 38 30 1 1 3
+PNT 42 30 1 1 0
+PNT 43 30 1 1 4
+PNT 44 30 2 1 5
+PNT 46 30 2 1 4
+PNT 48 30 1 1 6
+PNT 49 30 1 1 4
+PNT 50 30 2 1 5
+PNT 52 30 8 1 4
+PNT 60 30 1 1 6
+PNT 67 30 1 1 5
+PNT 68 30 8 1 4
+PNT 76 30 2 1 5
+PNT 78 30 1 1 4
+PNT 79 30 1 1 5
+PNT 80 30 1 1 6
+PNT 85 30 1 1 0
+PNT 89 30 1 1 3
+PNT 38 31 1 1 3
+PNT 42 31 1 1 0
+PNT 43 31 1 1 5
+PNT 44 31 6 1 4
+PNT 50 31 2 1 5
+PNT 52 31 8 1 4
+PNT 60 31 1 1 6
+PNT 67 31 1 1 5
+PNT 68 31 8 1 4
+PNT 76 31 1 1 5
+PNT 77 31 3 1 4
+PNT 80 31 1 1 6
+PNT 85 31 1 1 0
+PNT 89 31 1 1 3
+PNT 38 32 1 1 3
+PNT 42 32 1 1 0
+PNT 43 32 1 1 4
+PNT 44 32 2 1 5
+PNT 46 32 2 1 4
+PNT 48 32 1 1 6
+PNT 49 32 3 1 5
+PNT 52 32 8 1 4
+PNT 60 32 1 1 6
+PNT 67 32 1 1 5
+PNT 68 32 8 1 4
+PNT 76 32 1 1 5
+PNT 77 32 1 1 6
+PNT 78 32 1 1 4
+PNT 79 32 1 1 5
+PNT 80 32 1 1 6
+PNT 85 32 1 1 0
+PNT 89 32 1 1 3
+PNT 38 33 1 1 3
+PNT 42 33 1 1 0
+PNT 43 33 8 1 4
+PNT 51 33 1 1 5
+PNT 52 33 8 1 4
+PNT 60 33 1 1 6
+PNT 67 33 1 1 5
+PNT 68 33 8 1 4
+PNT 76 33 1 1 5
+PNT 77 33 3 1 4
+PNT 80 33 1 1 6
+PNT 85 33 1 1 0
+PNT 89 33 1 1 3
+PNT 38 34 1 1 3
+PNT 40 34 1 1 0
+PNT 42 34 1 1 0
+PNT 43 34 8 1 2
+PNT 51 34 1 1 4
+PNT 52 34 4 1 2
+PNT 56 34 4 1 4
+PNT 60 34 1 1 6
+PNT 61 34 3 1 0
+PNT 67 34 1 1 5
+PNT 68 34 4 1 4
+PNT 72 34 4 1 2
+PNT 76 34 1 1 3
+PNT 77 34 3 1 2
+PNT 80 34 1 1 3
+PNT 85 34 1 1 0
+PNT 89 34 1 1 3
+PNT 38 35 1 1 3
+PNT 42 35 1 1 0
+PNT 51 35 1 1 3
+PNT 56 35 4 1 4
+PNT 60 35 1 1 6
+PNT 67 35 1 1 5
+PNT 68 35 4 1 4
+PNT 76 35 1 1 2
+PNT 80 35 1 1 2
+PNT 85 35 1 1 0
+PNT 89 35 1 1 3
+PNT 38 36 1 1 3
+PNT 42 36 1 1 0
+PNT 51 36 1 1 3
+PNT 56 36 4 1 4
+PNT 60 36 1 1 6
+PNT 67 36 1 1 5
+PNT 68 36 4 1 4
+PNT 76 36 1 1 2
+PNT 80 36 1 1 2
+PNT 89 36 1 1 3
+PNT 38 37 1 1 3
+PNT 42 37 1 1 0
+PNT 51 37 1 1 3
+PNT 56 37 4 1 4
+PNT 60 37 1 1 6
+PNT 67 37 1 1 5
+PNT 68 37 4 1 4
+PNT 76 37 1 1 2
+PNT 80 37 1 1 2
+PNT 85 37 1 1 0
+PNT 89 37 1 1 3
+PNT 38 38 1 1 5
+PNT 39 38 8 1 3
+PNT 47 38 1 1 4
+PNT 48 38 3 1 3
+PNT 51 38 1 1 4
+PNT 52 38 4 1 3
+PNT 56 38 4 1 5
+PNT 60 38 1 1 6
+PNT 61 38 6 1 4
+PNT 67 38 1 1 6
+PNT 68 38 4 1 5
+PNT 72 38 4 1 3
+PNT 76 38 5 1 4
+PNT 81 38 8 1 3
+PNT 89 38 1 1 4
+PNT 38 39 1 1 3
+PNT 42 39 1 1 0
+PNT 47 39 1 1 5
+PNT 48 39 3 1 4
+PNT 51 39 1 1 5
+PNT 60 39 1 1 6
+PNT 61 39 6 1 2
+PNT 67 39 1 1 6
+PNT 71 39 1 1 0
+PNT 76 39 1 1 5
+PNT 77 39 3 1 4
+PNT 80 39 1 1 5
+PNT 85 39 1 1 0
+PNT 89 39 1 1 3
+PNT 38 40 1 1 3
+PNT 42 40 1 1 0
+PNT 47 40 1 1 5
+PNT 48 40 3 1 4
+PNT 51 40 1 1 5
+PNT 56 40 1 1 0
+PNT 60 40 1 1 6
+PNT 61 40 6 1 2
+PNT 67 40 1 1 6
+PNT 76 40 1 1 5
+PNT 77 40 3 1 4
+PNT 80 40 1 1 5
+PNT 85 40 1 1 0
+PNT 89 40 1 1 3
+PNT 34 41 7 1 6
+PNT 42 41 1 1 0
+PNT 47 41 1 1 5
+PNT 48 41 3 1 4
+PNT 51 41 1 1 5
+PNT 60 41 1 1 6
+PNT 61 41 1 1 2
+PNT 62 41 1 1 6
+PNT 63 41 1 1 2
+PNT 64 41 1 1 3
+PNT 65 41 1 1 5
+PNT 66 41 1 1 2
+PNT 67 41 1 1 6
+PNT 76 41 1 1 5
+PNT 77 41 3 1 4
+PNT 80 41 1 1 5
+PNT 85 41 1 1 0
+PNT 87 41 7 1 6
+PNT 34 42 1 1 6
+PNT 35 42 1 1 5
+PNT 36 42 1 1 4
+PNT 37 42 1 1 5
+PNT 38 42 1 1 6
+PNT 39 42 2 1 4
+PNT 42 42 1 1 0
+PNT 47 42 1 1 5
+PNT 48 42 3 1 4
+PNT 51 42 1 1 5
+PNT 60 42 1 1 6
+PNT 61 42 1 1 4
+PNT 62 42 4 1 2
+PNT 66 42 1 1 5
+PNT 67 42 1 1 6
+PNT 76 42 1 1 5
+PNT 77 42 3 1 4
+PNT 80 42 1 1 5
+PNT 87 42 2 1 4
+PNT 89 42 1 1 5
+PNT 90 42 2 1 4
+PNT 92 42 1 1 5
+PNT 93 42 1 1 6
+PNT 34 43 1 1 6
+PNT 35 43 1 1 5
+PNT 36 43 2 1 4
+PNT 38 43 1 1 5
+PNT 39 43 2 1 4
+PNT 42 43 1 1 0
+PNT 47 43 1 1 5
+PNT 48 43 3 1 4
+PNT 51 43 1 1 5
+PNT 52 43 4 1 4
+PNT 56 43 4 1 2
+PNT 60 43 1 1 5
+PNT 61 43 6 1 2
+PNT 67 43 1 1 5
+PNT 68 43 3 1 2
+PNT 71 43 5 1 4
+PNT 76 43 1 1 5
+PNT 77 43 3 1 4
+PNT 80 43 1 1 5
+PNT 85 43 1 1 0
+PNT 87 43 2 1 4
+PNT 89 43 1 1 5
+PNT 90 43 2 1 4
+PNT 92 43 1 1 5
+PNT 93 43 1 1 6
+PNT 34 44 1 1 6
+PNT 35 44 6 1 4
+PNT 42 44 1 1 0
+PNT 47 44 1 1 5
+PNT 48 44 3 1 4
+PNT 51 44 1 1 5
+PNT 52 44 4 1 4
+PNT 56 44 4 1 2
+PNT 60 44 1 1 5
+PNT 61 44 6 1 2
+PNT 67 44 1 1 5
+PNT 68 44 3 1 2
+PNT 71 44 5 1 4
+PNT 76 44 1 1 5
+PNT 77 44 3 1 4
+PNT 80 44 1 1 5
+PNT 87 44 6 1 4
+PNT 93 44 1 1 6
+PNT 34 45 1 1 6
+PNT 35 45 2 1 5
+PNT 37 45 1 1 4
+PNT 38 45 1 1 5
+PNT 39 45 2 1 4
+PNT 42 45 1 1 0
+PNT 47 45 1 1 5
+PNT 48 45 3 1 4
+PNT 51 45 1 1 5
+PNT 52 45 4 1 4
+PNT 56 45 4 1 2
+PNT 60 45 1 1 5
+PNT 61 45 6 1 2
+PNT 67 45 1 1 5
+PNT 68 45 3 1 2
+PNT 71 45 5 1 4
+PNT 76 45 1 1 5
+PNT 77 45 3 1 4
+PNT 80 45 1 1 5
+PNT 85 45 1 1 0
+PNT 87 45 2 1 4
+PNT 89 45 1 1 5
+PNT 90 45 2 1 4
+PNT 92 45 1 1 5
+PNT 93 45 1 1 6
+PNT 34 46 1 1 6
+PNT 35 46 1 1 5
+PNT 36 46 2 1 4
+PNT 38 46 1 1 5
+PNT 39 46 2 1 4
+PNT 41 46 7 1 5
+PNT 48 46 3 1 4
+PNT 51 46 1 1 5
+PNT 52 46 4 1 4
+PNT 56 46 4 1 2
+PNT 60 46 1 1 5
+PNT 61 46 1 1 3
+PNT 62 46 4 1 2
+PNT 66 46 1 1 3
+PNT 67 46 1 1 5
+PNT 68 46 3 1 2
+PNT 71 46 5 1 4
+PNT 76 46 1 1 5
+PNT 77 46 3 1 4
+PNT 80 46 7 1 5
+PNT 87 46 2 1 4
+PNT 89 46 1 1 5
+PNT 90 46 2 1 4
+PNT 92 46 1 1 5
+PNT 93 46 1 1 6
+PNT 34 47 1 1 6
+PNT 35 47 6 1 4
+PNT 42 47 1 1 0
+PNT 47 47 13 1 6
+PNT 60 47 1 1 5
+PNT 61 47 1 1 2
+PNT 62 47 1 1 5
+PNT 63 47 2 1 2
+PNT 65 47 1 1 5
+PNT 66 47 1 1 2
+PNT 67 47 14 1 6
+PNT 87 47 6 1 4
+PNT 93 47 1 1 6
+PNT 38 48 1 1 3
+PNT 42 48 1 1 0
+PNT 51 48 1 1 2
+PNT 56 48 1 1 0
+PNT 60 48 1 1 6
+PNT 61 48 6 1 2
+PNT 67 48 1 1 6
+PNT 76 48 1 1 2
+PNT 80 48 1 1 2
+PNT 89 48 1 1 3
+PNT 1 49 1 1 0
+PNT 38 49 1 1 3
+PNT 42 49 1 1 0
+PNT 51 49 1 1 2
+PNT 60 49 1 1 6
+PNT 61 49 6 1 2
+PNT 67 49 1 1 6
+PNT 76 49 1 1 2
+PNT 80 49 1 1 2
+PNT 85 49 1 1 0
+PNT 89 49 1 1 3
+PNT 38 50 1 1 3
+PNT 51 50 1 1 2
+PNT 56 50 1 1 0
+PNT 60 50 1 1 6
+PNT 61 50 6 1 2
+PNT 67 50 1 1 6
+PNT 76 50 1 1 2
+PNT 80 50 1 1 2
+PNT 89 50 1 1 3
+PNT 38 51 1 1 3
+PNT 42 51 1 1 0
+PNT 47 51 1 1 5
+PNT 48 51 12 1 4
+PNT 60 51 1 1 6
+PNT 67 51 1 1 5
+PNT 68 51 12 1 2
+PNT 80 51 1 1 5
+PNT 85 51 1 1 0
+PNT 89 51 1 1 3
+PNT 38 52 1 1 3
+PNT 42 52 1 1 0
+PNT 47 52 2 1 5
+PNT 49 52 1 1 4
+PNT 50 52 1 1 5
+PNT 51 52 9 1 4
+PNT 60 52 1 1 6
+PNT 67 52 1 1 5
+PNT 68 52 9 1 2
+PNT 77 52 1 1 5
+PNT 78 52 1 1 2
+PNT 79 52 1 1 4
+PNT 80 52 1 1 5
+PNT 85 52 1 1 0
+PNT 89 52 1 1 3
+PNT 38 53 1 1 3
+PNT 42 53 1 1 0
+PNT 47 53 2 1 5
+PNT 49 53 3 1 4
+PNT 52 53 1 1 5
+PNT 53 53 7 1 4
+PNT 60 53 1 1 6
+PNT 67 53 1 1 5
+PNT 68 53 7 1 2
+PNT 75 53 1 1 3
+PNT 76 53 3 1 2
+PNT 79 53 1 1 3
+PNT 80 53 1 1 5
+PNT 89 53 1 1 3
+PNT 38 54 1 1 3
+PNT 42 54 1 1 0
+PNT 47 54 1 1 5
+PNT 48 54 1 1 4
+PNT 49 54 1 1 6
+PNT 50 54 3 1 4
+PNT 53 54 1 1 6
+PNT 54 54 1 1 5
+PNT 55 54 5 1 4
+PNT 60 54 1 1 6
+PNT 67 54 1 1 5
+PNT 68 54 5 1 2
+PNT 73 54 1 1 5
+PNT 74 54 1 1 6
+PNT 75 54 3 1 2
+PNT 78 54 1 1 6
+PNT 79 54 1 1 2
+PNT 80 54 1 1 5
+PNT 85 54 1 1 0
+PNT 89 54 1 1 3
+PNT 38 55 4 1 6
+PNT 42 55 6 1 5
+PNT 48 55 8 1 4
+PNT 56 55 4 1 6
+PNT 60 55 7 1 5
+PNT 67 55 5 1 6
+PNT 72 55 8 1 2
+PNT 80 55 1 1 5
+PNT 81 55 2 1 6
+PNT 83 55 3 1 5
+PNT 86 55 1 1 6
+PNT 87 55 1 1 5
+PNT 88 55 2 1 6
+PNT 38 56 1 1 3
+PNT 42 56 1 1 0
+PNT 47 56 1 1 5
+PNT 48 56 2 1 4
+PNT 50 56 1 1 5
+PNT 51 56 3 1 4
+PNT 54 56 1 1 5
+PNT 55 56 1 1 4
+PNT 56 56 1 1 2
+PNT 60 56 1 1 4
+PNT 67 56 1 1 5
+PNT 68 56 5 1 2
+PNT 73 56 1 1 4
+PNT 74 56 3 1 2
+PNT 77 56 1 1 4
+PNT 78 56 2 1 2
+PNT 80 56 1 1 5
+PNT 85 56 1 1 0
+PNT 89 56 1 1 3
+PNT 38 57 1 1 3
+PNT 42 57 1 1 0
+PNT 47 57 2 1 5
+PNT 49 57 3 1 4
+PNT 52 57 1 1 5
+PNT 53 57 3 1 4
+PNT 56 57 1 1 2
+PNT 60 57 1 1 4
+PNT 67 57 1 1 5
+PNT 68 57 7 1 2
+PNT 75 57 1 1 3
+PNT 76 57 3 1 2
+PNT 79 57 1 1 3
+PNT 80 57 1 1 5
+PNT 85 57 1 1 0
+PNT 89 57 1 1 3
+PNT 38 58 1 1 3
+PNT 42 58 1 1 0
+PNT 47 58 1 1 5
+PNT 48 58 1 1 4
+PNT 49 58 2 1 5
+PNT 51 58 2 1 4
+PNT 53 58 1 1 5
+PNT 54 58 1 1 6
+PNT 55 58 1 1 4
+PNT 56 58 1 1 2
+PNT 60 58 1 1 4
+PNT 67 58 1 1 5
+PNT 68 58 5 1 2
+PNT 73 58 1 1 5
+PNT 74 58 1 1 4
+PNT 75 58 2 1 2
+PNT 77 58 1 1 5
+PNT 78 58 2 1 3
+PNT 80 58 1 1 5
+PNT 85 58 1 1 0
+PNT 89 58 1 1 3
+PNT 38 59 1 1 3
+PNT 42 59 1 1 0
+PNT 47 59 1 1 5
+PNT 48 59 8 1 4
+PNT 56 59 1 1 2
+PNT 60 59 1 1 4
+PNT 67 59 1 1 5
+PNT 68 59 12 1 2
+PNT 80 59 1 1 5
+PNT 85 59 1 1 0
+PNT 89 59 1 1 3
+PNT 38 60 1 1 3
+PNT 42 60 1 1 0
+PNT 47 60 1 1 5
+PNT 48 60 8 1 4
+PNT 56 60 1 1 2
+PNT 60 60 1 1 4
+PNT 67 60 1 1 3
+PNT 68 60 3 1 0
+PNT 71 60 1 1 3
+PNT 72 60 4 1 2
+PNT 76 60 1 1 3
+PNT 77 60 3 1 2
+PNT 80 60 1 1 5
+PNT 89 60 1 1 3
+PNT 38 61 1 1 3
+PNT 42 61 1 1 0
+PNT 47 61 1 1 5
+PNT 48 61 8 1 4
+PNT 56 61 1 1 2
+PNT 60 61 1 1 4
+PNT 67 61 1 1 3
+PNT 71 61 1 1 3
+PNT 72 61 4 1 2
+PNT 76 61 1 1 3
+PNT 77 61 3 1 2
+PNT 80 61 1 1 5
+PNT 85 61 1 1 0
+PNT 89 61 1 1 3
+PNT 38 62 1 1 3
+PNT 42 62 1 1 0
+PNT 47 62 1 1 5
+PNT 48 62 8 1 4
+PNT 56 62 1 1 2
+PNT 60 62 1 1 4
+PNT 67 62 1 1 3
+PNT 71 62 1 1 3
+PNT 72 62 4 1 2
+PNT 76 62 1 1 3
+PNT 77 62 3 1 2
+PNT 80 62 1 1 5
+PNT 85 62 1 1 0
+PNT 89 62 1 1 3
+PNT 38 63 1 1 3
+PNT 42 63 1 1 0
+PNT 47 63 1 1 5
+PNT 48 63 3 1 4
+PNT 51 63 1 1 5
+PNT 52 63 4 1 4
+PNT 56 63 1 1 2
+PNT 60 63 1 1 4
+PNT 67 63 1 1 3
+PNT 71 63 1 1 3
+PNT 72 63 4 1 2
+PNT 76 63 1 1 3
+PNT 77 63 3 1 2
+PNT 80 63 1 1 5
+PNT 85 63 1 1 0
+PNT 89 63 1 1 3
+PNT 38 64 1 1 5
+PNT 39 64 8 1 4
+PNT 47 64 9 1 6
+PNT 56 64 4 1 4
+PNT 60 64 1 1 5
+PNT 61 64 6 1 4
+PNT 67 64 1 1 5
+PNT 68 64 4 1 3
+PNT 72 64 9 1 6
+PNT 81 64 8 1 4
+PNT 89 64 1 1 5
+PNT 38 65 1 1 3
+PNT 42 65 1 1 0
+PNT 51 65 1 1 3
+PNT 56 65 1 1 0
+PNT 60 65 1 1 4
+PNT 67 65 1 1 3
+PNT 76 65 1 1 2
+PNT 80 65 1 1 2
+PNT 85 65 1 1 0
+PNT 89 65 1 1 3
+PNT 38 66 1 1 3
+PNT 42 66 1 1 0
+PNT 51 66 1 1 3
+PNT 60 66 8 1 6
+PNT 76 66 1 1 2
+PNT 80 66 1 1 2
+PNT 85 66 1 1 0
+PNT 89 66 1 1 3
+PNT 38 67 1 1 3
+PNT 42 67 1 1 0
+PNT 51 67 1 1 3
+PNT 60 67 1 1 6
+PNT 61 67 1 1 5
+PNT 62 67 4 1 4
+PNT 66 67 1 1 5
+PNT 67 67 1 1 6
+PNT 76 67 1 1 2
+PNT 80 67 1 1 2
+PNT 85 67 1 1 0
+PNT 89 67 1 1 3
+PNT 38 68 1 1 3
+PNT 51 68 1 1 3
+PNT 60 68 1 1 6
+PNT 61 68 1 1 5
+PNT 62 68 1 1 4
+PNT 63 68 2 1 5
+PNT 65 68 1 1 4
+PNT 66 68 1 1 5
+PNT 67 68 1 1 6
+PNT 76 68 1 1 2
+PNT 80 68 1 1 2
+PNT 89 68 1 1 3
+PNT 38 69 22 1 0
+PNT 60 69 1 1 6
+PNT 61 69 1 1 4
+PNT 62 69 1 1 5
+PNT 63 69 2 1 4
+PNT 65 69 1 1 5
+PNT 66 69 1 1 4
+PNT 67 69 1 1 6
+PNT 68 69 22 1 0
+PNT 60 70 1 1 6
+PNT 61 70 1 1 4
+PNT 62 70 1 1 5
+PNT 63 70 2 1 4
+PNT 65 70 1 1 5
+PNT 66 70 1 1 4
+PNT 67 70 1 1 6
+PNT 60 71 1 1 6
+PNT 61 71 1 1 5
+PNT 62 71 1 1 4
+PNT 63 71 1 1 6
+PNT 64 71 3 1 5
+PNT 67 71 1 1 6
+PNT 60 72 1 1 6
+PNT 61 72 1 1 4
+PNT 62 72 1 1 6
+PNT 63 72 2 1 4
+PNT 65 72 1 1 6
+PNT 66 72 1 1 4
+PNT 67 72 1 1 6
+PNT 60 73 1 1 5
+PNT 61 73 6 1 4
+PNT 67 73 1 1 5
+PNT 40 76 1 1 6
+PNT 41 76 1 1 5
+PNT 45 76 4 1 6
+PNT 51 76 4 1 6
+PNT 58 76 3 1 6
+PNT 61 76 1 1 2
+PNT 64 76 3 1 6
+PNT 72 76 1 1 2
+PNT 73 76 3 1 6
+PNT 78 76 4 1 6
+PNT 83 76 5 1 6
+PNT 40 77 1 1 6
+PNT 41 77 1 1 5
+PNT 45 77 1 1 6
+PNT 46 77 1 1 3
+PNT 50 77 1 1 4
+PNT 51 77 1 1 6
+PNT 54 77 1 1 6
+PNT 55 77 1 1 5
+PNT 57 77 1 1 6
+PNT 61 77 1 1 6
+PNT 63 77 1 1 6
+PNT 64 77 1 1 5
+PNT 66 77 1 1 4
+PNT 67 77 1 1 6
+PNT 72 77 1 1 6
+PNT 75 77 1 1 2
+PNT 76 77 1 1 6
+PNT 78 77 1 1 6
+PNT 79 77 1 1 2
+PNT 81 77 1 1 6
+PNT 82 77 1 1 4
+PNT 85 77 1 1 6
+PNT 40 78 1 1 6
+PNT 41 78 1 1 5
+PNT 45 78 1 1 6
+PNT 46 78 3 1 5
+PNT 50 78 1 1 6
+PNT 51 78 1 1 3
+PNT 57 78 1 1 6
+PNT 61 78 1 1 6
+PNT 62 78 1 1 3
+PNT 63 78 1 1 2
+PNT 64 78 2 1 6
+PNT 66 78 1 1 3
+PNT 71 78 1 1 2
+PNT 72 78 1 1 6
+PNT 75 78 1 1 0
+PNT 78 78 1 1 6
+PNT 79 78 1 1 2
+PNT 81 78 1 1 6
+PNT 82 78 1 1 4
+PNT 85 78 1 1 6
+PNT 86 78 1 1 0
+PNT 40 79 1 1 6
+PNT 41 79 1 1 5
+PNT 45 79 1 1 6
+PNT 46 79 1 1 4
+PNT 47 79 2 1 2
+PNT 50 79 1 1 6
+PNT 51 79 1 1 3
+PNT 53 79 3 1 6
+PNT 56 79 1 1 0
+PNT 57 79 1 1 6
+PNT 61 79 1 1 6
+PNT 62 79 1 1 3
+PNT 65 79 1 1 3
+PNT 66 79 2 1 6
+PNT 69 79 1 1 6
+PNT 70 79 1 1 5
+PNT 71 79 1 1 2
+PNT 72 79 1 1 6
+PNT 74 79 1 1 3
+PNT 75 79 2 1 6
+PNT 78 79 3 1 6
+PNT 81 79 1 1 5
+PNT 85 79 1 1 6
+PNT 40 80 1 1 6
+PNT 41 80 1 1 5
+PNT 45 80 1 1 6
+PNT 46 80 1 1 3
+PNT 50 80 1 1 4
+PNT 51 80 1 1 6
+PNT 54 80 1 1 5
+PNT 55 80 1 1 6
+PNT 57 80 1 1 6
+PNT 61 80 1 1 6
+PNT 63 80 1 1 6
+PNT 64 80 1 1 4
+PNT 67 80 1 1 6
+PNT 72 80 1 1 6
+PNT 76 80 1 1 6
+PNT 78 80 1 1 6
+PNT 79 80 1 1 2
+PNT 85 80 1 1 6
+PNT 86 80 1 1 0
+PNT 40 81 4 1 6
+PNT 44 81 1 1 0
+PNT 45 81 4 1 6
+PNT 51 81 3 1 6
+PNT 54 81 1 1 4
+PNT 55 81 1 1 6
+PNT 58 81 3 1 6
+PNT 61 81 1 1 3
+PNT 64 81 3 1 6
+PNT 72 81 1 1 2
+PNT 73 81 4 1 6
+PNT 78 81 1 1 6
+PNT 79 81 1 1 2
+PNT 85 81 1 1 6
+PNT 114 82 1 1 0
+PNT 98 83 1 1 0
+PNT 0 91 128 1 7
+PNT 0 92 128 1 7
+PNT 0 93 128 1 7
+PNT 0 94 128 1 7
+PNT 0 95 128 1 7
+REC 1`;
+
+            document.getElementById('script-editor').value = defaultScript;
+            updateScriptInfo();
+            sourceCode = defaultScript;
+            frames = executeBEFLIX(defaultScript);
+            currentFrame = 0;
+            render();
+            updateFrameDisplay();
+        }
+    </script>
+</body>
+
+</html>

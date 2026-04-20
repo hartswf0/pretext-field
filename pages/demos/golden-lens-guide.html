@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golden Lens · Worldtext Authoring Guide</title>
+    <meta name="description" content="How to structure text, build scene graphs, and author hyperportal investigations for the Golden Lens Pretext engine.">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+
+        :root {
+            --bg: #0b0a08;
+            --surface: #121110;
+            --border: #2a2520;
+            --text: #e8e0d0;
+            --dim: #666;
+            --gold: #daa520;
+            --blue: #4682b4;
+            --brown: #cd853f;
+            --purple: #6a3d9a;
+            --teal: #2f6f6f;
+            --green: #0fa;
+            --orange: #ff8c00;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ── HEADER ── */
+        header {
+            border-bottom: 1px solid var(--border);
+            padding: 40px 32px 32px;
+            background: linear-gradient(180deg, #121110 0%, var(--bg) 100%);
+        }
+        header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gold);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        header p {
+            color: var(--dim);
+            font-size: 12px;
+            max-width: 700px;
+            line-height: 1.6;
+        }
+        header a {
+            color: var(--green);
+            text-decoration: none;
+        }
+        header a:hover { text-decoration: underline; }
+
+        /* ── MAIN ── */
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 40px 32px 100px;
+        }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--orange);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin: 48px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gold);
+            margin: 24px 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        p { margin-bottom: 12px; }
+
+        code {
+            background: rgba(255,255,255,0.05);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: var(--green);
+        }
+
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 16px 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 11px;
+            line-height: 1.6;
+            margin: 12px 0 20px;
+            color: #ccc;
+        }
+
+        .zone-tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin: 2px 4px;
+        }
+        .zone-shack { background: rgba(218,165,32,0.15); color: var(--gold); border: 1px solid rgba(218,165,32,0.3); }
+        .zone-creek { background: rgba(70,130,180,0.15); color: var(--blue); border: 1px solid rgba(70,130,180,0.3); }
+        .zone-ridge { background: rgba(205,133,63,0.15); color: var(--brown); border: 1px solid rgba(205,133,63,0.3); }
+        .zone-cave  { background: rgba(106,61,154,0.15); color: var(--purple); border: 1px solid rgba(106,61,154,0.3); }
+        .zone-puddle{ background: rgba(47,111,111,0.15); color: var(--teal); border: 1px solid rgba(47,111,111,0.3); }
+
+        .principle {
+            border-left: 3px solid var(--gold);
+            padding: 12px 20px;
+            margin: 16px 0;
+            background: rgba(218,165,32,0.04);
+        }
+        .principle strong { color: var(--gold); }
+
+        .step {
+            display: flex;
+            gap: 16px;
+            margin: 16px 0;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        .step-num {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--orange);
+            min-width: 36px;
+            line-height: 1;
+            padding-top: 2px;
+        }
+        .step-body { flex: 1; }
+        .step-body strong { color: var(--text); }
+
+        /* ── LIVE TOOL ── */
+        #tool-section {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid var(--border);
+        }
+
+        .tool-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        @media (max-width: 700px) {
+            .tool-row { grid-template-columns: 1fr; }
+        }
+
+        .tool-col {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--dim);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        textarea, input[type="text"], select {
+            width: 100%;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: var(--gold);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 6px 16px;
+            background: transparent;
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: var(--gold); color: #000; }
+        .btn-green { border-color: var(--green); color: var(--green); }
+        .btn-green:hover { background: var(--green); color: #000; }
+
+        #output-preview {
+            margin-top: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            min-height: 100px;
+            font-size: 11px;
+            white-space: pre-wrap;
+            color: #bbb;
+        }
+
+        .graph-viz {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin: 16px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--dim);
+            font-size: 10px;
+            border-top: 1px solid var(--border);
+        }
+        footer a { color: var(--green); text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>⬡ Golden Lens · Worldtext Guide</h1>
+    <p>
+        How to structure any text into a navigable investigation world.
+        The Golden Lens turns prose into a spatialized hypertext environment where
+        words are portals, zones are territories, and reading is exploration.
+        <a href="golden-lens">→ Launch the Engine</a>
+    </p>
+</header>
+
+<main>
+
+<!-- ══════════════════════════════ CONCEPT ══════════════════════════════ -->
+<h2>What Is Worldtext?</h2>
+
+<p>
+    Worldtext is text that <strong>occupies space</strong>. Instead of scrolling down a page,
+    you walk through rooms whose walls are made of language. Every word exists at a
+    coordinate. Some words glow — they are <strong>hyperportals</strong> that transport
+    you to another part of the text.
+</p>
+
+<div class="principle">
+    <strong>The Core Principle:</strong> A word on a wall in Zone A that belongs to Zone B
+    is a portal. Click it and you travel there. Words that belong to the zone you're already in
+    appear dim — they're context, not exits.
+</div>
+
+<p>The system has three layers:</p>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+        <strong>Lore</strong> — the raw text written on the walls. Long-form prose, poetry,
+        field notes, transcripts. Each zone has its own corpus. Pretext wraps it perfectly
+        at any wall width.
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+        <strong>Scene Graph</strong> — the network of hyperportals. Each node has a word,
+        a home zone, connections to other words, and an investigative clue. The graph
+        determines what glows and where clicking takes you.
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+        <strong>The Map</strong> — the spatial layout. Five zones arranged as rooms in a
+        raycaster level. The minimap shows the investigation web: zone clusters, cross-zone
+        connection lines, your position, and the active pursuit pulse.
+    </div>
+</div>
+
+<!-- ══════════════════════════════ ZONES ══════════════════════════════ -->
+<h2>The Five Zones</h2>
+
+<p>Every piece of text lives in one of five zones. Zones are both physical locations and semantic territories:</p>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0;">
+    <span class="zone-tag zone-shack">SHACK · folk technology · oral knowledge</span>
+    <span class="zone-tag zone-creek">CREEK · optics · natural philosophy</span>
+    <span class="zone-tag zone-ridge">RIDGE · signals · communication</span>
+    <span class="zone-tag zone-cave">CAVE · darkness · epistemology</span>
+    <span class="zone-tag zone-puddle">PUDDLE · petroleum · interference</span>
+</div>
+
+<p>
+    You can rename these zones, add new ones, or remap them entirely.
+    The default five are designed around the demo mystery (the case of Edgar, the missing hound),
+    but the structure works for any text corpus.
+</p>
+
+<!-- ══════════════════════════════ STRUCTURING ══════════════════════════════ -->
+<h2>How to Structure Your Text</h2>
+
+<h3>Step 1: Divide Into Zones</h3>
+<p>
+    Split your source text into 3–7 thematic territories. Each zone should have its own
+    voice, vocabulary, and concern. Ask: <em>if this text were a landscape, what are the distinct regions?</em>
+</p>
+
+<pre>
+Zone "library"   → academic sources, citations, formal language
+Zone "field"     → field notes, observations, sensory detail
+Zone "workshop"  → technical procedures, measurements, tools
+Zone "archive"   → historical documents, dates, provenance
+Zone "theory"    → abstractions, models, hypotheses
+</pre>
+
+<h3>Step 2: Write Dense, Specific Prose</h3>
+<p>
+    Wall text should be <strong>substantive</strong>. Avoid filler. Every sentence should contain
+    at least one proper noun, measurement, material, or specific detail. The text needs to be
+    worth reading up close — it constitutes the physical matter of the world.
+</p>
+
+<div class="principle">
+    <strong>Bad:</strong> "The cave was very dark and scary."<br>
+    <strong>Good:</strong> "The dark in the cave is not like nighttime dark. It has texture. It has weight. It presses. 14-inch span, absolute dark beyond the beam edge."
+</div>
+
+<h3>Step 3: Plant Cross-Zone Vocabulary</h3>
+<p>
+    The hyperportal system works by finding words in one zone's text that belong to another zone.
+    So deliberately use vocabulary from other zones in your prose. If Zone A mentions a concept
+    from Zone C, that word becomes a clickable portal.
+</p>
+
+<pre>
+In the SHACK zone text, mention "cave", "prism", "heliograph"
+In the CAVE zone text, mention "antenna", "flashlight", "beam"
+In the CREEK zone text, mention "hubcap", "collar", "oil"
+</pre>
+
+<p>
+    The more cross-references you plant, the denser the portal network becomes.
+    But don't force it — the connections should follow the logic of the narrative.
+</p>
+
+<h3>Step 4: Build the Scene Graph</h3>
+<p>
+    For each important keyword, create a clue node that defines its home zone,
+    its connections to other keywords, and a one-line investigative clue.
+</p>
+
+<!-- ══════════════════════════════ FORMAT ══════════════════════════════ -->
+<h2>Scene Graph JSON Format</h2>
+
+<p>The scene graph is a JSON array of clue nodes:</p>
+
+<pre>
+[
+  {
+    "word": "lantern",          <span style="color:#666">// the keyword that glows on walls</span>
+    "zone": "cave",             <span style="color:#666">// home zone (shack|creek|ridge|cave|puddle)</span>
+    "connections": [            <span style="color:#666">// which other words this links to</span>
+      "flashlight",
+      "Stephen Bishop",
+      "guide"
+    ],
+    "clue": "Tallow candle, a length of rope, a ball of twine. Stephen Bishop's equipment."
+  },
+  {
+    "word": "hubcap",
+    "zone": "ridge",
+    "connections": ["mirror", "beam", "heliograph"],
+    "clue": "Chrome hubcap. Focal length 42cm. Who was he signaling?"
+  }
+]
+</pre>
+
+<h3>Rules</h3>
+<p>
+    <code>word</code> — must appear in the lore text of at least one zone (ideally NOT its home zone) to function as a portal.<br>
+    <code>zone</code> — one of the five zone keys. The word will appear dim on its home zone's walls, bright on others.<br>
+    <code>connections</code> — other <code>word</code> values in the graph. Bidirectional by convention.<br>
+    <code>clue</code> — investigative description. Shown in the scanner output when clicked.
+</p>
+
+<!-- ══════════════════════════════ EXAMPLES ══════════════════════════════ -->
+<h2>Example: Adapting a Research Paper</h2>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+        <strong>Split sections into zones.</strong> Introduction → "threshold". Literature review → "archive".
+        Methods → "workshop". Results → "field". Discussion → "theory".
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+        <strong>Upload lore.</strong> Paste each section's text into Sheet A with the zone selector.
+        Click <code>INJECT INTO WALLS</code>. The text appears on that zone's walls immediately.
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+        <strong>Build the graph.</strong> Identify 20–50 key terms. For each, decide its home zone
+        and which other terms it connects to. Paste the JSON into Sheet A's scene graph section.
+        Click <code>MERGE INTO SCENE GRAPH</code>.
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+        <strong>Walk the world.</strong> Enter LiDAR mode. The minimap shows the investigation web.
+        Click glowing portals to navigate between sections. The clue journal (Sheet B) tracks your path.
+    </div>
+</div>
+
+<!-- ══════════════════════════════ TOOL ══════════════════════════════ -->
+<div id="tool-section">
+<h2>⬡ Scene Graph Builder</h2>
+<p>Build your clue nodes here, preview the graph, and copy the JSON to paste into the engine.</p>
+
+<div class="tool-row">
+    <div class="tool-col">
+        <label>Word (keyword)</label>
+        <input type="text" id="node-word" placeholder="e.g. lantern">
+        <label style="margin-top:12px;">Home Zone</label>
+        <select id="node-zone">
+            <option value="shack">SHACK (gold)</option>
+            <option value="creek">CREEK (blue)</option>
+            <option value="ridge">RIDGE (brown)</option>
+            <option value="cave">CAVE (purple)</option>
+            <option value="puddle">PUDDLE (teal)</option>
+        </select>
+        <label style="margin-top:12px;">Connections (comma-separated)</label>
+        <input type="text" id="node-connections" placeholder="e.g. flashlight, cave, beam">
+        <label style="margin-top:12px;">Clue (one-line description)</label>
+        <input type="text" id="node-clue" placeholder="e.g. Tallow candle. Stephen Bishop's kit.">
+        <div style="margin-top:16px; display:flex; gap:8px;">
+            <button class="btn" id="btn-add-node">+ ADD NODE</button>
+            <button class="btn btn-green" id="btn-copy-json">COPY JSON</button>
+        </div>
+    </div>
+    <div class="tool-col">
+        <label>Current Graph (<span id="node-count">0</span> nodes)</label>
+        <canvas class="graph-viz" id="graph-canvas"></canvas>
+        <div id="node-list" style="max-height: 200px; overflow-y: auto; font-size: 10px; color: #888;"></div>
+    </div>
+</div>
+
+<label>Generated JSON</label>
+<div id="output-preview">[ ]</div>
+</div>
+
+<!-- ══════════════════════════════ TIPS ══════════════════════════════ -->
+<h2>Advanced Tips</h2>
+
+<h3>LLM-Generated Lore</h3>
+<p>
+    Pass <code>?llm_url=http://localhost:11434/api/generate&amp;llm_model=llama3</code> in the URL
+    to connect an Ollama instance. Press <code>G</code> in LiDAR to generate new zone-specific text live.
+    Archive-type keywords (Newton, Foxfire, Spindletop) also trigger generation when clicked.
+</p>
+
+<h3>The Minimap Investigation Web</h3>
+<p>
+    The minimap in LiDAR mode now shows the full investigation web:
+    zone clusters as colored dots, cross-zone connections as thread lines,
+    your active pursuit pulsing, and a white progress ring showing how many
+    clues you've collected per zone. Use it to plan your route through the text.
+</p>
+
+<h3>Portal Spatialization</h3>
+<p>
+    Words only glow as portals on walls where they DON'T belong. "Newton" (creek zone)
+    glows bright on the Shack wall but appears dim on the Creek wall. This makes each
+    wall a departure pad — the bright words are your exits, the dim words are your context.
+</p>
+
+</main>
+
+<footer>
+    <a href="golden-lens">→ Launch Golden Lens</a> ·
+    <a href="../../pages/demos/index.html">Pretext Demos</a> ·
+    Engine: <a href="https://github.com/nicolo-ribaudo/pretext">Pretext</a>
+</footer>
+
+<script>
+// ── SCENE GRAPH BUILDER TOOL ──
+const nodes = []
+const zoneColors = {
+    shack: '#daa520', creek: '#4682b4', ridge: '#cd853f', cave: '#6a3d9a', puddle: '#2f6f6f'
+}
+
+function refreshUI() {
+    document.getElementById('node-count').textContent = nodes.length
+    document.getElementById('output-preview').textContent = JSON.stringify(nodes, null, 2)
+
+    // Node list
+    const list = document.getElementById('node-list')
+    list.innerHTML = nodes.map((n, i) =>
+        `<div style="padding:3px 0; border-bottom:1px solid #1a1a1a; display:flex; justify-content:space-between;">
+            <span style="color:${zoneColors[n.zone]}">${n.word}</span>
+            <span style="color:#444">${n.zone} · ${n.connections.length} conn</span>
+        </div>`
+    ).join('')
+
+    // Graph visualization
+    drawGraph()
+}
+
+function drawGraph() {
+    const canvas = document.getElementById('graph-canvas')
+    const ctx = canvas.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * dpr
+    canvas.height = rect.height * dpr
+    ctx.scale(dpr, dpr)
+    const w = rect.width, h = rect.height
+
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, w, h)
+
+    if (nodes.length === 0) {
+        ctx.fillStyle = '#333'
+        ctx.font = '11px JetBrains Mono, monospace'
+        ctx.textAlign = 'center'
+        ctx.fillText('Add nodes to see the graph', w/2, h/2)
+        return
+    }
+
+    // Position zones
+    const zonePos = {
+        shack:  { x: w * 0.25, y: h * 0.3 },
+        creek:  { x: w * 0.5,  y: h * 0.15 },
+        ridge:  { x: w * 0.15, y: h * 0.7 },
+        cave:   { x: w * 0.75, y: h * 0.75 },
+        puddle: { x: w * 0.85, y: h * 0.35 },
+    }
+
+    // Assign positions to nodes with jitter
+    const nodePos = {}
+    nodes.forEach((n, i) => {
+        const zp = zonePos[n.zone] || { x: w/2, y: h/2 }
+        const angle = (i / nodes.length) * Math.PI * 2
+        const r = 15 + (i % 3) * 8
+        nodePos[n.word] = { x: zp.x + Math.cos(angle) * r, y: zp.y + Math.sin(angle) * r }
+    })
+
+    // Draw connections
+    ctx.lineWidth = 0.5
+    const drawn = new Set()
+    for (const n of nodes) {
+        const from = nodePos[n.word]
+        if (!from) continue
+        for (const c of n.connections) {
+            const to = nodePos[c]
+            if (!to) continue
+            const key = [n.word, c].sort().join('→')
+            if (drawn.has(key)) continue
+            drawn.add(key)
+            ctx.globalAlpha = 0.2
+            ctx.strokeStyle = zoneColors[n.zone]
+            ctx.beginPath()
+            ctx.moveTo(from.x, from.y)
+            ctx.lineTo(to.x, to.y)
+            ctx.stroke()
+        }
+    }
+
+    // Draw nodes
+    for (const n of nodes) {
+        const p = nodePos[n.word]
+        if (!p) continue
+        ctx.globalAlpha = 0.7
+        ctx.fillStyle = zoneColors[n.zone]
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 0.5
+        ctx.font = '7px JetBrains Mono'
+        ctx.textAlign = 'center'
+        ctx.fillStyle = '#fff'
+        ctx.fillText(n.word, p.x, p.y - 7)
+    }
+
+    // Zone labels
+    ctx.globalAlpha = 0.25
+    ctx.font = 'bold 10px JetBrains Mono'
+    for (const [zone, pos] of Object.entries(zonePos)) {
+        ctx.fillStyle = zoneColors[zone]
+        ctx.textAlign = 'center'
+        ctx.fillText(zone.toUpperCase(), pos.x, pos.y + 35)
+    }
+    ctx.globalAlpha = 1
+}
+
+document.getElementById('btn-add-node').addEventListener('click', () => {
+    const word = document.getElementById('node-word').value.trim()
+    const zone = document.getElementById('node-zone').value
+    const conns = document.getElementById('node-connections').value.split(',').map(s => s.trim()).filter(Boolean)
+    const clue = document.getElementById('node-clue').value.trim()
+    if (!word) return
+    nodes.push({ word, zone, connections: conns, clue: clue || `${word}. No description yet.` })
+    document.getElementById('node-word').value = ''
+    document.getElementById('node-connections').value = ''
+    document.getElementById('node-clue').value = ''
+    refreshUI()
+})
+
+document.getElementById('btn-copy-json').addEventListener('click', () => {
+    const json = JSON.stringify(nodes, null, 2)
+    navigator.clipboard.writeText(json).then(() => {
+        const btn = document.getElementById('btn-copy-json')
+        btn.textContent = 'COPIED ✓'
+        setTimeout(() => { btn.textContent = 'COPY JSON' }, 1500)
+    })
+})
+
+refreshUI()
+</script>
+</body>
+</html>

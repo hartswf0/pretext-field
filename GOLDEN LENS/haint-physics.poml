@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- QUANTUM LORE: HAINT PHYSICS WORLDTEXT -->
+<!-- Source POML for GOLDEN LENS lore generation -->
+<!-- See golden-lens.ts for the runtime lore arrays derived from this document -->
+
+<poml version="1.0">
+  <meta>
+    <title>QUANTUM LORE: HAINT PHYSICS WORLDTEXT</title>
+    <subtitle>Southern Gothic Optics, Rural Quantum Mechanics, and Local Knowledge Against Mystification</subtitle>
+    <world_type>worldtext</world_type>
+    <mode>generative_lore_engine</mode>
+    <tone>gritty, consequential, rural, poetic, technical, ethnographic, mythic</tone>
+    <core_formula>Southern Gothic + hard optics + folk engineering + quantum displacement + Appalachian knowledge systems</core_formula>
+  </meta>
+
+  <purpose>
+    Encode a world in which rural spaces are not premodern holdovers but operational laboratories of optics,
+    mechanics, signal inference, and quantum folklore. This world rejects the outsider frame that reads wonder
+    as superstition. Its governing law is simple: what the City Slicker calls magic, the local calls physics.
+  </purpose>
+
+  <thesis>
+    In this world, shacks, creeks, ridges, caves, and oil puddles are not background scenery. They are instruments.
+    Each site reveals that advanced knowledge can emerge through scavenged matter, inherited habit, local labor,
+    and sensory intimacy with land. The supernatural is often a misrecognized technical event. The technical,
+    when lived deeply enough, becomes mythic.
+  </thesis>
+
+  <governing_paradox>
+    The world is both enchanted and explained.
+    Explanation does not destroy wonder here; it deepens it.
+  </governing_paradox>
+
+  <axioms>
+    <axiom id="A1">Light bends, time breaks.</axiom>
+    <axiom id="A2">The local does not oppose the scientific; it houses it.</axiom>
+    <axiom id="A3">Folk knowledge and formal physics are different dialects of the same encounter with reality.</axiom>
+    <axiom id="A4">Rural matter—hubcaps, mason jars, collar thumpers, tractor oil—can become scientific apparatus.</axiom>
+    <axiom id="A5">Outsiders mistake operational knowledge for superstition because they do not know how to read the tools.</axiom>
+    <axiom id="A6">Every phenomenon has two vocabularies: the haint-name and the field equation.</axiom>
+  </axioms>
+</poml>
