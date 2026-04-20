@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <title>BAYVILLE · Cognitive Cartography</title>
+    <meta name="description" content="Walk through a child's cognitive map of Bayville, NY. Real geography distorted through 4-year-old perception, layered with 1653 colonial ghost routes.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='none' stroke='%232B3A42' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='8' fill='%23C97A2C'/%3E%3C/svg%3E">
+
+    <!-- Leaflet for real map tiles -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        :root {
+            --iron: #2B3A42;
+            --sepia: #8B6B4A;
+            --amber: #C97A2C;
+            --verified: #3E6B48;
+            --void: #A63A3A;
+            --bone: #E8E6DF;
+            --font: 'Courier New', monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0b0d; }
+        body { font-family: var(--font); color: var(--bone); }
+
+        /* === LIDAR CANVAS (3D) === */
+        #lidar-canvas {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            display: block; image-rendering: pixelated;
+            z-index: 5;
+        }
+        #lidar-canvas.hidden { display: none; }
+
+        /* === LEAFLET MAP (2D) === */
+        #map-container {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            z-index: 5;
+        }
+        #map-container.hidden { display: none; }
+
+        /* Dark map tiles */
+        .map-tiles-dark {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+        }
+        /* Archival sepia mode */
+        .map-tiles-sepia {
+            filter: sepia(0.8) contrast(1.2) brightness(0.9) saturate(0.5);
+        }
+
+        /* Pretext popup overlays */
+        .pretext-popup {
+            background: rgba(10,11,13,0.92);
+            border: 1px solid rgba(200,155,94,0.3);
+            border-radius: 6px;
+            padding: 10px 12px;
+            max-width: 280px;
+            font-family: var(--font);
+            color: var(--bone);
+            font-size: 12px;
+            line-height: 1.5;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+        .pretext-popup .zone-title {
+            font-size: 11px; font-weight: bold; letter-spacing: 1px;
+            text-transform: uppercase; margin-bottom: 6px; display: block;
+        }
+        .pretext-popup .pretext-body {
+            color: #999; font-size: 11px; line-height: 1.6;
+        }
+        .pretext-popup .enter-lidar {
+            display: block; margin-top: 8px; padding: 6px 0;
+            text-align: center; font-size: 10px; font-weight: bold;
+            letter-spacing: 1px; color: var(--amber);
+            border: 1px solid rgba(200,155,94,0.3); border-radius: 4px;
+            cursor: pointer; background: rgba(200,155,94,0.08);
+        }
+        .pretext-popup .enter-lidar:hover { background: rgba(200,155,94,0.15); }
+
+        /* Custom markers */
+        .memory-marker {
+            width: 18px; height: 18px; border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+        }
+        .ghost-marker {
+            width: 16px; height: 16px;
+            border: 2px solid #FFF8E7; transform: rotate(45deg);
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+        }
+        .phantom-marker {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: rgba(166,58,58,0.4);
+            border: 2px dashed var(--void);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{transform:scale(0.8);opacity:0.8} 50%{transform:scale(1.2);opacity:1} }
+
+        /* Crosshair */
+        .crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 20px; height: 20px; transform: translate(-50%,-50%);
+            border: 1px solid rgba(200,155,94,0.4); border-radius: 50%;
+            pointer-events: none; z-index: 15;
+        }
+        .crosshair::after {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            width: 3px; height: 3px; background: var(--amber);
+            transform: translate(-50%,-50%); border-radius: 50%;
+        }
+        .crosshair.hidden { display: none; }
+
+        /* HUD */
+        #hud {
+            position: absolute; top: 0; left: 0; right: 0;
+            pointer-events: none; z-index: 20;
+            padding: 10px 14px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        #hud-left { display: flex; flex-direction: column; gap: 4px; }
+        .hud-title {
+            font-size: 10px; font-weight: bold; letter-spacing: 2px;
+            color: var(--amber); text-transform: uppercase;
+        }
+        .hud-zone { font-size: 14px; font-weight: bold; color: #fff; }
+        .hud-mode { font-size: 9px; color: var(--sepia); letter-spacing: 1px; }
+        #hud-right { text-align: right; display: flex; flex-direction: column; gap: 4px; }
+        .hud-compass { font-size: 18px; font-weight: bold; color: var(--amber); }
+        .hud-coords { font-size: 9px; color: #555; letter-spacing: 1px; }
+
+        /* View toggle button */
+        #view-toggle {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 25; pointer-events: all;
+            background: rgba(10,11,13,0.85); border: 1px solid rgba(200,155,94,0.4);
+            border-radius: 24px; padding: 8px 20px;
+            font-family: var(--font); font-size: 11px; font-weight: bold;
+            letter-spacing: 2px; color: var(--amber); cursor: pointer;
+            transition: background 0.2s;
+        }
+        #view-toggle:hover { background: rgba(200,155,94,0.15); }
+
+        /* Info Panel */
+        #info-panel {
+            position: absolute; bottom: 50px; left: 0; right: 0;
+            z-index: 20; pointer-events: none;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
+            padding: 40px 16px 8px;
+        }
+        #info-panel.hidden { display: none; }
+        #info-text {
+            font-size: 11px; line-height: 1.5; color: #999;
+            max-width: 600px; text-align: center; margin: 0 auto;
+        }
+        #info-text .zone-name {
+            display: block; font-size: 13px; font-weight: bold;
+            color: var(--amber); margin-bottom: 4px; letter-spacing: 1px;
+        }
+
+        /* Temporal flash */
+        #temporal-flash {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 100; font-size: 28px; font-weight: bold; color: var(--sepia);
+            letter-spacing: 4px; pointer-events: none;
+            opacity: 0; transition: opacity 0.3s;
+            text-shadow: 0 0 30px rgba(139,107,74,0.6);
+        }
+        #temporal-flash.visible { opacity: 1; }
+
+        /* Leaflet popup override */
+        .leaflet-popup-content-wrapper { background: transparent !important; border: none !important; box-shadow: none !important; }
+        .leaflet-popup-tip { display: none !important; }
+        .leaflet-popup-close-button { color: #666 !important; font-size: 16px !important; }
+
+        /* ── Mobile responsive ── */
+        @media (max-width: 768px) {
+            .hud-title { font-size: 8px; letter-spacing: 1px; }
+            .hud-zone { font-size: 11px; }
+            .hud-mode { font-size: 8px; }
+            .hud-compass { font-size: 14px; }
+            .hud-coords { font-size: 8px; }
+            #hud { padding: 6px 10px; }
+            #view-toggle { bottom: 12px; padding: 10px 18px; font-size: 10px; }
+            #info-panel { padding: 30px 12px 6px; }
+            #info-text { font-size: 10px; }
+            #info-text .zone-name { font-size: 11px; }
+            .crosshair { width: 14px; height: 14px; }
+            .pretext-popup { max-width: 240px; font-size: 11px; padding: 8px 10px; }
+            .pretext-popup .enter-lidar { padding: 8px 0; font-size: 11px; }
+        }
+        @media (max-width: 480px) {
+            .hud-title { font-size: 7px; }
+            .hud-zone { font-size: 10px; }
+            .hud-coords { display: none; }
+            #view-toggle { padding: 8px 14px; font-size: 9px; letter-spacing: 1px; }
+        }
+        /* Prevent mobile browser bounce/zoom */
+        html, body { touch-action: none; overscroll-behavior: none; }
+    </style>
+</head>
+<body>
+    <!-- 2D Leaflet Map -->
+    <div id="map-container"></div>
+
+    <!-- 3D LIDAR Canvas -->
+    <canvas id="lidar-canvas" class="hidden"></canvas>
+    <div class="crosshair hidden" id="crosshair"></div>
+
+    <div id="hud">
+        <div id="hud-left">
+            <span class="hud-title">BAYVILLE · COGNITIVE CARTOGRAPHY</span>
+            <span class="hud-zone" id="hud-zone">—</span>
+            <span class="hud-mode" id="hud-mode">MAP · SUBJECTIVE</span>
+        </div>
+        <div id="hud-right">
+            <span class="hud-compass" id="hud-compass">N</span>
+            <span class="hud-coords" id="hud-coords">40.9050°N 73.5570°W</span>
+        </div>
+    </div>
+
+    <div id="info-panel" class="hidden">
+        <div id="info-text">
+            <span class="zone-name">AWAITING ENTRY</span>
+        </div>
+    </div>
+
+    <button id="view-toggle">◉ ENTER LIDAR</button>
+    <div id="temporal-flash"></div>
+
+    <script type="module" src="bayville.ts"></script>
+</body>
+</html>
