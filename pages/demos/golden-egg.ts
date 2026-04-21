@@ -602,9 +602,10 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
 
     // Build a 3-block wide wall at [px, py]
     // Horizontal structure:
-    grid[py]![px - 1] = String(i + 1)
-    grid[py]![px] = String(i + 1)
-    grid[py]![px + 1] = String(i + 1)
+    const ch = String.fromCharCode(i + 161)
+    grid[py]![px - 1] = ch
+    grid[py]![px] = ch
+    grid[py]![px + 1] = ch
   }
 
   // ═══ OUTER BOUNDARY ═══
@@ -624,7 +625,7 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
   // Rebuild WALL_LORE
   WALL_LORE = {}
   for (let z = 0; z < N; z++) {
-    WALL_LORE[String(z + 1)] = zoneKeys[z]!
+    WALL_LORE[String.fromCharCode(z + 161)] = zoneKeys[z]!
   }
 
   // Rebuild ZONE_POSITIONS (target the space right below each panel)
@@ -2984,7 +2985,7 @@ if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
   const touchUI = document.createElement('div')
   touchUI.id = 'mobile-controls'
   touchUI.style.cssText = `position:fixed; bottom:0; left:0; right:0; z-index:9990;
-    pointer-events:none; display:none;`
+    pointer-events:none; display:block;`
 
   // Virtual joystick (left side)
   const joystick = document.createElement('div')
