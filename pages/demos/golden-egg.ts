@@ -154,6 +154,7 @@ function editorFlush(): void {
 
   MOUNTAIN_LORE[editorZone] = lines.length > 0 ? lines : ['(empty)']
   LORE_FULL[editorZone] = MOUNTAIN_LORE[editorZone]!.join(' ')
+  PANEL_METADATA[editorZone] = { lastEditTime: Date.now() }
 
   // Extract [[links]] to auto-populate CLUE_GRAPH
   const linkRegex = /\[\[(.*?)\]\]/g
@@ -199,18 +200,29 @@ function editorLiveUpdate(): void {
 const STORAGE_KEY = 'golden-egg-lore'
 
 function editorPersist(): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(MOUNTAIN_LORE)) } catch { /* quota */ }
+  try { 
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(MOUNTAIN_LORE)) 
+    localStorage.setItem(META_STORAGE_KEY, JSON.stringify(PANEL_METADATA))
+  } catch { /* quota */ }
 }
 
 function editorRestore(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) return
-    const data = JSON.parse(saved) as Record<string, string[]>
-    for (const [key, lines] of Object.entries(data)) {
-      if (Array.isArray(lines) && lines.length > 0) {
-        MOUNTAIN_LORE[key] = lines
-        LORE_FULL[key] = lines.join(' ')
+    if (saved) {
+      const data = JSON.parse(saved) as Record<string, string[]>
+      for (const [key, lines] of Object.entries(data)) {
+        if (Array.isArray(lines) && lines.length > 0) {
+          MOUNTAIN_LORE[key] = lines
+          LORE_FULL[key] = lines.join(' ')
+        }
+      }
+    }
+    const savedMeta = localStorage.getItem(META_STORAGE_KEY)
+    if (savedMeta) {
+      const metaData = JSON.parse(savedMeta)
+      for (const [key, val] of Object.entries(metaData)) {
+         PANEL_METADATA[key] = val as any
       }
     }
     wallLineCache.clear()
@@ -275,6 +287,10 @@ for (let i = 1; i <= 16; i++) {
 
 // ── MOUNTAIN MEDIA (Volatile Session Audio/Video) ──
 const MOUNTAIN_MEDIA: Record<string, { type: 'image' | 'video', url: string, el?: HTMLImageElement | HTMLVideoElement }> = {}
+
+// ── PANEL METADATA (Spatio-Temporal Tracking) ──
+const PANEL_METADATA: Record<string, { lastEditTime: number }> = {}
+const META_STORAGE_KEY = 'golden-egg-meta'
 
 const LORE_FULL: Record<string, string> = {}
 for (const [k, v] of Object.entries(MOUNTAIN_LORE)) {
@@ -1882,7 +1898,24 @@ function renderLidar(): void {
       lidarCtx.globalAlpha = 0.85
       lidarCtx.font = 'bold 11px Courier New'
       lidarCtx.fillStyle = face.zone.color
-      lidarCtx.fillText(`${face.zone.name} · ${face.zone.flavor}`, face.startX + padding, textTop + 6)
+      
+      let geo = ''
+      const pos = ZONE_POSITIONS[face.loreKey]
+      if (pos) {
+          const dx = pos.x - MAP_CENTER
+          const dy = pos.y - MAP_CENTER
+          const angle = Math.atan2(dy, dx)
+          const deg = (angle * 180 / Math.PI + 360) % 360
+          const dirs = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE']
+          const cardinal = dirs[Math.round(deg / 45) % 8] || '?'
+          const ns = dy <= 0 ? 'N' : 'S'
+          const ew = dx >= 0 ? 'E' : 'W'
+          geo = ` · ${Math.abs(dy * 0.0019).toFixed(4)}°${ns} ${Math.abs(dx * 0.0019).toFixed(4)}°${ew} · ${cardinal}`
+      }
+      const meta = PANEL_METADATA[face.loreKey]
+      const timeStr = meta ? ` · LAST TRACE: ${new Date(meta.lastEditTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}` : ''
+      
+      lidarCtx.fillText(`[${face.zone.name}]${geo}${timeStr}`, face.startX + padding, textTop + 6)
 
       lidarCtx.font = `${fontSize}px Courier New`
       let ly = textTop + 22
@@ -2947,6 +2980,7 @@ document.getElementById('btn-build-monolith')?.addEventListener('click', () => {
   document.getElementById('sheet-d')?.classList.remove('on')
   document.getElementById('sheet-backdrop')?.classList.remove('on')
   if (editorActive) editorClose()
+  navigateToZone(key)
 })
 
 // New blank document
