@@ -104,6 +104,36 @@ function injectLore(zone: string, newLines: string[]): void {
 let editorActive = false
 let editorZone = ''
 
+// ═══ AUDIO ASMR FEEDBACK ═══
+let asmrAudioCtx: AudioContext | null = null
+function playAsmrClick(): void {
+  try {
+    if (!asmrAudioCtx) asmrAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    if (asmrAudioCtx.state === 'suspended') asmrAudioCtx.resume()
+    // Clean mechanical click — short noise burst filtered to a crisp snap
+    const bufSize = asmrAudioCtx.sampleRate * 0.015 // 15ms
+    const buf = asmrAudioCtx.createBuffer(1, bufSize, asmrAudioCtx.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < bufSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.15))
+    }
+    const src = asmrAudioCtx.createBufferSource()
+    src.buffer = buf
+    const gain = asmrAudioCtx.createGain()
+    gain.gain.value = 0.3
+    const filter = asmrAudioCtx.createBiquadFilter()
+    filter.type = 'bandpass'
+    filter.frequency.value = 3000
+    filter.Q.value = 1.5
+    src.connect(filter)
+    filter.connect(gain)
+    gain.connect(asmrAudioCtx.destination)
+    src.start()
+  } catch (e) { /* ignore */ }
+}
+
+
+
 function editorOpen(zoneKey: string): void {
   // If already editing this zone, just focus
   if (editorActive && editorZone === zoneKey) {
@@ -132,6 +162,7 @@ function editorOpen(zoneKey: string): void {
   // Update status bar
   const sbLlm = document.getElementById('sb-llm')
   if (sbLlm) sbLlm.textContent = `EDITING ${label}`
+  playAsmrClick()
 }
 
 function editorClose(): void {
@@ -575,8 +606,8 @@ let coalesceRadius = 120
 let waveSpeed = 40
 let showRelations = true
 
-// LiDAR player
-const player = { x: 4.5, y: 4.5, dirX: -1, dirY: 0, planeX: 0, planeY: 0.66 }
+// LiDAR player — spawn facing Panel 1 (at grid x=11, y=11, approach from y=13)
+const player = { x: 11.5, y: 13.5, dirX: 0, dirY: -1, planeX: 0.66, planeY: 0 }
 let playerGlideTarget: { x: number; y: number } | null = null // smooth movement target
 const keys: Record<string, boolean> = {}
 
@@ -656,10 +687,10 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
     ZONE_POSITIONS[zoneKeys[i]!] = { x: px, y: py + 2 }
   }
 
-  // Set player (don't reset heavily if already playing, but for this simple version we don't change player position automatically unless it's initial load)
-  if (!player.x || player.x < 1) {
-    player.x = center + 0.5
-    player.y = center + 0.5
+  // Set player to face Panel 1 on initial load
+  if (player.x < 2 || player.x > sz - 2) {
+    player.x = startOffset + 0.5
+    player.y = startOffset + 2.5
     player.dirX = 0; player.dirY = -1
     player.planeX = 0.66; player.planeY = 0
   }
@@ -784,7 +815,7 @@ function openContextChat(): void {
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
       <span style="background:${zoneColor}; color:#000; font-size:9px; font-weight:bold; padding:2px 8px; letter-spacing:1px;">LOADED CONTEXT</span>
       <span style="color:${zoneColor}; font-size:10px; font-weight:bold;">${zoneLabel}</span>
-      <span style="color:#555; font-size:8px; margin-left:auto;">responses write onto walls</span>
+      <span style="color:#555; font-size:8px; margin-left:auto;">[C] Chat · [[link]] Hyperlink</span>
       <button id="ctx-chat-close" style="background:none; border:1px solid #555; color:#aaa; font-size:14px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;">✕</button>
     </div>
     <div style="color:#999; font-size:10px; border-left:3px solid ${zoneColor}40; padding:4px 8px; margin:4px 0; background:rgba(255,255,255,0.02); max-height:60px; overflow-y:auto;">
@@ -907,7 +938,7 @@ function appendChatMsg(role: string, text: string): void {
   logDiv.scrollTop = logDiv.scrollHeight
 }
 
-// ── KEYBOARD ──
+// ═══ KEYBOARD CONTROLS ═══
 window.addEventListener('keydown', e => {
   // Block movement keys when editor or chat is active
   if (editorActive) {
@@ -1869,9 +1900,8 @@ function renderLidar(): void {
     const allLines = getWallLines(face.loreKey, textW, fontSize)
     lastPtMs = performance.now() - t0
 
-    // Offset into text based on wall position — each face shows different lines
-    // This prevents every wall segment from repeating the same opening text
-    const faceHash = (face.mapX * 7 + face.mapY * 3 + face.side * 13) % Math.max(1, allLines.length)
+    // Offset into text based on wall position — disabled in Golden Egg so each 3-block monolith maps cleanly as a unified readable triptych.
+    const faceHash = 0
     const lines: string[] = []
     for (let i = 0; i < allLines.length; i++) {
       lines.push(allLines[(faceHash + i) % allLines.length]!)
@@ -2009,7 +2039,7 @@ function renderLidar(): void {
         lidarCtx.fillText(`✎ EDITING · ${lines.length} LINES`, face.startX + padding, textBot - 12)
       } else {
         lidarCtx.fillStyle = '#0ca'
-        lidarCtx.fillText(`CLICK TO EDIT · [E] · ${lines.length} LINES`, face.startX + padding, textBot - 12)
+        lidarCtx.fillText(`[E] EDIT / [[LINK]] · [C] CONVERSE · ${lines.length} LINES`, face.startX + padding, textBot - 12)
       }
 
       // Hover highlight on clickable hot words
@@ -2962,7 +2992,17 @@ document.getElementById('media-upload')?.addEventListener('change', (e) => {
 })
 
 // Build new monolith
-document.getElementById('btn-build-monolith')?.addEventListener('click', () => {
+document.getElementById('btn-build-monolith')?.addEventListener('click', (e) => {
+  const btn = e.target as HTMLButtonElement
+  const origText = btn.textContent || 'BUILD NEW MONOLITH'
+  btn.textContent = 'CONSTRUCTED. LOCKING...'
+  btn.style.opacity = '0.5'
+  playAsmrClick()
+  setTimeout(() => {
+    btn.textContent = origText
+    btn.style.opacity = '1'
+  }, 1500)
+
   const newIdx = Object.keys(MOUNTAIN_LORE).length + 1
   const key = `panel_${newIdx}`
   MOUNTAIN_LORE[key] = [`(blank panel ${newIdx})`]
@@ -3011,7 +3051,42 @@ document.getElementById('btn-clear-data')?.addEventListener('click', () => {
 })
 
 // ── START ──
+setMode('LIDAR') // Start directly in the spatial editor
 loop()
+
+// ── ONBOARDING OVERLAY ──
+const ONBOARD_KEY = 'golden-egg-onboarded'
+if (!localStorage.getItem(ONBOARD_KEY)) {
+  const ob = document.createElement('div')
+  ob.style.cssText = `position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.92);
+    display:flex; align-items:center; justify-content:center; font-family:Courier New; cursor:pointer;`
+  ob.innerHTML = `<div style="max-width:420px; padding:32px; border:2px solid #0ca; background:#0a0a0a; text-align:center;">
+    <div style="font-size:22px; color:#daa520; font-weight:900; letter-spacing:2px; margin-bottom:16px;">GOLDEN EGG</div>
+    <div style="font-size:11px; color:#999; line-height:1.8; text-align:left; margin-bottom:20px;">
+      <div style="color:#0ca; font-weight:bold; margin-bottom:8px;">HOW TO USE THIS TOOL:</div>
+      <div><span style="color:#0ca;">WASD</span> or <span style="color:#0ca;">JOYSTICK</span> — Walk around</div>
+      <div><span style="color:#0ca;">MOUSE</span> — Look around (drag)</div>
+      <div><span style="color:#0ca;">CLICK WALL</span> or <span style="color:#0ca;">[E]</span> — Edit the panel you face</div>
+      <div><span style="color:#0ca;">[[word]]</span> — Create a hyperlink to another panel</div>
+      <div><span style="color:#0ca;">[C]</span> — Chat about what you're reading</div>
+      <div><span style="color:#0ca;">ESC</span> — Close editor / exit</div>
+      <div style="margin-top:8px; color:#666;">Sheet D (tab bar) → BUILD NEW MONOLITH to add panels</div>
+    </div>
+    <div style="font-size:13px; color:#0ca; font-weight:900; letter-spacing:3px;">TAP ANYWHERE TO BEGIN</div>
+  </div>`
+  ob.addEventListener('click', () => {
+    ob.remove()
+    try { localStorage.setItem(ONBOARD_KEY, '1') } catch {}
+    playAsmrClick()
+  })
+  ob.addEventListener('touchstart', (e) => {
+    e.preventDefault()
+    ob.remove()
+    try { localStorage.setItem(ONBOARD_KEY, '1') } catch {}
+    playAsmrClick()
+  }, { passive: false })
+  document.body.appendChild(ob)
+}
 
 // ═══ MOBILE TOUCH CONTROLS ═══
 // Virtual joystick + action buttons for touch devices
