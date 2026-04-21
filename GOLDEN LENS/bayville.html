@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Required to ensure external tiles load smoothly -->
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <title>Field Interface: Childhood Memory Reconstruction</title>
+
+    <!-- Real Open Map Data: Leaflet JS & CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        :root {
+            /* NPS-Inspired Rugged Palette */
+            --bg-base: #E8E6DF;
+            /* Muted Map Tan */
+            --bg-panel: #F4F3ED;
+            --text-main: #2C2C2C;
+            --text-muted: #555555;
+            --primary: #2B3A42;
+            /* Deep Iron Blue */
+            --primary-light: #3F535E;
+            --accent-verified: #3E6B48;
+            --accent-void: #A63A3A;
+            /* Alert Red */
+            --accent-warn: #C97A2C;
+            --accent-history: #8B6B4A;
+            /* Archival Sepia/Gold */
+            --border: #D1CEC2;
+            --ui-white: #FFFFFF;
+
+            /* Typography */
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+            /* Geometry */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --tap-target: 56px;
+        }
+
+        [data-theme="night"] {
+            --bg-base: #121412;
+            --bg-panel: #1E211E;
+            --text-main: #E0E0E0;
+            --text-muted: #9E9E9E;
+            --primary: #3F535E;
+            --primary-light: #546E7A;
+            --border: #333833;
+            --ui-white: #2C2C2C;
+            --accent-history: #C4A484;
+        }
+
+        /* Dark mode filter for CartoDB tiles */
+        [data-theme="night"] .map-tiles {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+        }
+
+        /* Historical filter for Archival mode */
+        body.archival-mode .map-tiles {
+            filter: sepia(0.8) contrast(1.2) brightness(0.9) saturate(0.5);
+            transition: filter 1s ease-in-out;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        /* TOP STATUS BAR */
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.5s ease;
+        }
+
+        body.archival-mode header {
+            background-color: var(--accent-history);
+        }
+
+        .header-titles {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .world-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+            font-weight: 600;
+        }
+
+        .patch-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .clock-container {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #live-clock {
+            font-size: 16px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .header-btn {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .header-btn.active-history {
+            background: white;
+            color: var(--accent-history);
+        }
+
+        /* PINNED THRESHOLD STRIP */
+        #threshold-strip {
+            background-color: var(--primary-light);
+            color: white;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            transition: background-color 0.3s;
+        }
+
+        .threshold-icon {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* MAIN CONTENT AREA */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* MAP PANEL */
+        #map-panel {
+            flex: 1;
+            background-color: var(--bg-base);
+            position: relative;
+            overflow: hidden;
+            border-bottom: 2px solid var(--border);
+        }
+
+        #map-container {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Custom Marker Styles */
+        .custom-marker-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s;
+        }
+
+        /* Historical Custom Marker */
+        .history-marker-square {
+            width: 18px;
+            height: 18px;
+            background-color: var(--accent-history);
+            border: 2px solid #FFF8E7;
+            transform: rotate(45deg);
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Phantom Marker for Industrial Void */
+        .phantom-marker-pulse {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(166, 58, 58, 0.4);
+            border: 2px dashed var(--accent-void);
+            animation: pulse 2s infinite ease-in-out;
+            box-shadow: 0 0 10px rgba(166, 58, 58, 0.6);
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.8);
+                opacity: 0.8;
+            }
+        }
+
+        /* Map UI Overlay (Year Indicator) */
+        #year-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--ui-white);
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-main);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 2px solid var(--border);
+            display: none;
+        }
+
+        body.archival-mode #year-indicator {
+            display: block;
+            border-color: var(--accent-history);
+            color: var(--accent-history);
+        }
+
+        /* CONTENT VIEWS */
+        #content-area {
+            height: 45%;
+            background-color: var(--bg-panel);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 16px;
+            position: relative;
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* CARDS & STONES */
+        .card {
+            background: var(--ui-white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .badge {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            letter-spacing: 0.5px;
+        }
+
+        .badge.verified {
+            background: var(--accent-verified);
+            color: white;
+        }
+
+        .badge.void {
+            background: var(--accent-void);
+            color: white;
+        }
+
+        .badge.warning {
+            background: var(--accent-warn);
+            color: white;
+        }
+
+        .badge.neutral {
+            background: var(--primary-light);
+            color: white;
+        }
+
+        .badge.historical {
+            background: var(--accent-history);
+            color: white;
+        }
+
+        .card-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: flex;
+            gap: 12px;
+            font-weight: 500;
+            flex-wrap: wrap;
+        }
+
+        .card-body {
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .action-button {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            font-weight: 600;
+            font-size: 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            margin-top: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .action-button.secondary {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .action-button:active {
+            opacity: 0.8;
+        }
+
+        /* LISTS */
+        .stone-list {
+            list-style: none;
+        }
+
+        .stone-list li {
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--ui-white);
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stone-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        /* Archival specific styling in cards */
+        .archival-snippet {
+            font-family: "Courier New", Courier, monospace;
+            background: #FDFBF7;
+            border-left: 3px solid var(--accent-history);
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #4a4036;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+        }
+
+        /* BOTTOM NAVIGATION DOCK */
+        nav {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            background-color: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            padding-bottom: env(safe-area-inset-bottom);
+            flex-shrink: 0;
+            z-index: 20;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            padding: 12px 0;
+            min-height: var(--tap-target);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: color 0.2s, background-color 0.2s;
+        }
+
+        .nav-btn svg {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 4px;
+            fill: currentColor;
+        }
+
+        .nav-btn.active {
+            color: var(--primary);
+            background-color: var(--bg-base);
+            border-top: 2px solid var(--primary);
+        }
+
+        body.archival-mode .nav-btn.active {
+            color: var(--accent-history);
+            border-top-color: var(--accent-history);
+        }
+
+        /* Utility */
+        .mt-2 {
+            margin-top: 8px;
+        }
+
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+
+        .text-bold {
+            font-weight: 600;
+        }
+
+        .warning-box {
+            background: rgba(166, 58, 58, 0.1);
+            border-left: 4px solid var(--accent-void);
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP STATUS BAR -->
+    <header>
+        <div class="header-titles">
+            <span class="world-title">Cognitive Cartography</span>
+            <span class="patch-title">Deep-Time Memory Engine</span>
+        </div>
+        <div class="clock-container">
+            <div id="live-clock">00:00:00</div>
+            <div class="header-buttons">
+                <button class="header-btn" id="night-mode-toggle" aria-label="Toggle Night Mode">Night Ops</button>
+                <button class="header-btn" id="temporal-toggle" aria-label="Toggle Temporal Mode">1653 Overlay</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- PINNED THRESHOLD STRIP -->
+    <div id="threshold-strip">
+        <span class="threshold-icon">Active</span>
+        <span id="active-threshold-text">Awaiting Node Selection</span>
+    </div>
+
+    <!-- MAIN AREA -->
+    <main>
+        <!-- MAP PANEL (Primary View) -->
+        <section id="map-panel">
+            <div id="year-indicator">Age 4</div>
+            <div id="map-container"></div>
+        </section>
+
+        <!-- DYNAMIC CONTENT AREA -->
+        <section id="content-area">
+
+            <!-- VIEW: Node Detail -->
+            <div id="view-detail" class="view-section active">
+                <div class="card" id="detail-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Select a Memory Node</h2>
+                        <span class="badge neutral">AWAITING INPUT</span>
+                    </div>
+                    <p class="card-body">Tap a node to cross-reference the subjective spatial distortions of a
+                        4-year-old child with the 17th-century geographic footprint of the Wright family of Oyster Bay.
+                    </p>
+                </div>
+            </div>
+
+            <!-- VIEW: Stepping Stones (Patches) -->
+            <div id="view-stones" class="view-section">
+                <ul class="stone-list">
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">Phase I: The Great Cliff</span>
+                            <span class="badge neutral">MOUNTAIN AVE</span>
+                        </div>
+                        <div class="card-meta"><span>90 Mountain Ave</span><span>Toddler Departure</span></div>
+                        <p class="card-body">The absolute zero-point. At four years old, shoe velocity is negligible.
+                            The subjective memory records the paved driveway not as a gentle slope, but as a
+                            treacherous, vertical cliff requiring extreme caution.</p>
+                        <button class="action-button secondary mt-2" onclick="app.selectNode('node-origin')">Fly to
+                            Origin</button>
+                    </li>
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">Phase II: The Metal River</span>
+                            <span class="badge warning">LOCAL FRICTION</span>
+                        </div>
+                        <div class="card-meta"><span>Bayville Avenue</span><span>Grid Navigation</span></div>
+                        <p class="card-body">To a 4-year-old, this local artery is an impassable, roaring river of giant
+                            steel machines. Waiting to cross while holding an adult's hand induces massive temporal
+                            dilation—a 30-second wait feels like hours.</p>
+                        <button class="action-button secondary mt-2" onclick="app.selectNode('node-bayville-ave')">Fly
+                            to Arterial</button>
+                    </li>
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">Phase III: End of the World</span>
+                            <span class="badge verified">EAST AVE</span>
+                        </div>
+                        <div class="card-meta"><span>11 East Ave</span><span>Cessation</span></div>
+                        <p class="card-body">The safe haven. The physical reality proves this "epic journey" covers
+                            merely 0.15 miles, entirely debunking the toddler's subjective memory that they had walked
+                            to the very edge of the earth.</p>
+                        <button class="action-button secondary mt-2" onclick="app.selectNode('node-destination')">Fly to
+                            Destination</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- VIEW: Temporal / Archive -->
+            <div id="view-archive" class="view-section">
+                <ul class="stone-list">
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">The 1653 Wright Line</span>
+                            <span class="badge historical">GHOST ROUTE</span>
+                        </div>
+                        <p class="card-body">The child's "Forbidden Shortcut"—a bramble path thought to be inhabited by
+                            monsters—aligns flawlessly with the 1653 surveyor's line drawn by Peter Wright during the
+                            original Oyster Bay land purchase from the Matinecock tribe.</p>
+                        <div class="archival-snippet">
+                            "Cartographic Resonance: The toddler's 'monster zone' is a deep-time echo of an ancient
+                            colonial boundary dispute."
+                        </div>
+                    </li>
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">The Wright Homestead Trace</span>
+                            <span class="badge historical">GEO-TRACE</span>
+                        </div>
+                        <p class="card-body">A massive, imagined "danger radius" around a modern neighbor's loud dog
+                            perfectly overlays the forgotten stone foundations of an 18th-century Wright family
+                            auxiliary structure. The child was circumnavigating a ghost.</p>
+                    </li>
+                    <li>
+                        <div class="stone-header">
+                            <span class="stone-title">Raynham Hall Espionage</span>
+                            <span class="badge void">INTERCEPT</span>
+                        </div>
+                        <div class="card-meta"><span>1779-1780</span><span>Culper Spy Ring</span></div>
+                        <p class="card-body">A critical surveillance choke point. British forces commandeered the
+                            Townsend home. Within these walls, the Benedict Arnold treason plot was intercepted by local
+                            patriot assets, altering the trajectory of the war.</p>
+                        <button class="action-button secondary mt-2"
+                            onclick="app.selectNode('node-raynham-hall', true)">Locate Intercept Node</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- VIEW: Fallbacks -->
+            <div id="view-fallbacks" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">The Scale Hallucination</h2>
+                        <span class="badge void">RESOLVED</span>
+                    </div>
+                    <p class="card-body">The memory engine confirms that the "epic" Mountain-to-East walking journey
+                        spanned less than a quarter of a mile.</p>
+
+                    <div class="warning-box">
+                        <strong>Deep-Time Spatial Drift</strong><br>
+                        The toddler's exaggerated map of "safe zones" and "danger zones" was not random imagination. It
+                        was an unconscious, localized redrawing of 17th-century colonial boundaries that had long been
+                        paved over by the modern grid.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">The Arnold Manufactory</h2>
+                        <span class="badge void">INDUSTRIAL VOID</span>
+                    </div>
+                    <div class="card-meta">
+                        <span>Maximilion Arnold</span>
+                        <span>Corset Production</span>
+                    </div>
+                    <p class="card-body">A phantom industrial site specializing in structural garments. The factory's
+                        exact coordinates shift depending on which municipal archive is queried, suggesting deliberate
+                        evasion or systemic ledger corruption.</p>
+                    <div class="warning-box">
+                        <strong>Material Trace Analysis</strong><br>
+                        If the factory existed, the soil at this coordinate would show high concentrations of whalebone
+                        dust, oxidized steel stays, and dense cotton particulate. Current geolocative pings show zero
+                        physical interference.
+                    </div>
+                    <button class="action-button secondary mt-2"
+                        onclick="app.selectNode('node-phantom-arnold', true)">Focus on Phantom Site</button>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- BOTTOM ACTION DOCK -->
+    <nav>
+        <button class="nav-btn active" data-target="view-detail" id="btn-map">
+            <svg viewBox="0 0 24 24">
+                <path
+                    d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z" />
+            </svg>
+            Map
+        </button>
+        <button class="nav-btn" data-target="view-stones">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+            </svg>
+            Corridor
+        </button>
+        <button class="nav-btn" data-target="view-archive">
+            <!-- Replacing Analysis with Archive icon for historical context -->
+            <svg viewBox="0 0 24 24">
+                <path
+                    d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12.14l.81 1H5.12z" />
+            </svg>
+            Archive
+        </button>
+        <button class="nav-btn" data-target="view-fallbacks">
+            <svg viewBox="0 0 24 24">
+                <path
+                    d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
+            </svg>
+            Voids
+        </button>
+    </nav>
+
+    <script>
+        // MODERN FORENSIC DATA
+        const nodesData = {
+            'node-origin': {
+                title: "90 Mountain Ave",
+                badge: "ORIGIN THRESHOLD",
+                badgeClass: "neutral",
+                meta: ["Bayville, 11709", "Toddler Metrics"],
+                desc: "At four years old, shoe velocity is negligible. The subjective memory records the paved driveway not as a gentle 8-degree slope, but as a treacherous, near-vertical cliff.",
+                alert: null,
+                action: "Initiate Route Tracking",
+                coords: [40.9030, -73.5606],
+                color: "var(--primary-light)"
+            },
+            'node-bayville-ave': {
+                title: "The Metal River",
+                badge: "LOCAL FRICTION",
+                badgeClass: "warning",
+                meta: ["Arterial Route", "Temporal Dilation"],
+                desc: "To a 4-year-old, this is an impassable, roaring river of giant steel machines. The crossing requires a vice-grip on an adult's hand.",
+                alert: "Friction Point: Extreme temporal dilation recorded. A 30-second wait for traffic registers in memory as multiple hours.",
+                action: "Analyze Sensory Data",
+                coords: [40.9055, -73.5580],
+                color: "var(--accent-warn)"
+            },
+            'node-destination': {
+                title: "11 East Ave",
+                badge: "ARRIVAL THRESHOLD",
+                badgeClass: "verified",
+                meta: ["Bayville, 11709", "Cessation of Movement"],
+                desc: "The safe haven. The physical reality of this location proves the journey was less than 0.2 miles, debunking the toddler's memory of walking to the literal edge of the world.",
+                alert: "Cognitive Decontamination: True physical endpoint successfully isolated from the exaggerated 'phantom geography' of a 4-year-old.",
+                action: "Transit Concluded",
+                coords: [40.9065, -73.5550],
+                color: "var(--accent-verified)"
+            }
+        };
+
+        // HISTORICAL FORENSIC DATA (Ghost Layers)
+        const historicalData = {
+            'hist-wright-path': {
+                title: "The 1653 Wright Purchase Line",
+                badge: "GHOST ROUTE",
+                badgeClass: "historical",
+                meta: ["Colonial Boundary", "Matinecock Treaty"],
+                desc: "The child's 'Forbidden Shortcut' through the brambles perfectly traces the original 17th-century boundary line drawn by Peter Wright. The child's imagined 'monsters' echo a deep-time territorial edge.",
+                alert: "Archival Note: The toddler unknowingly respected a 350-year-old property line.",
+                action: "View 1653 Deed Overlays",
+                coords: [40.9045, -73.5585],
+                color: "var(--accent-history)"
+            },
+            'hist-wright-plot': {
+                title: "Wright Homestead Foundations",
+                badge: "DEMOLISHED HISTORY",
+                badgeClass: "historical",
+                meta: ["Circa 1710", "Spatial Avoidance Arc"],
+                desc: "The child mapped a massive 'danger radius' around a modern neighbor's loud dog, bowing their walking route into the street. This avoidance arc perfectly overlays the lost stone foundations of an early Wright family outbuilding.",
+                action: "Inspect Ghost Structures",
+                coords: [40.9060, -73.5540],
+                color: "var(--accent-history)"
+            },
+            'node-raynham-hall': {
+                title: "Raynham Hall (Townsend)",
+                badge: "INTELLIGENCE INTERCEPT",
+                badgeClass: "void",
+                meta: ["Raynham Hall", "Culper Spy Ring", "1779-1780"],
+                desc: "A critical surveillance choke point. British forces commandeer the Townsend home. Within these walls, the Benedict Arnold treason plot is intercepted by local patriot assets, altering the trajectory of the war.",
+                alert: "Espionage Proximity: The childhood memory grid sits atop an epicenter of colonial counter-intelligence.",
+                action: "View Intercept Data",
+                coords: [40.8736, -73.5333], // Historic Oyster Bay coordinates
+                color: "var(--accent-void)"
+            },
+            'node-phantom-arnold': {
+                title: "The Arnold Corset Works",
+                badge: "INDUSTRIAL VOID",
+                badgeClass: "void",
+                meta: ["Maximilion Arnold", "Structural Control", "Unverified Zone"],
+                desc: "Archival records point to a late-19th-century corset manufactory operating near the arterial turn. A site dedicated to the high-friction binding and structural restriction of the physical form. No physical foundation remains.",
+                alert: "Thematic Resonance: The localized bureaucratic restriction of the Bayville transit route is mirrored in Arnold's industrial output—both systems are designed to compress and dictate movement.",
+                action: "Isolate Industrial Record",
+                coords: [40.9058, -73.5590], // Placed right at the edge of the Arterial Turn
+                color: "var(--accent-void)",
+                isPhantom: true
+            }
+        };
+
+        let fieldMap;
+        let modernLayerGroup;
+        let historyLayerGroup;
+        let isArchivalMode = false;
+
+        const app = {
+            init() {
+                this.initMap();
+                this.bindEvents();
+                this.updateClock();
+                setInterval(() => this.updateClock(), 1000);
+            },
+
+            initMap() {
+                // Initialize Leaflet Map
+                fieldMap = L.map('map-container', {
+                    zoomControl: false
+                }).setView([40.9050, -73.5570], 15);
+
+                // Base Tile Layer (Modern)
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    className: 'map-tiles',
+                    maxZoom: 18
+                }).addTo(fieldMap);
+
+                // Initialize Layer Groups to manage Temporal Shift easily
+                modernLayerGroup = L.layerGroup().addTo(fieldMap);
+                historyLayerGroup = L.layerGroup(); // NOT added to map yet
+
+                /* --- BUILD MODERN LAYER --- */
+                const routeLine = [
+                    nodesData['node-origin'].coords,
+                    nodesData['node-bayville-ave'].coords,
+                    nodesData['node-destination'].coords
+                ];
+
+                L.polyline(routeLine, {
+                    color: 'var(--primary)',
+                    weight: 4,
+                    dashArray: '8, 8',
+                    opacity: 0.7
+                }).addTo(modernLayerGroup);
+
+                const createMarkerIcon = (color) => L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div class="custom-marker-dot" style="background-color:${color};"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                Object.keys(nodesData).forEach(key => {
+                    const node = nodesData[key];
+                    L.marker(node.coords, { icon: createMarkerIcon(node.color) })
+                        .addTo(modernLayerGroup)
+                        .on('click', () => this.selectNode(key, false));
+                });
+
+
+                /* --- BUILD HISTORICAL LAYER --- */
+                // Ghost Route (Meandering, off-grid)
+                const ghostRouteLine = [
+                    [40.9025, -73.5610],
+                    [40.9040, -73.5595],
+                    [40.9045, -73.5585],
+                    [40.9050, -73.5560],
+                    [40.9060, -73.5540]
+                ];
+
+                L.polyline(ghostRouteLine, {
+                    color: 'var(--accent-history)',
+                    weight: 3,
+                    dashArray: '4, 6',
+                    opacity: 0.9
+                }).addTo(historyLayerGroup);
+
+                // Ghost Perimeter (Polygon representing an old estate)
+                const estatePolygon = [
+                    [40.9070, -73.5560],
+                    [40.9070, -73.5530],
+                    [40.9055, -73.5530],
+                    [40.9055, -73.5560]
+                ];
+                L.polygon(estatePolygon, {
+                    color: 'var(--accent-history)',
+                    fillColor: 'var(--accent-history)',
+                    fillOpacity: 0.2,
+                    weight: 1
+                }).addTo(historyLayerGroup);
+
+                // Historical Icons (Square/Diamond or Phantom Pulse)
+                const createHistoryIcon = (isPhantom) => L.divIcon({
+                    className: 'custom-marker',
+                    html: isPhantom ? `<div class="phantom-marker-pulse"></div>` : `<div class="history-marker-square"></div>`,
+                    iconSize: isPhantom ? [24, 24] : [18, 18],
+                    iconAnchor: isPhantom ? [12, 12] : [9, 9]
+                });
+
+                Object.keys(historicalData).forEach(key => {
+                    const node = historicalData[key];
+                    L.marker(node.coords, { icon: createHistoryIcon(node.isPhantom) })
+                        .addTo(historyLayerGroup)
+                        .on('click', () => this.selectNode(key, true));
+                });
+
+                // Initial Map fit
+                const bounds = L.latLngBounds(routeLine);
+                fieldMap.fitBounds(bounds, { padding: [30, 30] });
+                setTimeout(() => fieldMap.invalidateSize(), 200);
+            },
+
+            bindEvents() {
+                // Bottom Nav
+                const navBtns = document.querySelectorAll('.nav-btn');
+                navBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const targetId = e.currentTarget.dataset.target;
+                        this.switchView(targetId);
+
+                        navBtns.forEach(b => b.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                    });
+                });
+
+                // Night Mode Toggle
+                document.getElementById('night-mode-toggle').addEventListener('click', () => {
+                    const html = document.documentElement;
+                    html.getAttribute('data-theme') === 'night'
+                        ? html.removeAttribute('data-theme')
+                        : html.setAttribute('data-theme', 'night');
+                });
+
+                // Temporal / Archival Toggle
+                document.getElementById('temporal-toggle').addEventListener('click', (e) => {
+                    this.toggleTemporalMode(e.currentTarget);
+                });
+            },
+
+            toggleTemporalMode(btnRef) {
+                isArchivalMode = !isArchivalMode;
+
+                if (isArchivalMode) {
+                    // Turn ON History
+                    document.body.classList.add('archival-mode');
+                    btnRef.classList.add('active-history');
+                    btnRef.innerText = "Subjective View";
+                    document.getElementById('year-indicator').innerText = "1653";
+
+                    // Swap Layer Groups
+                    fieldMap.removeLayer(modernLayerGroup);
+                    fieldMap.addLayer(historyLayerGroup);
+
+                    // UI Context Update
+                    const strip = document.getElementById('active-threshold-text');
+                    const stripContainer = document.getElementById('threshold-strip');
+                    strip.innerText = `Archival Mode: Wright Family Overlays Active`;
+                    stripContainer.style.backgroundColor = "var(--accent-history)";
+
+                    // Switch to archive tab
+                    document.querySelector('[data-target="view-archive"]').click();
+
+                } else {
+                    // Turn OFF History
+                    document.body.classList.remove('archival-mode');
+                    btnRef.classList.remove('active-history');
+                    btnRef.innerText = "1653 Overlay";
+                    document.getElementById('year-indicator').innerText = "Age 4";
+
+                    // Swap Layer Groups
+                    fieldMap.removeLayer(historyLayerGroup);
+                    fieldMap.addLayer(modernLayerGroup);
+
+                    // UI Context Update
+                    const strip = document.getElementById('active-threshold-text');
+                    const stripContainer = document.getElementById('threshold-strip');
+                    strip.innerText = `Awaiting Node Selection`;
+                    stripContainer.style.backgroundColor = "var(--primary-light)";
+
+                    // Switch to modern corridor tab
+                    document.querySelector('[data-target="view-stones"]').click();
+                }
+            },
+
+            switchView(targetId) {
+                document.querySelectorAll('.view-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById(targetId).classList.add('active');
+
+                if (targetId === 'view-detail' && fieldMap) {
+                    setTimeout(() => fieldMap.invalidateSize(), 50);
+                }
+            },
+
+            selectNode(nodeId, isHistorical) {
+                document.getElementById('btn-map').click();
+
+                const data = isHistorical ? historicalData[nodeId] : nodesData[nodeId];
+                if (!data) return;
+
+                if (fieldMap && data.coords) {
+                    fieldMap.flyTo(data.coords, 16, { duration: 0.8 });
+                }
+
+                // Render Detail Card
+                let cardHtml = `
+                    <div class="card-header">
+                        <h2 class="card-title">${data.title}</h2>
+                        <span class="badge ${data.badgeClass}">${data.badge}</span>
+                    </div>
+                    <div class="card-meta">
+                        ${data.meta.map(m => `<span>${m}</span>`).join('')}
+                    </div>
+                    <p class="card-body">${data.desc}</p>
+                `;
+
+                if (data.alert) {
+                    if (isHistorical) {
+                        cardHtml += `<div class="archival-snippet">${data.alert}</div>`;
+                    } else {
+                        cardHtml += `<div class="warning-box"><strong>NOTE:</strong> ${data.alert}</div>`;
+                    }
+                }
+
+                if (data.action) {
+                    const btnClass = isHistorical ? 'action-button mt-2' : 'action-button mt-2';
+                    const btnStyle = isHistorical ? `style="background: var(--accent-history);"` : '';
+                    cardHtml += `<button class="${btnClass}" ${btnStyle}>${data.action}</button>`;
+                }
+
+                document.getElementById('detail-card').innerHTML = cardHtml;
+
+                // Update Context Strip
+                const strip = document.getElementById('active-threshold-text');
+                const stripContainer = document.getElementById('threshold-strip');
+
+                strip.innerText = `Focus: ${data.badge}`;
+                stripContainer.style.backgroundColor = data.color;
+            },
+
+            updateClock() {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+                document.getElementById('live-clock').textContent = timeString + " EST";
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+
+</html>
