@@ -273,6 +273,9 @@ for (let i = 1; i <= 16; i++) {
     : [`(blank panel ${i})`]
 }
 
+// ── MOUNTAIN MEDIA (Volatile Session Audio/Video) ──
+const MOUNTAIN_MEDIA: Record<string, { type: 'image' | 'video', url: string, el?: HTMLImageElement | HTMLVideoElement }> = {}
+
 const LORE_FULL: Record<string, string> = {}
 for (const [k, v] of Object.entries(MOUNTAIN_LORE)) {
   LORE_FULL[k] = v.join(' ')
@@ -576,9 +579,11 @@ function isWalkable(ch: string | undefined): boolean {
 }
 
 function generateEmptyFieldMap(zoneKeys: string[]): void {
-  const N = 16 // We expect 16 panels based on MOUNTAIN_LORE
-  const sz = 65
-  const center = 32
+  const N = zoneKeys.length || 1 // We expect at least 1 panel
+  const spacing = 14
+  const cols = Math.max(4, Math.ceil(Math.sqrt(N)))
+  const sz = Math.max(65, 22 + cols * spacing)
+  const center = Math.floor(sz / 2)
 
   // Initialize grid — entirely open
   const grid: string[][] = Array.from({ length: sz }, () =>
@@ -586,14 +591,12 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
   )
   
   // ═══ BUILD PANEL MATRIX ═══
-  // 4x4 grid of architectural panels. Each panel is a wide structural wall.
-  const spacing = 14
   const startOffset = 11
 
-  // Map 0-15 to x,y in a 4x4 grid
+  // Map 0 to N-1 to x,y in a grid
   for (let i = 0; i < N; i++) {
-    const col = i % 4
-    const row = Math.floor(i / 4)
+    const col = i % cols
+    const row = Math.floor(i / cols)
     const px = startOffset + col * spacing
     const py = startOffset + row * spacing
 
@@ -621,7 +624,7 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
   // Rebuild WALL_LORE
   WALL_LORE = {}
   for (let z = 0; z < N; z++) {
-    WALL_LORE[String(z + 1)] = `panel_${z + 1}`
+    WALL_LORE[String(z + 1)] = zoneKeys[z]!
   }
 
   // Rebuild ZONE_POSITIONS (target the space right below each panel)
@@ -629,15 +632,21 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
     delete ZONE_POSITIONS[key]
   }
   for (let i = 0; i < N; i++) {
-    const col = i % 4
-    const row = Math.floor(i / 4)
+    const col = i % cols
+    const row = Math.floor(i / cols)
     const px = startOffset + col * spacing
     const py = startOffset + row * spacing
-    ZONE_POSITIONS[`panel_${i + 1}`] = { x: px, y: py + 2 }
+    ZONE_POSITIONS[zoneKeys[i]!] = { x: px, y: py + 2 }
   }
 
-  // Reset player to center of the empty field
-  player.x = center + 0.5
+  // Set player (don't reset heavily if already playing, but for this simple version we don't change player position automatically unless it's initial load)
+  if (!player.x || player.x < 1) {
+    player.x = center + 0.5
+    player.y = center + 0.5
+    player.dirX = 0; player.dirY = -1
+    player.planeX = 0.66; player.planeY = 0
+  }
+
   player.y = center + 0.5
   player.dirX = 0; player.dirY = -1
   player.planeX = 0.66; player.planeY = 0
@@ -1799,11 +1808,27 @@ function renderLidar(): void {
     const textBot = isCenter ? inscribedBot : face.maxDrawEnd
     const textFaceH = textBot - textTop
 
+    // Render media overlay if active
+    const media = MOUNTAIN_MEDIA[face.loreKey]
+    if (media && media.el) {
+      lidarCtx.globalAlpha = 0.95
+      try {
+        lidarCtx.drawImage(media.el, face.startX, face.minDrawStart, faceW, faceH)
+      } catch (e) { /* element might not be ready */ }
+    }
+
     // Center face gets contrast overlay — dark at night, cream at day
     if (isCenter && faceW > 60) {
-      lidarCtx.globalAlpha = 0.94
-      lidarCtx.fillStyle = isDaytime ? lerpColor('#050508', '#f5f0e5', dayGroundT) : '#050508'
-      lidarCtx.fillRect(face.startX, textTop, faceW, textFaceH)
+      if (media && media.el) {
+         // Semi-transparent overlay so text is perfectly readable over bright dynamic media
+         lidarCtx.globalAlpha = 0.55
+         lidarCtx.fillStyle = '#050508'
+         lidarCtx.fillRect(face.startX, textTop, faceW, textFaceH)
+      } else {
+         lidarCtx.globalAlpha = 0.94
+         lidarCtx.fillStyle = isDaytime ? lerpColor('#050508', '#f5f0e5', dayGroundT) : '#050508'
+         lidarCtx.fillRect(face.startX, textTop, faceW, textFaceH)
+      }
 
       // Zone border frame
       lidarCtx.fillStyle = face.zone.color
@@ -2872,6 +2897,55 @@ document.getElementById('btn-export-lore')!.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(MOUNTAIN_LORE, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
   link.download = `golden-egg-lore-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
+})
+
+// ── MEDIA UPLOAD ──
+document.getElementById('btn-attach-media')?.addEventListener('click', () => {
+  document.getElementById('media-upload')?.click()
+})
+document.getElementById('media-upload')?.addEventListener('change', (e) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file || !editorZone) return
+  const url = URL.createObjectURL(file)
+  const isVideo = file.type.startsWith('video')
+  
+  if (isVideo) {
+    const video = document.createElement('video')
+    video.src = url
+    video.playsInline = true
+    video.autoplay = true
+    video.loop = true
+    video.muted = true
+    video.play().catch(e => console.error("Video play failed:", e))
+    MOUNTAIN_MEDIA[editorZone] = { type: 'video', url, el: video }
+  } else {
+    const img = new Image()
+    img.src = url
+    MOUNTAIN_MEDIA[editorZone] = { type: 'image', url, el: img }
+  }
+  // Clear file input
+  ;(e.target as HTMLInputElement).value = ''
+})
+
+// Build new monolith
+document.getElementById('btn-build-monolith')?.addEventListener('click', () => {
+  const newIdx = Object.keys(MOUNTAIN_LORE).length + 1
+  const key = `panel_${newIdx}`
+  MOUNTAIN_LORE[key] = [`(blank panel ${newIdx})`]
+  LORE_FULL[key] = `(blank panel ${newIdx})`
+  ZONE_LABELS[key] = `PANEL ${newIdx}`
+  const gridColors = ['#daa520', '#4682b4', '#cd853f', '#5f9ea0', '#9370db', '#8fbc8f', '#bc8f8f', '#f4a460']
+  ZONES[key.toUpperCase()] = {
+    name: `PANEL ${newIdx}`,
+    color: gridColors[newIdx % gridColors.length]!,
+    minR: 0, maxR: 999,
+    flavor: `PANEL ${newIdx}`
+  }
+  generateEmptyFieldMap(Object.keys(MOUNTAIN_LORE))
+  // Close the menu
+  document.getElementById('sheet-d')?.classList.remove('on')
+  document.getElementById('sheet-backdrop')?.classList.remove('on')
+  if (editorActive) editorClose()
 })
 
 // New blank document
