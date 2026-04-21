@@ -213,16 +213,21 @@
                 <div class="crosshair"></div>
                 <div id="scanner-output">PRESS [E] TO EDIT WALL</div>
 
-                <!-- DOCKED EDITOR BAR — no modal, lives inside the lidar layer -->
+                <!-- DOCKED EDITOR BAR — unified text + AI surface -->
                 <div id="editor-bar">
                     <div id="editor-bar-header">
                         <span id="editor-bar-zone">—</span>
+                        <button id="btn-link" style="font-size:9px; background:#000; border:1px solid #daa520; color:#daa520; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⟐ LINK</button>
                         <input type="file" id="media-upload" accept="image/*,video/*" style="display:none">
-                        <button id="btn-attach-media" style="font-size:10px; background:rgba(0,0,0,0.5); border:1px solid #0fa; color:#0fa; cursor:pointer; padding:2px 6px;">ATTACH MEDIA</button>
+                        <button id="btn-attach-media" style="font-size:9px; background:#000; border:1px solid #0fa; color:#0fa; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⊕ MEDIA</button>
                         <span id="editor-bar-info">auto-saving</span>
                         <button id="editor-bar-dismiss">✕</button>
                     </div>
-                    <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type here — text appears on the wall in real time..."></textarea>
+                    <!-- Panel navigation strip -->
+                    <div id="editor-panel-nav" style="display:flex; gap:0; overflow-x:auto; background:#000; border-bottom:1px solid #222; padding:0 4px; flex-shrink:0;"></div>
+                    <!-- AI response area (hidden until @-triggered) -->
+                    <div id="editor-ai-response" style="display:none; font-size:10px; color:#daa520; background:rgba(218,165,32,0.05); border-bottom:1px solid #333; padding:6px 12px; max-height:80px; overflow-y:auto; line-height:1.4; font-family:var(--font);"></div>
+                    <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type to edit wall · Start line with @ to ask AI · Saves live"></textarea>
                 </div>
             </div>
 

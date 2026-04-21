@@ -135,6 +135,9 @@ function playAsmrClick(): void {
 
 
 function editorOpen(zoneKey: string): void {
+  // Close context chat if open
+  if (contextChatActive) closeContextChat()
+  
   // If already editing this zone, just focus
   if (editorActive && editorZone === zoneKey) {
     ;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).focus()
@@ -158,6 +161,33 @@ function editorOpen(zoneKey: string): void {
 
   bar.classList.add('active')
   setTimeout(() => ta.focus(), 50)
+
+  // Build panel nav strip
+  const navEl = document.getElementById('editor-panel-nav')!
+  navEl.innerHTML = ''
+  const allKeys = Object.keys(MOUNTAIN_LORE)
+  for (const k of allKeys) {
+    const btn = document.createElement('button')
+    const lbl = ZONE_LABELS[k] || k.replace('panel_', 'P')
+    btn.textContent = lbl
+    const isActive = k === zoneKey
+    btn.style.cssText = `flex-shrink:0; font-size:8px; font-family:Courier New; font-weight:900;
+      padding:4px 8px; border:none; cursor:pointer; letter-spacing:0.5px; white-space:nowrap;
+      background:${isActive ? '#0ca' : '#111'}; color:${isActive ? '#000' : '#666'};
+      border-bottom:${isActive ? '2px solid #0ca' : '2px solid transparent'};`
+    btn.addEventListener('click', () => {
+      editorFlush()
+      navigateToZone(k)
+      editorOpen(k)
+      playAsmrClick()
+    })
+    navEl.appendChild(btn)
+  }
+
+  // Clear AI response area
+  const aiEl = document.getElementById('editor-ai-response')!
+  aiEl.style.display = 'none'
+  aiEl.innerHTML = ''
 
   // Update status bar
   const sbLlm = document.getElementById('sb-llm')
@@ -995,9 +1025,9 @@ window.addEventListener('keydown', e => {
   }
 
   // ═══ 'C' — CONTEXT CHAT: bring wall text into a chat ═══
-  if (e.key === 'c' && engineMode === 'LIDAR' && !contextChatInput) {
+  if (e.key === 'c' && engineMode === 'LIDAR' && !contextChatInput && !editorActive) {
     e.preventDefault()
-    openContextChat()
+    if (lastFacedLoreKey) editorOpen(lastFacedLoreKey)
   }
   if (e.key === 'Escape' && contextChatActive) {
     e.preventDefault()
@@ -2477,6 +2507,85 @@ document.getElementById('editor-bar-dismiss')!.addEventListener('click', () => e
 ;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).addEventListener('keydown', (e: KeyboardEvent) => {
   e.stopPropagation() // don't let WASD move player while typing
   if (e.key === 'Escape') { editorClose(); e.preventDefault() }
+  // @-mention AI: when user presses Enter and current line starts with @
+  if (e.key === 'Enter') {
+    const ta = e.target as HTMLTextAreaElement
+    const cursorPos = ta.selectionStart
+    const textBefore = ta.value.substring(0, cursorPos)
+    const lastNewline = textBefore.lastIndexOf('\n')
+    const currentLine = textBefore.substring(lastNewline + 1)
+    if (currentLine.trim().startsWith('@') && currentLine.trim().length > 2) {
+      e.preventDefault()
+      const prompt = currentLine.trim().substring(1).trim()
+      // Remove the @-line from the textarea
+      const before = ta.value.substring(0, lastNewline + 1)
+      const after = ta.value.substring(cursorPos)
+      ta.value = before + after
+      ta.selectionStart = ta.selectionEnd = before.length
+      editorFlush()
+      // Send to AI
+      const aiEl = document.getElementById('editor-ai-response')!
+      aiEl.style.display = 'block'
+      aiEl.innerHTML = `<span style="color:#555;">⟳ thinking...</span>`
+      // Use existing sendContextChat logic inline
+      if (!llmUrl) {
+        aiEl.innerHTML = `<span style="color:#c44;">No LLM connected. Set via Sheet B or ?llm_url= param.</span>`
+        return
+      }
+      const wallText = (MOUNTAIN_LORE[editorZone] || []).join(' ').substring(0, 500)
+      const messages = [
+        { role: 'system', content: `You are a worldtext architect. The user is editing "${ZONE_LABELS[editorZone] || editorZone}". Current wall text:\n\n${wallText}\n\nRespond concisely (2-3 sentences). Your response will be written onto the wall.` },
+        { role: 'user', content: prompt }
+      ]
+      fetch(llmUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(llmKey ? { Authorization: `Bearer ${llmKey}` } : {}) },
+        body: JSON.stringify({ model: llmModel, messages, max_tokens: 150 })
+      }).then(r => r.json()).then(data => {
+        const reply = data.choices?.[0]?.message?.content || 'No response.'
+        aiEl.innerHTML = `<div style="color:#daa520; margin-bottom:4px;">◂ ${reply}</div>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            <button id="ai-accept" style="font-size:8px; background:#0ca; color:#000; border:none; padding:2px 10px; cursor:pointer; font-family:Courier New; font-weight:900;">✓ WRITE TO WALL</button>
+            <button id="ai-dismiss" style="font-size:8px; background:#333; color:#888; border:none; padding:2px 10px; cursor:pointer; font-family:Courier New;">✕ DISMISS</button>
+          </div>`
+        document.getElementById('ai-accept')?.addEventListener('click', () => {
+          // Append AI reply to textarea
+          const ta2 = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+          ta2.value = ta2.value.trimEnd() + '\n' + reply
+          editorFlush()
+          aiEl.style.display = 'none'
+          playAsmrClick()
+        })
+        document.getElementById('ai-dismiss')?.addEventListener('click', () => {
+          aiEl.style.display = 'none'
+        })
+      }).catch(err => {
+        aiEl.innerHTML = `<span style="color:#c44;">Error: ${err}</span>`
+      })
+    }
+  }
+})
+
+// LINK button — wraps selection in [[brackets]] or inserts [[]] at cursor
+document.getElementById('btn-link')!.addEventListener('click', () => {
+  const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+  if (!editorActive) return
+  const start = ta.selectionStart
+  const end = ta.selectionEnd
+  const selected = ta.value.substring(start, end)
+  if (selected.length > 0) {
+    // Wrap selection
+    ta.value = ta.value.substring(0, start) + '[[' + selected + ']]' + ta.value.substring(end)
+    ta.selectionStart = start + 2
+    ta.selectionEnd = start + 2 + selected.length
+  } else {
+    // Insert empty brackets at cursor
+    ta.value = ta.value.substring(0, start) + '[[]]' + ta.value.substring(end)
+    ta.selectionStart = ta.selectionEnd = start + 2
+  }
+  ta.focus()
+  editorFlush()
+  playAsmrClick()
 })
 
 // Markdown export button
