@@ -984,6 +984,36 @@ function getWallLines(key: string, width: number, fontSize?: number): string[] {
   return lines
 }
 
+// ── BLOCK-AWARE WALL LAYOUT — preserves paragraph structure ──
+interface WallBlock {
+  lines: string[]        // Pretext-wrapped lines for this single block
+  type: Block['type']    // 'text' | 'h1' | 'h2' | 'quote' | 'list'
+  blockId: string        // UUID for future addressability
+}
+
+function getWallBlocks(key: string, width: number, fontSize?: number): WallBlock[] {
+  const fs = fontSize || charSize
+  const font = `${fs}px Courier New`
+  const cacheKey = `blk_${key}_${width}_${fs}`
+  if (wallLineCache.has(cacheKey)) return wallLineCache.get(cacheKey) as any as WallBlock[]
+  const blocks = BLOCK_STORE[key] || []
+  const result: WallBlock[] = []
+  for (const blk of blocks) {
+    let text = blk.text
+    // Strip markdown prefix for rendering (formatting handled by renderer)
+    if (blk.type === 'h1') text = text.substring(2)
+    else if (blk.type === 'h2') text = text.substring(3)
+    else if (blk.type === 'quote') text = text.substring(2)
+    else if (blk.type === 'list') text = text.substring(2)
+    const prepared = prepareWithSegments(text, font)
+    const lh = Math.ceil(fs * 1.3)
+    const layout = layoutWithLines(prepared, Math.max(40, width), lh)
+    result.push({ lines: layout.lines.map(l => l.text), type: blk.type, blockId: blk.id })
+  }
+  wallLineCache.set(cacheKey, result as any)
+  return result
+}
+
 // ── COALESCENCE ──
 interface TypesetChar { char: string; tx: number; ty: number }
 
@@ -2045,45 +2075,94 @@ function renderLidar(): void {
 
       lidarCtx.font = `${Math.round(fontSize)}px Courier New`
       let ly = textTop + 22
-      let lineIdx = Math.floor(PANEL_SCROLL[face.loreKey] || 0)
+      const scrollOffset = Math.floor(PANEL_SCROLL[face.loreKey] || 0)
 
-      while (ly < textBot - 4 && lineIdx < lines.length) {
-        let txt = lines[lineIdx]!
-        lidarCtx.globalAlpha = 0.9 + 0.1 * Math.sin(lineIdx * 0.2 + time * 0.15)
+      // ── BLOCK-AWARE RENDERING — each block is a visual paragraph ──
+      const wallBlocks = getWallBlocks(face.loreKey, textW, fontSize)
+      let globalLineIdx = 0 // track total lines for scroll offset
+      let renderedBlocks = 0
 
-        // ── MARKDOWN FORMATTING ──
-        let x = face.startX + padding
-        let customFont = ''
-        let customColor = ''
-        
-        if (txt.startsWith('# ')) {
-          txt = txt.substring(2)
-          customFont = `bold ${Math.round(fontSize * 1.5)}px Courier New`
-          customColor = '#daa520'
-        } else if (txt.startsWith('## ')) {
-          txt = txt.substring(3)
-          customFont = `bold ${Math.round(fontSize * 1.2)}px Courier New`
-          customColor = '#ccc'
-        } else if (txt.startsWith('> ')) {
-          txt = txt.substring(2)
-          x += 20
-          customFont = `italic ${Math.round(fontSize)}px Courier New`
-          customColor = '#777'
-        } else if (txt.startsWith('- ')) {
-          txt = '• ' + txt.substring(2)
-          x += 10
+      for (const wb of wallBlocks) {
+        if (ly >= textBot - 4) break
+
+        // Pre-block spacing (paragraph gap) — skip for the first visible block
+        if (renderedBlocks > 0) {
+          const gap = wb.type === 'h1' ? lh * 1.2
+                    : wb.type === 'h2' ? lh * 0.8
+                    : lh * 0.5
+          ly += gap
         }
-        
-        if (customFont) lidarCtx.font = customFont
 
-        // Hot-word scan — ALL scene-graph words are interactive
-        type Seg = { start: number; end: number; color: string; isPortal: boolean }
-        const hotSegs: Seg[] = []
-        const wallZone = face.loreKey // which zone this wall belongs to
-        for (const [word, color] of Object.entries(HOT_WORDS)) {
+        // Block-level formatting
+        let blockFont = `${Math.round(fontSize)}px Courier New`
+        let blockColor = isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0'
+        let blockIndent = 0
+        let drawQuoteBar = false
+        let bulletPrefix = ''
+
+        switch (wb.type) {
+          case 'h1':
+            blockFont = `bold ${Math.round(fontSize * 1.6)}px Courier New`
+            blockColor = '#daa520'
+            break
+          case 'h2':
+            blockFont = `bold ${Math.round(fontSize * 1.25)}px Courier New`
+            blockColor = isDaytime ? lerpColor('#ccc', '#444', dayGroundT) : '#ccc'
+            break
+          case 'quote':
+            blockFont = `italic ${Math.round(fontSize)}px Courier New`
+            blockColor = '#888'
+            blockIndent = 16
+            drawQuoteBar = true
+            break
+          case 'list':
+            bulletPrefix = '•  '
+            blockIndent = 4
+            break
+        }
+
+        // Render each wrapped line within this block
+        for (let li = 0; li < wb.lines.length; li++) {
+          if (ly >= textBot - 4) break
+
+          // Scroll offset: skip lines before the scroll position
+          if (globalLineIdx < scrollOffset) {
+            globalLineIdx++
+            continue
+          }
+
+          let txt = wb.lines[li]!
+          lidarCtx.globalAlpha = 0.92
+
+          // Apply block formatting
+          lidarCtx.font = blockFont
+          const blockLh = wb.type === 'h1' ? lh * 1.6
+                        : wb.type === 'h2' ? lh * 1.3
+                        : lh
+
+          let x = face.startX + padding + blockIndent
+
+          // Bullet on the first line of a list block
+          if (li === 0 && bulletPrefix) {
+            lidarCtx.fillStyle = face.zone.color
+            lidarCtx.fillText(bulletPrefix, x, ly)
+            x += lidarCtx.measureText(bulletPrefix).width
+          }
+
+          // Quote bar decoration
+          if (drawQuoteBar) {
+            lidarCtx.globalAlpha = 0.4
+            lidarCtx.fillStyle = face.zone.color
+            lidarCtx.fillRect(face.startX + padding + 4, ly, 2, blockLh - 2)
+            lidarCtx.globalAlpha = 0.92
+          }
+
+          // Hot-word scan — ALL scene-graph words are interactive
+          type Seg = { start: number; end: number; color: string; isPortal: boolean }
+          const hotSegs: Seg[] = []
+          const wallZone = face.loreKey
+          for (const [word, color] of Object.entries(HOT_WORDS)) {
             const node = CLUE_GRAPH[word]
-            // Portal = word belongs to a DIFFERENT zone (clicking teleports)
-            // Local = word belongs to THIS zone (clicking shows clue)
             const isPortal = node ? node.zone !== wallZone : true
             let idx = txt.toLowerCase().indexOf(word.toLowerCase())
             while (idx >= 0) {
@@ -2091,72 +2170,71 @@ function renderLidar(): void {
               idx = txt.toLowerCase().indexOf(word.toLowerCase(), idx + word.length)
             }
           }
-        hotSegs.sort((a, b) => a.start - b.start)
+          hotSegs.sort((a, b) => a.start - b.start)
 
-        const defaultFill = customColor || (isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0')
+          const defaultFill = (wb.type !== 'text' && wb.type !== 'list') ? blockColor : blockColor
 
-        if (hotSegs.length === 0) {
-          lidarCtx.fillStyle = defaultFill
-          lidarCtx.fillText(txt, x, ly)
-        } else {
-          let cur = 0
-          for (const seg of hotSegs) {
-            if (seg.start < cur) continue
-            if (seg.start > cur) {
-              const plain = txt.substring(cur, seg.start)
-              lidarCtx.fillStyle = defaultFill
-              lidarCtx.fillText(plain, x, ly)
-              x += lidarCtx.measureText(plain).width
-            }
-            const hotText = txt.substring(seg.start, seg.end)
-            const hotW = lidarCtx.measureText(hotText).width
-
-            if (seg.isPortal) {
-              // ═══ PORTAL: bright, glowing, underlined — click teleports ═══
-              lidarCtx.fillStyle = seg.color
-              lidarCtx.shadowColor = seg.color
-              lidarCtx.shadowBlur = 10
-              lidarCtx.fillText(hotText, x, ly)
-              // Solid underline for portals
-              const underlineY = ly + (customFont ? 4 : fontSize - 1)
-              lidarCtx.fillRect(x, underlineY, hotW, 2)
-            } else {
-              // ═══ LOCAL: warm glow, dotted underline — click shows clue ═══
-              lidarCtx.fillStyle = seg.color
-              lidarCtx.shadowColor = seg.color
-              lidarCtx.shadowBlur = 4
-              lidarCtx.globalAlpha = 0.75
-              lidarCtx.fillText(hotText, x, ly)
-              // Dotted underline for local keywords
-              const underlineY = ly + (customFont ? 4 : fontSize - 1)
-              for (let dx = 0; dx < hotW; dx += 4) {
-                lidarCtx.fillRect(x + dx, underlineY, 2, 1)
-              }
-              lidarCtx.globalAlpha = 0.9 + 0.1 * Math.sin(lineIdx * 0.2 + time * 0.15)
-            }
-            // ALL keywords are clickable — record hit box
-            let finalH = lh
-            if (customFont && customFont.includes('1.5')) finalH *= 1.5
-            hotWordHits.push({ x, y: ly, w: hotW, h: finalH, word: hotText, color: seg.color, zone: face.loreKey })
-
-            lidarCtx.shadowBlur = 2
-            lidarCtx.shadowColor = face.zone.color
-            x += hotW
-            cur = seg.end
-          }
-          if (cur < txt.length) {
+          if (hotSegs.length === 0) {
             lidarCtx.fillStyle = defaultFill
-            lidarCtx.fillText(txt.substring(cur), x, ly)
+            lidarCtx.fillText(txt, x, ly)
+          } else {
+            let cur = 0
+            for (const seg of hotSegs) {
+              if (seg.start < cur) continue
+              if (seg.start > cur) {
+                const plain = txt.substring(cur, seg.start)
+                lidarCtx.fillStyle = defaultFill
+                lidarCtx.fillText(plain, x, ly)
+                x += lidarCtx.measureText(plain).width
+              }
+              const hotText = txt.substring(seg.start, seg.end)
+              const hotW = lidarCtx.measureText(hotText).width
+              if (seg.isPortal) {
+                lidarCtx.fillStyle = seg.color
+                lidarCtx.shadowColor = seg.color
+                lidarCtx.shadowBlur = 10
+                lidarCtx.fillText(hotText, x, ly)
+                lidarCtx.fillRect(x, ly + fontSize - 1, hotW, 2)
+              } else {
+                lidarCtx.fillStyle = seg.color
+                lidarCtx.shadowColor = seg.color
+                lidarCtx.shadowBlur = 4
+                lidarCtx.globalAlpha = 0.75
+                lidarCtx.fillText(hotText, x, ly)
+                for (let dx = 0; dx < hotW; dx += 4) {
+                  lidarCtx.fillRect(x + dx, ly + fontSize - 1, 2, 1)
+                }
+                lidarCtx.globalAlpha = 0.92
+              }
+              hotWordHits.push({ x, y: ly, w: hotW, h: blockLh, word: hotText, color: seg.color, zone: face.loreKey })
+              lidarCtx.shadowBlur = 2
+              lidarCtx.shadowColor = face.zone.color
+              x += hotW
+              cur = seg.end
+            }
+            if (cur < txt.length) {
+              lidarCtx.fillStyle = defaultFill
+              lidarCtx.fillText(txt.substring(cur), x, ly)
+            }
           }
+
+          ly += blockLh
+          globalLineIdx++
         }
 
-        // Restore font if changed
-        if (customFont) lidarCtx.font = `${Math.round(fontSize)}px Courier New`
+        // Post-heading rule: subtle horizontal line after H1
+        if (wb.type === 'h1' && ly < textBot - 4) {
+          lidarCtx.globalAlpha = 0.15
+          lidarCtx.fillStyle = '#daa520'
+          lidarCtx.fillRect(face.startX + padding, ly - lh * 0.3, textW * 0.6, 1)
+          lidarCtx.globalAlpha = 0.92
+        }
 
-        ly += lh
-        lineIdx++
-        if (lineIdx > PANEL_SCROLL[face.loreKey] + 100) break // safety break
+        renderedBlocks++
       }
+
+      // Restore base font
+      lidarCtx.font = `${Math.round(fontSize)}px Courier New`
 
       lidarCtx.shadowBlur = 0
 
@@ -2165,13 +2243,16 @@ function renderLidar(): void {
       lidarCtx.globalAlpha = 0.5 + 0.2 * Math.sin(time * 0.3)
       if (editorActive && editorZone === face.loreKey) {
         lidarCtx.fillStyle = '#0ca'
-        lidarCtx.fillText(`✎ EDITING · ${lines.length} LINES`, face.startX + padding, textBot - 12)
+        const blockCount = (BLOCK_STORE[face.loreKey] || []).length
+        lidarCtx.fillText(`✎ EDITING · ${blockCount} BLOCKS`, face.startX + padding, textBot - 12)
       } else {
         // Show overflow indicator if text exceeds visible area
-        const overflowLines = lines.length - lineIdx
+        const totalLines = wallBlocks.reduce((s, wb) => s + wb.lines.length, 0)
+        const overflowLines = totalLines - globalLineIdx
         const overflowText = overflowLines > 0 ? ` · +${overflowLines} MORE ↓` : ''
+        const blockCount = wallBlocks.length
         lidarCtx.fillStyle = '#0ca'
-        lidarCtx.fillText(`[E] EDIT · @ LINK · ${lines.length} LINES${overflowText}`, face.startX + padding, textBot - 12)
+        lidarCtx.fillText(`[E] EDIT · @ LINK · ${blockCount} ¶${overflowText}`, face.startX + padding, textBot - 12)
       }
 
       // Hover highlight on clickable hot words
@@ -2893,9 +2974,10 @@ window.addEventListener('wheel', (e) => {
     const delta = e.deltaY > 0 ? 1 : -1
     let scroll = Math.floor(PANEL_SCROLL[lastFacedLoreKey] || 0)
     
-    // Loosely bound scroll to text length
-    const lines = MOUNTAIN_LORE[lastFacedLoreKey] || []
-    const maxScroll = Math.max(0, lines.length - 15) // Assume ~15 lines visible at a time
+    // Estimate total wrapped lines from block data
+    const blocks = BLOCK_STORE[lastFacedLoreKey] || []
+    const estLines = blocks.reduce((s, b) => s + Math.max(1, Math.ceil(b.text.length / 40)), 0)
+    const maxScroll = Math.max(0, estLines - 10)
     
     scroll += delta
     if (scroll < 0) scroll = 0
