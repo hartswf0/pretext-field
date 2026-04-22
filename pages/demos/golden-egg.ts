@@ -326,7 +326,46 @@ function editorPersist(): void {
   idbPersist().catch(() => {
     // Fallback already handled inside idbPersist
   })
+  // Debounced disk backup (if linked)
+  if (diskDirHandle) {
+    if (diskDebounce) clearTimeout(diskDebounce)
+    diskDebounce = setTimeout(backupToDisk, 2000)
+  }
 }
+
+// ═══ FILE SYSTEM ACCESS API (Cold Storage — Survival Layer) ═══
+let diskDirHandle: FileSystemDirectoryHandle | null = null
+let diskDebounce: ReturnType<typeof setTimeout> | null = null
+
+async function backupToDisk(): Promise<void> {
+  if (!diskDirHandle) return
+  try {
+    const fileHandle = await diskDirHandle.getFileHandle('golden-egg-vault.json', { create: true })
+    const writable = await fileHandle.createWritable()
+    const payload = {
+      _format: 'golden-egg-vault-v1',
+      exportedAt: new Date().toISOString(),
+      blocks: BLOCK_STORE,
+      metadata: PANEL_METADATA,
+      labels: ZONE_LABELS,
+      zones: ZONES,
+      positions: ZONE_POSITIONS,
+      clueGraph: CLUE_GRAPH,
+    }
+    await writable.write(JSON.stringify(payload, null, 2))
+    await writable.close()
+    // Brief visual feedback
+    const infoEl = document.getElementById('editor-bar-info')
+    if (infoEl) {
+      infoEl.textContent = 'disk synced ✓'
+      infoEl.style.color = '#0fa'
+      setTimeout(() => { if (infoEl) { infoEl.textContent = 'auto-saving'; infoEl.style.color = '#555' } }, 2000)
+    }
+  } catch (e) {
+    console.error('Disk backup failed', e)
+  }
+}
+
 
 function editorRestore(): void {
   // Synchronous legacy restore first (for instant render)
@@ -699,6 +738,13 @@ function onHotWordClick(hit: HotWordHit): void {
     window.open(word, '_blank', 'noopener')
     const out = document.getElementById('scanner-output')
     if (out) { out.innerText = `OPENING: ${word}`; out.style.color = '#0af' }
+    return
+  }
+
+  // ── TRANSCLUSION PORTHOLE: click to traverse ──
+  if (word.startsWith('TRANSCLUDE_')) {
+    navigateToZone(word.replace('TRANSCLUDE_', ''))
+    playAsmrClick()
     return
   }
 
@@ -2120,6 +2166,61 @@ function renderLidar(): void {
           continue
         }
 
+        // ── TRANSCLUSION PORTHOLE — {{panel_N}} renders a preview window ──
+        const transMatch = wb.lines.length === 1 && wb.lines[0]!.trim().match(/^\{\{(.+?)\}\}$/)
+        if (transMatch) {
+          const targetRaw = transMatch[1].trim()
+          const targetKey = BLOCK_STORE[targetRaw] ? targetRaw
+                          : BLOCK_STORE[`panel_${targetRaw}`] ? `panel_${targetRaw}`
+                          : null
+          const targetZone = targetKey ? ZONES[targetKey] : null
+          const targetBlocks = targetKey ? BLOCK_STORE[targetKey] : null
+
+          if (targetZone && targetBlocks && targetKey !== face.loreKey) {
+            const boxH = lh * 5
+            const boxW = Math.min(textW, 400)
+            const bx = face.startX + padding
+
+            if (ly + boxH < textBot) {
+              // Glass background
+              lidarCtx.globalAlpha = 0.85
+              lidarCtx.fillStyle = '#050508'
+              lidarCtx.fillRect(bx, ly, boxW, boxH)
+              // Zone-colored frame
+              lidarCtx.globalAlpha = 0.7
+              lidarCtx.strokeStyle = targetZone.color
+              lidarCtx.lineWidth = 1.5
+              lidarCtx.strokeRect(bx, ly, boxW, boxH)
+
+              // Header
+              lidarCtx.fillStyle = targetZone.color
+              lidarCtx.font = `bold ${Math.max(10, Math.round(fontSize * 0.8))}px Courier New`
+              lidarCtx.globalAlpha = 0.9
+              lidarCtx.fillText(`◩ ${ZONE_LABELS[targetKey] || targetKey.toUpperCase()} — CLICK TO TRAVERSE`, bx + 8, ly + 10)
+
+              // Preview: first 3 blocks
+              lidarCtx.fillStyle = '#aaa'
+              lidarCtx.font = `italic ${Math.max(9, Math.round(fontSize * 0.9))}px Courier New`
+              for (let p = 0; p < Math.min(3, targetBlocks.length); p++) {
+                let preview = targetBlocks[p]!.text.substring(0, 50)
+                if (targetBlocks[p]!.text.length > 50) preview += '…'
+                lidarCtx.fillText(preview, bx + 8, ly + 12 + (p + 1) * lh)
+              }
+
+              // Clickable hit box — teleports to target panel
+              hotWordHits.push({
+                x: bx, y: ly, w: boxW, h: boxH,
+                word: `TRANSCLUDE_${targetKey}`, color: targetZone.color, zone: face.loreKey
+              })
+
+              ly += boxH + 8
+              renderedBlocks++
+              globalLineIdx++
+              continue
+            }
+          }
+        }
+
         // Block-level formatting
         let blockFont = `${Math.round(fontSize)}px Courier New`
         let blockColor = isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0'
@@ -2593,6 +2694,77 @@ function renderLidar(): void {
   mmCtx.moveTo(player.x * mmScale, player.y * mmScale)
   mmCtx.lineTo((player.x + player.dirX * 2) * mmScale, (player.y + player.dirY * 2) * mmScale)
   mmCtx.stroke()
+
+  // ═══ SEARCH RADAR: pulse matching zones on minimap ═══
+  if (activeSearchQuery && activeSearchTargets.length > 0) {
+    for (const targetKey of activeSearchTargets) {
+      const tpos = ZONE_POSITIONS[targetKey]
+      if (tpos) {
+        const tmx = tpos.x * mmScale
+        const tmy = tpos.y * mmScale
+        const pulseR = 4 + Math.abs(Math.sin(time * 5)) * 3
+        mmCtx.globalAlpha = 0.8
+        mmCtx.strokeStyle = '#0fa'
+        mmCtx.lineWidth = 1.5
+        mmCtx.beginPath()
+        mmCtx.arc(tmx, tmy, pulseR, 0, Math.PI * 2)
+        mmCtx.stroke()
+      }
+    }
+  }
+
+  // ═══ SEARCH COMPASS HUD — shows bearing to nearest match ═══
+  if (activeSearchQuery && activeSearchTargets.length > 0) {
+    let nearestTarget = ''
+    let minSearchDist = Infinity
+    let targetDx = 0, targetDy = 0
+
+    for (const targetKey of activeSearchTargets) {
+      const tpos = ZONE_POSITIONS[targetKey]
+      if (tpos) {
+        const dx = tpos.x - player.x
+        const dy = tpos.y - player.y
+        const d = Math.hypot(dx, dy)
+        if (d < minSearchDist) {
+          minSearchDist = d
+          nearestTarget = targetKey
+          targetDx = dx; targetDy = dy
+        }
+      }
+    }
+
+    if (nearestTarget) {
+      const targetAngle = Math.atan2(targetDy, targetDx)
+      const playerAngle = Math.atan2(player.dirY, player.dirX)
+      let angleDiff = targetAngle - playerAngle
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2
+
+      let turnStr = '↑ AHEAD'
+      if (angleDiff > 0.3) turnStr = '→ TURN RIGHT'
+      if (angleDiff < -0.3) turnStr = '← TURN LEFT'
+      if (Math.abs(angleDiff) > 2.0) turnStr = '↓ BEHIND YOU'
+
+      const cw2 = lidarCanvas.width
+      lidarCtx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 4)
+      lidarCtx.fillStyle = '#0fa'
+      lidarCtx.textAlign = 'center'
+      lidarCtx.font = 'bold 12px Courier New'
+      lidarCtx.fillText(`[RADAR: "${activeSearchQuery.toUpperCase()}"]`, cw2 / 2, 48)
+
+      lidarCtx.font = '10px Courier New'
+      lidarCtx.fillText(
+        `${activeSearchTargets.length} MATCH${activeSearchTargets.length > 1 ? 'ES' : ''} · NEAREST: ${ZONE_LABELS[nearestTarget] || nearestTarget} (${Math.round(minSearchDist)}m) ${turnStr}`,
+        cw2 / 2, 62
+      )
+      lidarCtx.fillStyle = '#0fa'
+      lidarCtx.globalAlpha = 0.3
+      lidarCtx.font = '9px Courier New'
+      lidarCtx.fillText('ESC to clear', cw2 / 2, 74)
+      lidarCtx.textAlign = 'left'
+      lidarCtx.globalAlpha = 1
+    }
+  }
 }
 
 function lidarScan(): void {
@@ -2786,66 +2958,51 @@ editorTextarea.addEventListener('drop', (e: DragEvent) => {
   reader.readAsText(file)
 })
 
-// ── CROSS-PANEL SEARCH — Ctrl+F in LiDAR mode ──
+// ═══ SPATIAL SEARCH RADAR — compass, not teleport ═══
+let activeSearchQuery = ''
+let activeSearchTargets: string[] = []
+
 window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && engineMode === 'LIDAR' && !editorActive) {
     e.preventDefault()
-    const query = prompt('Search across all panels:')
+
+    // Toggle off if already active
+    if (activeSearchQuery) {
+      activeSearchQuery = ''
+      activeSearchTargets = []
+      return
+    }
+
+    const query = prompt('Search (compass will guide you):')
     if (!query || !query.trim()) return
-    const q = query.trim().toLowerCase()
-    const matches: { key: string; label: string; count: number }[] = []
+
+    activeSearchQuery = query.trim().toLowerCase()
+    activeSearchTargets = []
+
     for (const [key, lines] of Object.entries(MOUNTAIN_LORE)) {
       const fullText = lines.join(' ').toLowerCase()
-      const count = fullText.split(q).length - 1
-      if (count > 0) {
-        matches.push({ key, label: ZONE_LABELS[key] || key, count })
+      if (fullText.includes(activeSearchQuery) || (ZONE_LABELS[key] || '').toLowerCase().includes(activeSearchQuery)) {
+        activeSearchTargets.push(key)
       }
     }
-    if (matches.length === 0) {
-      // Flash a brief message on screen
+
+    if (activeSearchTargets.length === 0) {
+      activeSearchQuery = ''
       const msg = document.createElement('div')
       msg.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
         background:rgba(0,0,0,0.9); border:1px solid #f44; color:#f44; padding:12px 24px;
         font-family:Courier New; font-size:12px; z-index:99999; pointer-events:none;`
-      msg.textContent = `No results for "${query}"`
+      msg.textContent = `No matches for "${query.toUpperCase()}"`
       document.body.appendChild(msg)
       setTimeout(() => msg.remove(), 2000)
-    } else if (matches.length === 1) {
-      // Go directly to the single match and open editor
-      navigateToZone(matches[0]!.key)
-      editorOpen(matches[0]!.key)
     } else {
-      // Show results and let user pick
-      const resultsDiv = document.createElement('div')
-      resultsDiv.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-        background:rgba(0,0,0,0.95); border:1px solid #0ca; padding:16px 24px;
-        font-family:Courier New; font-size:11px; z-index:99999; max-height:300px; overflow-y:auto; min-width:240px;`
-      resultsDiv.innerHTML = `<div style="color:#0ca; font-weight:bold; margin-bottom:8px; letter-spacing:2px;">SEARCH: "${query}" — ${matches.length} panels</div>`
-      for (const m of matches) {
-        const row = document.createElement('div')
-        row.style.cssText = 'color:#ccc; padding:4px 0; cursor:pointer; border-bottom:1px solid #222;'
-        row.textContent = `▸ ${m.label} (${m.count} match${m.count > 1 ? 'es' : ''})`
-        row.addEventListener('mouseenter', () => { row.style.color = '#0ca' })
-        row.addEventListener('mouseleave', () => { row.style.color = '#ccc' })
-        row.addEventListener('click', () => {
-          resultsDiv.remove()
-          navigateToZone(m.key)
-          editorOpen(m.key)
-        })
-        resultsDiv.appendChild(row)
-      }
-      const closeBtn = document.createElement('div')
-      closeBtn.style.cssText = 'color:#555; font-size:9px; margin-top:8px; text-align:center; cursor:pointer;'
-      closeBtn.textContent = 'ESC to close'
-      closeBtn.addEventListener('click', () => resultsDiv.remove())
-      resultsDiv.appendChild(closeBtn)
-      document.body.appendChild(resultsDiv)
-      // ESC to dismiss
-      const dismissSearch = (ev: KeyboardEvent) => {
-        if (ev.key === 'Escape') { resultsDiv.remove(); window.removeEventListener('keydown', dismissSearch) }
-      }
-      window.addEventListener('keydown', dismissSearch)
+      playAsmrClick()
     }
+  }
+
+  if (e.key === 'Escape' && activeSearchQuery && !editorActive) {
+    activeSearchQuery = ''
+    activeSearchTargets = []
   }
 })
 
@@ -3545,6 +3702,28 @@ document.getElementById('btn-export-lore')!.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(BLOCK_STORE, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
   link.download = `golden-egg-blocks-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
+})
+
+// Cold Storage: Link a local folder via File System Access API
+document.getElementById('btn-link-disk')?.addEventListener('click', async () => {
+  try {
+    // @ts-ignore — File System Access API not in all TS lib typings
+    diskDirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+    const statusEl = document.getElementById('disk-status')
+    if (statusEl) {
+      statusEl.innerText = '✓ LINKED — auto-saving to disk'
+      statusEl.style.color = '#0fa'
+    }
+    await backupToDisk()
+  } catch (e) {
+    console.warn('Directory picker cancelled or not supported', e)
+    const statusEl = document.getElementById('disk-status')
+    if (statusEl) {
+      statusEl.innerText = 'Cancelled or not supported'
+      statusEl.style.color = '#f44'
+      setTimeout(() => { if (statusEl) { statusEl.innerText = 'Not linked'; statusEl.style.color = '#555' } }, 3000)
+    }
+  }
 })
 
 // ── MEDIA UPLOAD ──
