@@ -395,6 +395,7 @@ editorRestore()
 // ═══════════════════════════════════════════════════════════
 
 const MOUNTAIN_LORE: Record<string, string[]> = {}
+const LORE_FULL: Record<string, string> = {}
 
 // ═══ BLOCK-LEVEL IDENTITY — UUID-addressed content model ═══
 // BLOCK_STORE is the source of truth. MOUNTAIN_LORE is a derived string[] view.
@@ -453,11 +454,6 @@ const MOUNTAIN_MEDIA: Record<string, { type: 'image' | 'video', url: string, el?
 // ── PANEL METADATA (Spatio-Temporal Tracking) ──
 const PANEL_METADATA: Record<string, { lastEditTime: number }> = {}
 const META_STORAGE_KEY = 'golden-egg-meta'
-
-const LORE_FULL: Record<string, string> = {}
-for (const [k] of Object.entries(BLOCK_STORE)) {
-  syncLoreFromBlocks(k)
-}
 
 // ═══ INDEXEDDB PERSISTENCE ═══
 // Async wrapper with localStorage fallback for initial render
