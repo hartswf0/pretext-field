@@ -85,12 +85,12 @@ async function llmGenerate(zone: string, existingSample: string): Promise<string
 }
 
 function injectLore(zone: string, newLines: string[]): void {
-  if (!MOUNTAIN_LORE[zone]) MOUNTAIN_LORE[zone] = []
   if (newLines.length === 0) return
+  if (!BLOCK_STORE[zone]) BLOCK_STORE[zone] = []
   for (const line of newLines) {
-    MOUNTAIN_LORE[zone]!.push(line)
+    BLOCK_STORE[zone]!.push(mintBlock(line))
   }
-  LORE_FULL[zone] = MOUNTAIN_LORE[zone]!.join(' ')
+  syncLoreFromBlocks(zone)
   wallLineCache.clear()
   editorPersist()
 }
@@ -107,19 +107,19 @@ let editorZone = ''
 // ═══ PANEL SCROLL STATE — tracks vertical scroll offset per monolith panel ═══
 const PANEL_SCROLL: Record<string, number> = {}
 
-// ═══ UNDO STACK — per-panel, max 20 states ═══
+// ═══ UNDO STACK — per-panel, max 20 block snapshots ═══
 const UNDO_MAX = 20
-const undoStacks: Record<string, string[][]> = {}
+const undoStacks: Record<string, Block[][]> = {}
 
 function undoPush(zoneKey: string): void {
-  const current = MOUNTAIN_LORE[zoneKey]
+  const current = BLOCK_STORE[zoneKey]
   if (!current) return
   if (!undoStacks[zoneKey]) undoStacks[zoneKey] = []
   const stack = undoStacks[zoneKey]!
   // Avoid duplicate consecutive states
   const last = stack[stack.length - 1]
-  if (last && last.join('\n') === current.join('\n')) return
-  stack.push([...current])
+  if (last && last.map(b => b.text).join('\n') === current.map(b => b.text).join('\n')) return
+  stack.push(current.map(b => ({ ...b })))
   if (stack.length > UNDO_MAX) stack.shift()
 }
 
@@ -127,8 +127,8 @@ function undoPop(zoneKey: string): boolean {
   const stack = undoStacks[zoneKey]
   if (!stack || stack.length === 0) return false
   const prev = stack.pop()!
-  MOUNTAIN_LORE[zoneKey] = prev
-  LORE_FULL[zoneKey] = prev.join(' ')
+  BLOCK_STORE[zoneKey] = prev
+  syncLoreFromBlocks(zoneKey)
   wallLineCache.clear()
   prepCache.clear()
   editorPersist()
@@ -240,17 +240,40 @@ function editorClose(): void {
   if (sbLlm) sbLlm.textContent = '—'
 }
 
-// Flush current textarea content to MOUNTAIN_LORE + localStorage (synchronous)
+// Flush current textarea content to BLOCK_STORE with UUID-preserving diff
 function editorFlush(): void {
   if (!editorActive || !editorZone) return
   // Snapshot current state for undo before overwriting
   undoPush(editorZone)
   const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
   const text = ta.value.trim()
-  const lines = text.split('\n').filter(l => l.trim().length > 0)
-
-  MOUNTAIN_LORE[editorZone] = lines.length > 0 ? lines : ['(empty)']
-  LORE_FULL[editorZone] = MOUNTAIN_LORE[editorZone]!.join(' ')
+  const newLines = text.split('\n').filter(l => l.trim().length > 0)
+  if (newLines.length === 0) {
+    BLOCK_STORE[editorZone] = [mintBlock('(empty)')]
+  } else {
+    // UUID-preserving diff: match new lines against existing blocks by text
+    const existingBlocks = BLOCK_STORE[editorZone] || []
+    const existingByText = new Map<string, Block[]>()
+    for (const b of existingBlocks) {
+      const arr = existingByText.get(b.text) || []
+      arr.push(b)
+      existingByText.set(b.text, arr)
+    }
+    const result: Block[] = []
+    for (const line of newLines) {
+      const candidates = existingByText.get(line)
+      if (candidates && candidates.length > 0) {
+        // Reuse existing block (preserves UUID)
+        result.push(candidates.shift()!)
+        if (candidates.length === 0) existingByText.delete(line)
+      } else {
+        // New or modified line — mint fresh block
+        result.push(mintBlock(line))
+      }
+    }
+    BLOCK_STORE[editorZone] = result
+  }
+  syncLoreFromBlocks(editorZone)
   PANEL_METADATA[editorZone] = { lastEditTime: Date.now() }
 
   // Extract [[links]] to auto-populate CLUE_GRAPH
@@ -293,38 +316,39 @@ function editorLiveUpdate(): void {
   }, 150)
 }
 
-// ── PERSISTENCE — localStorage ──
+// ── PERSISTENCE — IndexedDB primary, localStorage fallback ──
 const STORAGE_KEY = 'golden-egg-lore'
+let idbReady = false
 
 function editorPersist(): void {
-  try { 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(MOUNTAIN_LORE)) 
-    localStorage.setItem(META_STORAGE_KEY, JSON.stringify(PANEL_METADATA))
-  } catch { /* quota */ }
+  // Fire-and-forget async persist to IDB
+  idbPersist().catch(() => {
+    // Fallback already handled inside idbPersist
+  })
 }
 
 function editorRestore(): void {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const data = JSON.parse(saved) as Record<string, string[]>
-      for (const [key, lines] of Object.entries(data)) {
-        if (Array.isArray(lines) && lines.length > 0) {
-          MOUNTAIN_LORE[key] = lines
-          LORE_FULL[key] = lines.join(' ')
-        }
-      }
-    }
-    const savedMeta = localStorage.getItem(META_STORAGE_KEY)
-    if (savedMeta) {
-      const metaData = JSON.parse(savedMeta)
-      for (const [key, val] of Object.entries(metaData)) {
-         PANEL_METADATA[key] = val as any
-      }
-    }
+  // Synchronous legacy restore first (for instant render)
+  const hadLegacy = migrateLegacyToBlocks()
+  if (hadLegacy) {
     wallLineCache.clear()
     prepCache.clear()
-  } catch { /* corrupt — ignore */ }
+  }
+  // Then async IDB restore (overwrites if IDB has newer data)
+  idbRestore().then(restored => {
+    idbReady = true
+    if (restored) {
+      wallLineCache.clear()
+      prepCache.clear()
+      // If we had legacy data, persist the migrated blocks to IDB
+    }
+    if (hadLegacy && !restored) {
+      // Flush the migrated blocks to IDB for future loads
+      idbPersist()
+    }
+  }).catch(() => {
+    idbReady = false
+  })
 }
 
 // ── MARKDOWN EXPORT — all zones as a single .md file ──
@@ -371,8 +395,42 @@ editorRestore()
 // ═══════════════════════════════════════════════════════════
 
 const MOUNTAIN_LORE: Record<string, string[]> = {}
+
+// ═══ BLOCK-LEVEL IDENTITY — UUID-addressed content model ═══
+// BLOCK_STORE is the source of truth. MOUNTAIN_LORE is a derived string[] view.
+interface Block {
+  id: string        // crypto.randomUUID()
+  text: string
+  created: number   // Date.now()
+  type: 'text' | 'h1' | 'h2' | 'quote' | 'list'
+}
+
+const BLOCK_STORE: Record<string, Block[]> = {}
+
+function mintBlock(text: string): Block {
+  // Detect type from markdown prefix
+  let type: Block['type'] = 'text'
+  if (text.startsWith('# ')) type = 'h1'
+  else if (text.startsWith('## ')) type = 'h2'
+  else if (text.startsWith('> ')) type = 'quote'
+  else if (text.startsWith('- ')) type = 'list'
+  return { id: crypto.randomUUID(), text, created: Date.now(), type }
+}
+
+function syncLoreFromBlocks(key: string): void {
+  const blocks = BLOCK_STORE[key]
+  if (!blocks || blocks.length === 0) {
+    MOUNTAIN_LORE[key] = ['(empty)']
+  } else {
+    MOUNTAIN_LORE[key] = blocks.map(b => b.text)
+  }
+  LORE_FULL[key] = MOUNTAIN_LORE[key]!.join(' ')
+}
+
+// Initialize 16 default panels with blocks
 for (let i = 1; i <= 16; i++) {
-  MOUNTAIN_LORE[`panel_${i}`] = i === 1 
+  const key = `panel_${i}`
+  const lines = i === 1 
     ? [
       "GOLDEN EGG · EMPTY FIELD",
       "This is Panel 1. You are standing in an empty structural field.",
@@ -385,6 +443,8 @@ for (let i = 1; i <= 16; i++) {
       `Type here or drop a .txt/.md file to import text.`,
       `Type @ to link panels together.`
     ]
+  BLOCK_STORE[key] = lines.map(l => mintBlock(l))
+  syncLoreFromBlocks(key)
 }
 
 // ── MOUNTAIN MEDIA (Volatile Session Audio/Video) ──
@@ -395,8 +455,116 @@ const PANEL_METADATA: Record<string, { lastEditTime: number }> = {}
 const META_STORAGE_KEY = 'golden-egg-meta'
 
 const LORE_FULL: Record<string, string> = {}
-for (const [k, v] of Object.entries(MOUNTAIN_LORE)) {
-  LORE_FULL[k] = v.join(' ')
+for (const [k] of Object.entries(BLOCK_STORE)) {
+  syncLoreFromBlocks(k)
+}
+
+// ═══ INDEXEDDB PERSISTENCE ═══
+// Async wrapper with localStorage fallback for initial render
+const IDB_NAME = 'golden-egg-db'
+const IDB_VERSION = 1
+const IDB_STORE = 'blocks'
+
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE)
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbPersist(): Promise<void> {
+  try {
+    const db = await openIDB()
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    const store = tx.objectStore(IDB_STORE)
+    store.put(BLOCK_STORE, 'block_store')
+    store.put(PANEL_METADATA, 'panel_metadata')
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    db.close()
+  } catch {
+    // Fallback: write derived string[] to localStorage
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(MOUNTAIN_LORE))
+      localStorage.setItem(META_STORAGE_KEY, JSON.stringify(PANEL_METADATA))
+    } catch { /* quota */ }
+  }
+}
+
+async function idbRestore(): Promise<boolean> {
+  try {
+    const db = await openIDB()
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const store = tx.objectStore(IDB_STORE)
+    const blockReq = store.get('block_store')
+    const metaReq = store.get('panel_metadata')
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    const blocks = blockReq.result as Record<string, Block[]> | undefined
+    const meta = metaReq.result as Record<string, { lastEditTime: number }> | undefined
+    db.close()
+    if (blocks && Object.keys(blocks).length > 0) {
+      for (const [key, blks] of Object.entries(blocks)) {
+        if (Array.isArray(blks) && blks.length > 0) {
+          BLOCK_STORE[key] = blks
+          syncLoreFromBlocks(key)
+        }
+      }
+      if (meta) {
+        for (const [key, val] of Object.entries(meta)) {
+          PANEL_METADATA[key] = val
+        }
+      }
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+// One-time migration: convert legacy localStorage string[] saves to Block[]
+function migrateLegacyToBlocks(): boolean {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return false
+    const data = JSON.parse(saved) as Record<string, any>
+    let migrated = false
+    for (const [key, val] of Object.entries(data)) {
+      if (!Array.isArray(val) || val.length === 0) continue
+      // Check if it's already Block[] (has .id and .text)
+      if (typeof val[0] === 'object' && val[0].id && val[0].text) {
+        BLOCK_STORE[key] = val as Block[]
+      } else {
+        // Legacy string[] — mint blocks
+        BLOCK_STORE[key] = (val as string[]).map(line => mintBlock(String(line)))
+      }
+      syncLoreFromBlocks(key)
+      migrated = true
+    }
+    // Migrate metadata too
+    const savedMeta = localStorage.getItem(META_STORAGE_KEY)
+    if (savedMeta) {
+      const metaData = JSON.parse(savedMeta)
+      for (const [key, val] of Object.entries(metaData)) {
+        PANEL_METADATA[key] = val as any
+      }
+    }
+    return migrated
+  } catch {
+    return false
+  }
 }
 
 const ZONE_LABELS: Record<string, string> = {}
@@ -2879,8 +3047,8 @@ RULES FOR SCENE GRAPH:
         // Zone colors pulled from ZONES dynamically
         for (const z of data.zones) {
           if (!z.key || !z.text || !Array.isArray(z.text)) continue
-          MOUNTAIN_LORE[z.key] = z.text
-          LORE_FULL[z.key] = z.text.join(' ')
+          BLOCK_STORE[z.key] = (z.text as string[]).map(line => mintBlock(String(line)))
+          syncLoreFromBlocks(z.key)
           if (z.label) renameZone(z.key, z.label)
           zoneCount++
         }
@@ -3054,7 +3222,7 @@ function populateLoreSheet(): void {
     if (!text) return
     const lines = text.split('\n').filter(l => l.trim().length > 5)
     if (lines.length > 0) {
-      MOUNTAIN_LORE[zoneKey] = [] // clear
+      BLOCK_STORE[zoneKey] = [] // clear
       injectLore(zoneKey, lines)
       prepCache.clear();
       (document.getElementById('upload-text') as HTMLTextAreaElement).value = ''
@@ -3234,9 +3402,9 @@ document.getElementById('btn-export-png')!.addEventListener('click', () => {
   link.download = `golden-egg-${Date.now()}.png`; link.href = c.toDataURL('image/png'); link.click()
 })
 document.getElementById('btn-export-lore')!.addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(MOUNTAIN_LORE, null, 2)], { type: 'application/json' })
+  const blob = new Blob([JSON.stringify(BLOCK_STORE, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
-  link.download = `golden-egg-lore-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
+  link.download = `golden-egg-blocks-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
 })
 
 // ── MEDIA UPLOAD ──
@@ -3281,8 +3449,8 @@ document.getElementById('btn-build-monolith')?.addEventListener('click', (e) => 
 
   const newIdx = Object.keys(MOUNTAIN_LORE).length + 1
   const key = `panel_${newIdx}`
-  MOUNTAIN_LORE[key] = [`(blank panel ${newIdx})`]
-  LORE_FULL[key] = `(blank panel ${newIdx})`
+  BLOCK_STORE[key] = [mintBlock(`(blank panel ${newIdx})`)]
+  syncLoreFromBlocks(key)
   ZONE_LABELS[key] = `PANEL ${newIdx}`
   ZONES[key] = {
     name: `PANEL ${newIdx}`,
@@ -3302,8 +3470,8 @@ document.getElementById('btn-new-doc')?.addEventListener('click', () => {
   if (!confirm('Start a new blank document? Current text will be cleared.')) return
   const zoneKeys = Object.keys(MOUNTAIN_LORE)
   for (const key of zoneKeys) {
-    MOUNTAIN_LORE[key] = ['(blank — press E on this wall to start writing)']
-    LORE_FULL[key] = MOUNTAIN_LORE[key]!.join(' ')
+    BLOCK_STORE[key] = [mintBlock('(blank — press E on this wall to start writing)')]
+    syncLoreFromBlocks(key)
   }
   wallLineCache.clear()
   prepCache.clear()
