@@ -163,7 +163,7 @@
         .sh-label { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rust); margin-bottom: 4px; }
         .sh-range { width: 100%; accent-color: var(--accent); height: 20px; }
 
-        #pretext-hud { position: absolute; bottom: 36px; left: 16px; z-index: 30; font-size: 9px; color: #0fa; pointer-events: none; font-family: var(--font); letter-spacing: 0.06em; }
+        #pretext-hud { position: absolute; bottom: 36px; left: 16px; z-index: 30; font-size: 9px; color: #0fa; pointer-events: none; font-family: var(--font); letter-spacing: 0.06em; display: none; }
 
         @media (max-width: 600px) {
             #reader-panel { width: 200px; left: 8px; top: 50px; bottom: 80px; }
@@ -193,6 +193,30 @@
             #minimap-canvas { width: 48px !important; height: 48px !important; }
             #status-bar { display: none; }
         }
+        /* ── MINIMAL SCROLLBARS ── */
+        #editor-panel-nav::-webkit-scrollbar,
+        .sheet-body::-webkit-scrollbar,
+        #editor-bar-textarea::-webkit-scrollbar {
+            height: 3px; width: 3px;
+        }
+        #editor-panel-nav::-webkit-scrollbar-track,
+        .sheet-body::-webkit-scrollbar-track,
+        #editor-bar-textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #editor-panel-nav::-webkit-scrollbar-thumb,
+        .sheet-body::-webkit-scrollbar-thumb,
+        #editor-bar-textarea::-webkit-scrollbar-thumb {
+            background: #333;
+        }
+        #editor-panel-nav::-webkit-scrollbar-thumb:hover,
+        .sheet-body::-webkit-scrollbar-thumb:hover,
+        #editor-bar-textarea::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        #editor-panel-nav { scrollbar-width: thin; scrollbar-color: #333 transparent; }
+        .sheet-body { scrollbar-width: thin; scrollbar-color: #333 transparent; }
+        #editor-bar-textarea { scrollbar-width: thin; scrollbar-color: #333 transparent; }
     </style>
 </head>
 <body>
@@ -216,7 +240,8 @@
                 <!-- DOCKED EDITOR BAR — unified text + AI surface -->
                 <div id="editor-bar">
                     <div id="editor-bar-header">
-                        <span id="editor-bar-zone">—</span>
+                        <span id="editor-bar-zone" title="Click to rename" style="cursor:text;">—</span>
+                        <button id="btn-undo" style="font-size:9px; background:#000; border:1px solid #888; color:#888; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;" title="Undo (Ctrl+Z panel-level)">↶ UNDO</button>
                         <button id="btn-link" style="font-size:9px; background:#000; border:1px solid #daa520; color:#daa520; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⟐ LINK</button>
                         <input type="file" id="media-upload" accept="image/*,video/*" style="display:none">
                         <button id="btn-attach-media" style="font-size:9px; background:#000; border:1px solid #0fa; color:#0fa; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⊕ MEDIA</button>
@@ -227,13 +252,14 @@
                     <div id="editor-panel-nav" style="display:flex; gap:0; overflow-x:auto; background:#000; border-bottom:1px solid #222; padding:0 4px; flex-shrink:0;"></div>
                     <!-- AI response area (hidden until @-triggered) -->
                     <div id="editor-ai-response" style="display:none; font-size:10px; color:#daa520; background:rgba(218,165,32,0.05); border-bottom:1px solid #333; padding:6px 12px; max-height:80px; overflow-y:auto; line-height:1.4; font-family:var(--font);"></div>
-                    <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type to edit wall · Start line with @ to ask AI · Saves live"></textarea>
+                    <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type to edit wall · @ to link panels · @question for AI · Drop .txt/.md to import"></textarea>
                 </div>
             </div>
 
             <div class="crt-overlay"></div>
 
             <div class="header-controls">
+                <button class="btn-ui" id="btn-help" style="color:#daa520; font-weight:900;">?</button>
                 <button class="btn-ui" id="btn-view">VIEW: TOPO</button>
                 <button class="btn-ui" id="btn-recenter">RE-CENTER</button>
                 <button class="btn-ui" id="btn-size-up">SIZE +</button>
@@ -259,8 +285,8 @@
 
         <nav id="tab-bar">
             <button class="tab-btn" id="tab-a"><span class="tab-letter">A</span>LORE</button>
-            <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>CSPR</button>
-            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>LENS</button>
+            <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>INDEX</button>
+            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>FORMAT</button>
             <button class="tab-btn" id="tab-d"><span class="tab-letter">D</span>SAVE</button>
         </nav>
     </div>
@@ -272,20 +298,27 @@
         <div class="sheet-body" id="lore-body"></div>
     </div>
     <div class="sheet" id="sheet-b">
-        <div class="sheet-handle"><span class="sheet-title">B · CLUE JOURNAL</span><button class="sheet-close" id="close-b">×</button></div>
+        <div class="sheet-handle"><span class="sheet-title">B · PANEL INDEX</span><button class="sheet-close" id="close-b">×</button></div>
         <div class="sheet-body" id="cspr-body"></div>
     </div>
     <div class="sheet" id="sheet-c">
-        <div class="sheet-handle"><span class="sheet-title">C · LENS CONFIG</span><button class="sheet-close" id="close-c">×</button></div>
+        <div class="sheet-handle"><span class="sheet-title">C · FORMATTING</span><button class="sheet-close" id="close-c">×</button></div>
         <div class="sheet-body">
-            <div class="sh-label">Character Size</div>
-            <input type="range" class="sh-range" id="range-size" min="6" max="24" value="10" step="1">
-            <div class="sh-label">Coalescence Radius</div>
-            <input type="range" class="sh-range" id="range-coalesce" min="0" max="300" value="120" step="10">
-            <div class="sh-label">Wave Speed</div>
-            <input type="range" class="sh-range" id="range-speed" min="0" max="100" value="40" step="5">
-            <div class="sh-label">Relationship Lines</div>
-            <div class="sh-row"><button class="sh-btn" id="btn-rel-on">ON</button><button class="sh-btn" id="btn-rel-off">OFF</button></div>
+            <div class="sh-label" style="color:#daa520;">EDITOR TOOLKIT</div>
+            <div style="font-size:10px; color:#888; margin-bottom:8px;">Open a panel editor, then click buttons below to inject formatting.</div>
+            
+            <div class="sh-row">
+                <button class="sh-btn" id="btn-fmt-h1" style="font-weight:900; color:#daa520;">H1 TITLE</button>
+                <button class="sh-btn" id="btn-fmt-h2" style="font-weight:bold; color:#ccc;">H2 SUBTITLE</button>
+            </div>
+            
+            <div class="sh-row" style="margin-top:6px;">
+                <button class="sh-btn" id="btn-fmt-quote" style="font-style:italic; color:#777;">> BLOCKQUOTE</button>
+                <button class="sh-btn" id="btn-fmt-list">○ BULLET LIST</button>
+            </div>
+
+            <div class="sh-label" style="margin-top:16px;">V-Scroll Overflow</div>
+            <div style="font-size:10px; color:#666;">Alternatively, scroll your mouse wheel when facing a text wall in LiDAR mode.</div>
         </div>
     </div>
     <div class="sheet" id="sheet-d">

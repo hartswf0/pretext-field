@@ -104,6 +104,41 @@ function injectLore(zone: string, newLines: string[]): void {
 let editorActive = false
 let editorZone = ''
 
+// ═══ PANEL SCROLL STATE — tracks vertical scroll offset per monolith panel ═══
+const PANEL_SCROLL: Record<string, number> = {}
+
+// ═══ UNDO STACK — per-panel, max 20 states ═══
+const UNDO_MAX = 20
+const undoStacks: Record<string, string[][]> = {}
+
+function undoPush(zoneKey: string): void {
+  const current = MOUNTAIN_LORE[zoneKey]
+  if (!current) return
+  if (!undoStacks[zoneKey]) undoStacks[zoneKey] = []
+  const stack = undoStacks[zoneKey]!
+  // Avoid duplicate consecutive states
+  const last = stack[stack.length - 1]
+  if (last && last.join('\n') === current.join('\n')) return
+  stack.push([...current])
+  if (stack.length > UNDO_MAX) stack.shift()
+}
+
+function undoPop(zoneKey: string): boolean {
+  const stack = undoStacks[zoneKey]
+  if (!stack || stack.length === 0) return false
+  const prev = stack.pop()!
+  MOUNTAIN_LORE[zoneKey] = prev
+  LORE_FULL[zoneKey] = prev.join(' ')
+  wallLineCache.clear()
+  prepCache.clear()
+  editorPersist()
+  return true
+}
+
+function undoCount(zoneKey: string): number {
+  return undoStacks[zoneKey]?.length || 0
+}
+
 // ═══ AUDIO ASMR FEEDBACK ═══
 let asmrAudioCtx: AudioContext | null = null
 function playAsmrClick(): void {
@@ -135,9 +170,6 @@ function playAsmrClick(): void {
 
 
 function editorOpen(zoneKey: string): void {
-  // Close context chat if open
-  if (contextChatActive) closeContextChat()
-  
   // If already editing this zone, just focus
   if (editorActive && editorZone === zoneKey) {
     ;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).focus()
@@ -157,7 +189,9 @@ function editorOpen(zoneKey: string): void {
 
   const label = ZONE_LABELS[zoneKey] || zoneKey.toUpperCase()
   zoneEl.textContent = `✎ ${label}`
-  infoEl.textContent = `${ta.value.split(/\s+/).filter(Boolean).length} words · auto-saving`
+  const wordCount = ta.value.split(/\s+/).filter(Boolean).length
+  const llmHint = llmUrl && llmKey ? ' · @question for AI' : llmUrl ? ' · @q for AI (set key in B)' : ''
+  infoEl.textContent = `${wordCount} words${llmHint}`
 
   bar.classList.add('active')
   setTimeout(() => ta.focus(), 50)
@@ -209,6 +243,8 @@ function editorClose(): void {
 // Flush current textarea content to MOUNTAIN_LORE + localStorage (synchronous)
 function editorFlush(): void {
   if (!editorActive || !editorZone) return
+  // Snapshot current state for undo before overwriting
+  undoPush(editorZone)
   const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
   const text = ta.value.trim()
   const lines = text.split('\n').filter(l => l.trim().length > 0)
@@ -340,10 +376,15 @@ for (let i = 1; i <= 16; i++) {
     ? [
       "GOLDEN EGG · EMPTY FIELD",
       "This is Panel 1. You are standing in an empty structural field.",
-      "Click any monolith to edit it. Type your text. Build your architecture.",
-      "[[hyperlinks]] still work. Blank canvases await."
+      "Press E on any wall to edit it. Type your text. Build your architecture.",
+      "Use the @ key in the editor to link panels together."
     ]
-    : [`(blank panel ${i})`]
+    : [
+      `── PANEL ${i} ──`,
+      `This is panel number ${i}. Press [E] to edit this wall.`,
+      `Type here or drop a .txt/.md file to import text.`,
+      `Type @ to link panels together.`
+    ]
 }
 
 // ── MOUNTAIN MEDIA (Volatile Session Audio/Video) ──
@@ -358,21 +399,17 @@ for (const [k, v] of Object.entries(MOUNTAIN_LORE)) {
   LORE_FULL[k] = v.join(' ')
 }
 
-// CSPR Evidence — starts empty
-const EVIDENCE: Record<string, { itemNo: string; entityClass: string; attributes: string; relationship: string; zone: string }> = {}
-
 const ZONE_LABELS: Record<string, string> = {}
-const ZONES: Record<string, { name: string; color: string; minR: number; maxR: number; flavor: string }> = {}
+const ZONES: Record<string, { name: string; color: string; flavor: string }> = {}
 
 // Generate 16 architecture panels
-const gridColors = ['#daa520', '#4682b4', '#cd853f', '#5f9ea0', '#9370db', '#8fbc8f', '#bc8f8f', '#f4a460']
+const GRID_COLORS = ['#daa520', '#4682b4', '#cd853f', '#5f9ea0', '#9370db', '#8fbc8f', '#bc8f8f', '#f4a460']
 for (let i = 1; i <= 16; i++) {
   const keyStr = `panel_${i}`
   ZONE_LABELS[keyStr] = `PANEL ${i}`
-  ZONES[keyStr.toUpperCase()] = {
+  ZONES[keyStr] = {
     name: `PANEL ${i}`,
-    color: gridColors[i % gridColors.length]!,
-    minR: 0, maxR: 999, // Radii logic will be ignored/replaced by specific map placement
+    color: GRID_COLORS[i % GRID_COLORS.length]!,
     flavor: `PANEL ${i}`
   }
 }
@@ -380,10 +417,9 @@ for (let i = 1; i <= 16; i++) {
 // Allow renaming zones dynamically
 function renameZone(key: string, newLabel: string): void {
   ZONE_LABELS[key] = newLabel
-  const zk = key.toUpperCase()
-  if (ZONES[zk]) {
-    ZONES[zk]!.name = newLabel
-    ZONES[zk]!.flavor = newLabel
+  if (ZONES[key]) {
+    ZONES[key]!.name = newLabel
+    ZONES[key]!.flavor = newLabel
   }
 }
 
@@ -398,20 +434,9 @@ function lerpColor(a: string, b: string, t: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`
 }
 
-function zoneForRadius(r: number) {
-  // Dynamic: iterate all zones sorted by maxR
-  const entries = Object.values(ZONES).filter(Boolean).sort((a, b) => a!.maxR - b!.maxR)
-  for (const z of entries) {
-    if (z && r < z.maxR) return z
-  }
-  return entries[entries.length - 1] || Object.values(ZONES)[0]!
-}
-
-function loreKeyForZone(zone: typeof ZONES[string]): string {
-  for (const [key, z] of Object.entries(ZONES)) {
-    if (z === zone) return key.toLowerCase()
-  }
-  return Object.keys(ZONES)[0]?.toLowerCase() || 'unknown'
+// Get zone object by lowercase key (standard lookup)
+function getZone(key: string): typeof ZONES[string] {
+  return ZONES[key] || Object.values(ZONES)[0]!
 }
 
 // ═══ CLUE GRAPH — starts empty, populated via Sheet A upload ═══
@@ -441,6 +466,7 @@ const CENTER = 16
 
 interface CellState {
   x: number; y: number; r: number
+  zoneKey: string
   zone: typeof ZONES[string]
   text: string
   color: string
@@ -452,12 +478,15 @@ const gridState: CellState[][] = []
 function compileCell(x: number, y: number): CellState {
   const dx = x - CENTER, dy = y - CENTER
   const r = Math.sqrt(dx * dx + dy * dy)
-  const zone = zoneForRadius(r)
-  const key = loreKeyForZone(zone)
+  // Map grid cells to zones by spatial distribution
+  const zoneKeys = Object.keys(MOUNTAIN_LORE)
+  const idx = Math.floor(Math.abs(x * 7 + y * 3)) % zoneKeys.length
+  const key = zoneKeys[idx]!
+  const zone = getZone(key)
   const content = MOUNTAIN_LORE[key]!
   const text = content[Math.floor(Math.abs(x + y * 3)) % content.length]!
   const height = Math.sin(x / 2) + Math.cos(y / 2) * 2
-  return { x, y, r, zone, text, color: zone.color, height }
+  return { x, y, r, zoneKey: key, zone, text, color: zone.color, height }
 }
 
 for (let y = 0; y < GRID_SIZE; y++) {
@@ -478,10 +507,10 @@ let hoveredHotWord: HotWordHit | null = null
 // ═══ ACTIVE PURSUIT — which clue the player is currently following ═══
 let activePursuit: ClueNode | null = null
 let collectedClues: ClueNode[] = []
-// ═══ Zone navigation positions (populated by generateCircularMap) ═══
+// ═══ Zone navigation positions (populated by generateEmptyFieldMap) ═══
 const ZONE_POSITIONS: Record<string, { x: number; y: number }> = {}
 
-// Navigate to a zone: switch to LiDAR + glide to the room
+// Navigate to a zone: switch to LiDAR + smooth glide with consistent arrival
 function navigateToZone(zone: string): void {
   const pos = ZONE_POSITIONS[zone]
   if (!pos) return
@@ -489,8 +518,9 @@ function navigateToZone(zone: string): void {
   if (engineMode !== 'LIDAR') setMode('LIDAR')
   // Close any open sheets
   document.querySelectorAll('.sheet.active').forEach(s => s.classList.remove('active'))
-  // Glide to target
+  // Smooth glide to standardized position south of wall, facing north on arrival
   playerGlideTarget = { x: pos.x + 0.5, y: pos.y + 0.5 }
+  playerGlideArrivalFaceNorth = true
 }
 
 // Hot word click handler — the investigation mechanic
@@ -593,13 +623,28 @@ const canvas = document.getElementById('viz-canvas') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
 const mmCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement
 const mmCtx = mmCanvas.getContext('2d')!
-let mmMinimized = false
-mmCanvas.addEventListener('click', () => {
-  mmMinimized = !mmMinimized
-  mmCanvas.style.opacity = mmMinimized ? '0.3' : '1'
-  mmCanvas.style.width = mmMinimized ? '20px' : ''
-  mmCanvas.style.height = mmMinimized ? '20px' : ''
+// Interactive minimap — click to navigate to nearest panel
+mmCanvas.addEventListener('click', (e) => {
+  const rect = mmCanvas.getBoundingClientRect()
+  const mx = (e.clientX - rect.left) * (mmCanvas.width / rect.width)
+  const my = (e.clientY - rect.top) * (mmCanvas.height / rect.height)
+  const mmScale = mmCanvas.width / Math.max(LIDAR_W, LIDAR_H)
+
+  // Find the nearest panel to this click position
+  let bestZone = ''
+  let bestDist = Infinity
+  for (const [zone, pos] of Object.entries(ZONE_POSITIONS)) {
+    const dx = pos.x * mmScale - mx
+    const dy = pos.y * mmScale - my
+    const d = Math.sqrt(dx * dx + dy * dy)
+    if (d < bestDist) { bestDist = d; bestZone = zone }
+  }
+  if (bestZone && bestDist < 20) {
+    navigateToZone(bestZone)
+    playAsmrClick()
+  }
 })
+mmCanvas.style.cursor = 'pointer'
 const ptReaderCanvas = document.getElementById('pt-reader-canvas') as HTMLCanvasElement
 const ptReaderCtx = ptReaderCanvas.getContext('2d')!
 
@@ -639,6 +684,7 @@ let showRelations = true
 // LiDAR player — spawn facing Panel 1 (at grid x=11, y=11, approach from y=13)
 const player = { x: 11.5, y: 13.5, dirX: 0, dirY: -1, planeX: 0.66, planeY: 0 }
 let playerGlideTarget: { x: number; y: number } | null = null // smooth movement target
+let playerGlideArrivalFaceNorth = false // snap to face north on glide completion
 const keys: Record<string, boolean> = {}
 
 // ── DYNAMIC CIRCULAR LIDAR MAP ──
@@ -657,9 +703,9 @@ function isWalkable(ch: string | undefined): boolean {
 
 function generateEmptyFieldMap(zoneKeys: string[]): void {
   const N = zoneKeys.length || 1 // We expect at least 1 panel
-  const spacing = 14
+  const spacing = 16
   const cols = Math.max(4, Math.ceil(Math.sqrt(N)))
-  const sz = Math.max(65, 22 + cols * spacing)
+  const sz = Math.max(80, 24 + cols * spacing)
   const center = Math.floor(sz / 2)
 
   // Initialize grid — entirely open
@@ -668,7 +714,7 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
   )
   
   // ═══ BUILD PANEL MATRIX ═══
-  const startOffset = 11
+  const startOffset = 12
 
   // Map 0 to N-1 to x,y in a grid
   for (let i = 0; i < N; i++) {
@@ -677,12 +723,11 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
     const px = startOffset + col * spacing
     const py = startOffset + row * spacing
 
-    // Build a 3-block wide wall at [px, py]
-    // Horizontal structure:
+    // Build a 7-block wide wall at [px, py] — wider = more readable text
     const ch = String.fromCharCode(i + 161)
-    grid[py]![px - 1] = ch
-    grid[py]![px] = ch
-    grid[py]![px + 1] = ch
+    for (let bx = -3; bx <= 3; bx++) {
+      grid[py]![px + bx] = ch
+    }
   }
 
   // ═══ OUTER BOUNDARY ═══
@@ -717,15 +762,15 @@ function generateEmptyFieldMap(zoneKeys: string[]): void {
     ZONE_POSITIONS[zoneKeys[i]!] = { x: px, y: py + 2 }
   }
 
-  // Set player to face Panel 1 on initial load
-  if (player.x < 2 || player.x > sz - 2) {
+  // Start player in front of Panel 1 (first panel), facing the wall
+  const p1pos = ZONE_POSITIONS[zoneKeys[0]!]
+  if (p1pos) {
+    player.x = p1pos.x + 0.5
+    player.y = p1pos.y + 0.5
+  } else {
     player.x = startOffset + 0.5
-    player.y = startOffset + 2.5
-    player.dirX = 0; player.dirY = -1
-    player.planeX = 0.66; player.planeY = 0
+    player.y = startOffset + 4.5
   }
-
-  player.y = center + 0.5
   player.dirX = 0; player.dirY = -1
   player.planeX = 0.66; player.planeY = 0
   playerGlideTarget = null
@@ -814,159 +859,8 @@ canvas.addEventListener('wheel', e => { zoom = Math.min(Math.max(0.5, zoom - e.d
 // ═══ SKY MODE LOCK — 'auto' | 'light' | 'dark' ═══
 let skyModeLock: 'auto' | 'light' | 'dark' = 'auto'
 
-// ═══ CONTEXT CHAT — discuss any text passage via LLM ═══
-let contextChatActive = false
-let contextChatInput: HTMLInputElement | null = null
-let contextChatOverlay: HTMLDivElement | null = null
-let contextChatLog: { role: 'user' | 'assistant' | 'context'; text: string }[] = []
 let lastFacedLoreKey = '' // tracks what zone text the player is currently looking at
 let lastFacedText = ''    // the actual text content being faced
-
-function openContextChat(): void {
-  if (contextChatActive) return
-  if (!lastFacedLoreKey) return // not facing any text wall
-
-  contextChatActive = true
-  const zoneColor = ZONES[lastFacedLoreKey.toUpperCase()]?.color || '#daa520'
-  const zoneLabel = ZONE_LABELS[lastFacedLoreKey] || lastFacedLoreKey
-  contextChatLog = [{ role: 'context', text: lastFacedText.substring(0, 500) }]
-
-  // Build overlay
-  const overlay = document.createElement('div')
-  overlay.style.cssText = `position:fixed; bottom:0; left:0; right:0; z-index:9999;
-    background:rgba(0,0,0,0.92); border-top:2px solid ${zoneColor};
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; gap:6px; font-family:Courier New;`
-
-  // Chat log area
-  const logDiv = document.createElement('div')
-  logDiv.id = 'context-chat-log'
-  logDiv.style.cssText = 'max-height:160px; overflow-y:auto; font-size:11px; color:#ccc; line-height:1.5;'
-  logDiv.innerHTML = `
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-      <span style="background:${zoneColor}; color:#000; font-size:9px; font-weight:bold; padding:2px 8px; letter-spacing:1px;">LOADED CONTEXT</span>
-      <span style="color:${zoneColor}; font-size:10px; font-weight:bold;">${zoneLabel}</span>
-      <span style="color:#555; font-size:8px; margin-left:auto;">[C] Chat · [[link]] Hyperlink</span>
-      <button id="ctx-chat-close" style="background:none; border:1px solid #555; color:#aaa; font-size:14px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;">✕</button>
-    </div>
-    <div style="color:#999; font-size:10px; border-left:3px solid ${zoneColor}40; padding:4px 8px; margin:4px 0; background:rgba(255,255,255,0.02); max-height:60px; overflow-y:auto;">
-      ${lastFacedText.substring(0, 300)}${lastFacedText.length > 300 ? '…' : ''}
-    </div>`
-  overlay.appendChild(logDiv)
-
-  // Wire close button
-  setTimeout(() => {
-    document.getElementById('ctx-chat-close')?.addEventListener('click', () => closeContextChat())
-  }, 0)
-
-  // Input row
-  const inputRow = document.createElement('div')
-  inputRow.style.cssText = 'display:flex; gap:8px;'
-
-  const input = document.createElement('input')
-  input.type = 'text'
-  input.placeholder = 'Ask about this text...'
-  input.style.cssText = `flex:1; background:#111; color:#fff; border:1px solid #444; padding:6px 10px;
-    font-family:Courier New; font-size:12px; outline:none;`
-  input.addEventListener('keydown', e => {
-    e.stopPropagation() // don't let WASD move the player while typing
-    if (e.key === 'Enter' && input.value.trim()) {
-      sendContextChat(input.value.trim())
-      input.value = ''
-    }
-    if (e.key === 'Escape') {
-      closeContextChat()
-    }
-  })
-  inputRow.appendChild(input)
-
-  const sendBtn = document.createElement('button')
-  sendBtn.innerText = 'SEND'
-  sendBtn.style.cssText = 'background:#222; color:#daa520; border:1px solid #daa520; padding:4px 12px; font-family:Courier New; font-size:10px; cursor:pointer;'
-  sendBtn.addEventListener('click', () => {
-    if (input.value.trim()) {
-      sendContextChat(input.value.trim())
-      input.value = ''
-    }
-  })
-  inputRow.appendChild(sendBtn)
-
-  overlay.appendChild(inputRow)
-  document.body.appendChild(overlay)
-
-  contextChatOverlay = overlay
-  contextChatInput = input
-  setTimeout(() => input.focus(), 50)
-}
-
-function closeContextChat(): void {
-  contextChatActive = false
-  if (contextChatOverlay) {
-    contextChatOverlay.remove()
-    contextChatOverlay = null
-  }
-  contextChatInput = null
-}
-
-async function sendContextChat(msg: string): Promise<void> {
-  if (!llmUrl) {
-    appendChatMsg('assistant', 'No LLM connected. Configure via Sheet C or ?llm_url= param.')
-    return
-  }
-
-  contextChatLog.push({ role: 'user', text: msg })
-  appendChatMsg('user', msg)
-
-  // Build messages array with context
-  const messages = [
-    { role: 'system', content: `You are a worldtext guide. The user is standing in the "${ZONE_LABELS[lastFacedLoreKey] || lastFacedLoreKey}" zone of a spatial text engine. Here is the passage they are reading:\n\n${lastFacedText}\n\nHelp them understand, explore, and discuss this text. Be concise (2-3 sentences).` },
-    ...contextChatLog.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.text }))
-  ]
-
-  try {
-    const res = await fetch(llmUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(llmKey ? { Authorization: `Bearer ${llmKey}` } : {}) },
-      body: JSON.stringify({ model: llmModel, messages, max_tokens: 150 })
-    })
-    const data = await res.json()
-    const reply = data.choices?.[0]?.message?.content || 'No response.'
-    contextChatLog.push({ role: 'assistant', text: reply })
-    appendChatMsg('assistant', reply)
-
-    // ═══ WRITE ONTO THE WALLS ═══
-    // The reply becomes part of the worldtext — it materializes on the zone wall.
-    if (lastFacedLoreKey && MOUNTAIN_LORE[lastFacedLoreKey]) {
-      // Split reply into sentences for wall display
-      const newLines = reply.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim().length > 0)
-      MOUNTAIN_LORE[lastFacedLoreKey]!.push(...newLines)
-      // Clear caches so the new text renders immediately
-      wallLineCache.clear()
-      prepCache.clear()
-      currentFont = ''
-
-      // Visual confirmation in chat
-      const wallNote = document.createElement('div')
-      wallNote.style.cssText = `color:#0fa; font-size:8px; letter-spacing:1px; margin:4px 0; padding:2px 6px;
-        background:rgba(0,255,170,0.08); border-left:2px solid #0fa;`
-      wallNote.textContent = `✦ WRITTEN TO WALL · ${newLines.length} line${newLines.length !== 1 ? 's' : ''} added to ${ZONE_LABELS[lastFacedLoreKey] || lastFacedLoreKey}`
-      document.getElementById('context-chat-log')?.appendChild(wallNote)
-    }
-  } catch (err) {
-    appendChatMsg('assistant', `Error: ${err}`)
-  }
-}
-
-function appendChatMsg(role: string, text: string): void {
-  const logDiv = document.getElementById('context-chat-log')
-  if (!logDiv) return
-  const div = document.createElement('div')
-  div.style.cssText = role === 'user'
-    ? 'color:#88ccff; margin:3px 0;'
-    : 'color:#daa520; margin:3px 0; padding-left:8px; border-left:2px solid #333;'
-  div.textContent = `${role === 'user' ? '▸' : '◂'} ${text}`
-  logDiv.appendChild(div)
-  logDiv.scrollTop = logDiv.scrollHeight
-}
 
 // ═══ KEYBOARD CONTROLS ═══
 window.addEventListener('keydown', e => {
@@ -978,28 +872,25 @@ window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true
   if (e.key === ' ' && engineMode === 'LIDAR') { e.preventDefault(); lidarScan() }
   if (e.key === 'Escape' && engineMode === 'LIDAR') {
-    if (contextChatActive) { closeContextChat() }
-    else if (activePursuit) { activePursuit = null }
+    if (activePursuit) { activePursuit = null }
     else { setMode('GRID') }
   }
   // 'E' — open inline wall editor for faced zone
-  if (e.key === 'e' && engineMode === 'LIDAR' && !contextChatActive && lastFacedLoreKey) {
+  if (e.key === 'e' && engineMode === 'LIDAR' && lastFacedLoreKey) {
     e.preventDefault()
     editorOpen(lastFacedLoreKey)
   }
   // 'L' — cycle sky mode: auto → light → dark
-  if (e.key === 'l' && engineMode === 'LIDAR' && !contextChatInput) {
+  if (e.key === 'l' && engineMode === 'LIDAR') {
     skyModeLock = skyModeLock === 'auto' ? 'light' : skyModeLock === 'light' ? 'dark' : 'auto'
   }
   // 'G' — generate new lore for current zone via LLM
   if (e.key === 'g' && engineMode === 'LIDAR' && !llmGenerating) {
-    const pr = Math.sqrt((Math.floor(player.x) - MAP_CENTER) ** 2 + (Math.floor(player.y) - MAP_CENTER) ** 2)
-    const zone = zoneForRadius(pr)
-    const key = loreKeyForZone(zone)
-    const sample = (MOUNTAIN_LORE[key] || []).slice(-5).join('\n')
-    llmGenerate(key, sample).then(lines => {
+    const nearKey = lastFacedLoreKey || Object.keys(MOUNTAIN_LORE)[0] || ''
+    const sample = (MOUNTAIN_LORE[nearKey] || []).slice(-5).join('\n')
+    llmGenerate(nearKey, sample).then(lines => {
       if (lines.length > 0) {
-        injectLore(key, lines)
+        injectLore(nearKey, lines)
         // Also clear prep cache to force re-preparation
         prepCache.clear()
       }
@@ -1024,15 +915,10 @@ window.addEventListener('keydown', e => {
     }
   }
 
-  // ═══ 'C' — CONTEXT CHAT: bring wall text into a chat ═══
-  if (e.key === 'c' && engineMode === 'LIDAR' && !contextChatInput && !editorActive) {
+  // ═══ 'C' — Quick shortcut to open editor for faced wall ═══
+  if (e.key === 'c' && engineMode === 'LIDAR' && !editorActive) {
     e.preventDefault()
     if (lastFacedLoreKey) editorOpen(lastFacedLoreKey)
-  }
-  if (e.key === 'Escape' && contextChatActive) {
-    e.preventDefault()
-    closeContextChat()
-    return
   }
 })
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false })
@@ -1104,7 +990,7 @@ function renderGrid(): void {
   let typesetCharIdx = 0
 
   if (hoverCell && coalesceRadius > 0) {
-    coalesceZone = loreKeyForZone(hoverCell.zone)
+    coalesceZone = hoverCell.zoneKey
     coalesceSX = hoverCell.sx; coalesceSY = hoverCell.sy
     const blockW = coalesceRadius * 2
     const t0 = performance.now()
@@ -1154,7 +1040,7 @@ function renderGrid(): void {
 
       // Coalescence
       let drawX = sx, drawY = sy
-      if (typesetChars && coalesceZone === loreKeyForZone(cell.zone) && typesetCharIdx < typesetChars.length) {
+      if (typesetChars && coalesceZone === cell.zoneKey && typesetCharIdx < typesetChars.length) {
         const dToHover = Math.hypot(sx - coalesceSX, sy - coalesceSY)
         if (dToHover < coalesceRadius * zoom) {
           const tc = typesetChars[typesetCharIdx]!
@@ -1238,7 +1124,7 @@ function renderGrid(): void {
     document.getElementById('text-display')!.innerHTML = `> ${closest.zone.name}<br>"${closest.text}"`
 
     // Pretext reader panel — full zone lore
-    const key = loreKeyForZone(closest.zone)
+    const key = closest.zoneKey
     const prepared = getPrepared(key)
     const panelW = 256
     const lh = Math.ceil(charSize * 1.3)
@@ -1335,9 +1221,15 @@ function renderLidar(): void {
       const dy = playerGlideTarget.y - player.y
       const dist = Math.sqrt(dx * dx + dy * dy)
       if (dist < 0.5) {
+        // Snap face north on arrival if requested (for panel navigation)
+        if (playerGlideArrivalFaceNorth) {
+          player.dirX = 0; player.dirY = -1
+          player.planeX = 0.66; player.planeY = 0
+          playerGlideArrivalFaceNorth = false
+        }
         playerGlideTarget = null
       } else {
-        const ease = 0.02 // slow, contemplative drift
+        const ease = 0.06 // purposeful traversal — shows space between panels
         const nx = player.x + dx * ease
         const ny = player.y + dy * ease
         // Collision-aware movement
@@ -1571,12 +1463,26 @@ function renderLidar(): void {
   lidarCtx.fillStyle = groundSunGlow
   lidarCtx.fillRect(0, ch / 2, cw, ch / 4)
 
-   // Ground zone glow — ring color tints the entire floor
+   // Ground zone glow — tint floor with nearest panel's color
   const pMx = Math.floor(player.x), pMy = Math.floor(player.y)
   const pRow = LIDAR_PLAN[pMy]
-  const playerDist = Math.sqrt((pMx - MAP_CENTER) ** 2 + (pMy - MAP_CENTER) ** 2)
+
+  // Find nearest panel by position
+  let currentZoneKey = ''
+  let currentZoneLabel = ''
+  let nearestPanelDist = Infinity
+  for (const [zone, pos] of Object.entries(ZONE_POSITIONS)) {
+    const dx = player.x - pos.x
+    const dy = player.y - pos.y
+    const d = Math.sqrt(dx * dx + dy * dy)
+    if (d < nearestPanelDist) {
+      nearestPanelDist = d
+      currentZoneKey = zone
+      currentZoneLabel = ZONE_LABELS[zone] || zone
+    }
+  }
   if (pRow) {
-    const nearZone = zoneForRadius(playerDist)
+    const nearZone = getZone(currentZoneKey || '')
     const gzg = lidarCtx.createRadialGradient(cw / 2, ch, 0, cw / 2, ch, ch / 2)
     gzg.addColorStop(0, nearZone.color + '30')
     gzg.addColorStop(0.5, nearZone.color + '10')
@@ -1633,7 +1539,7 @@ function renderLidar(): void {
         lidarCtx.fill()
 
         // Stronger intensity closer to the ground (distance = ring indicator)
-        const ringIntensity = Math.min(0.08, playerDist * 0.002)
+        const ringIntensity = Math.min(0.08, nearestPanelDist * 0.002)
         lidarCtx.globalAlpha = ringIntensity
         lidarCtx.fillRect(left, ch * 0.75, right - left, ch * 0.25)
       }
@@ -1672,16 +1578,10 @@ function renderLidar(): void {
     }
   }
 
-  // ═══ RING INDICATOR — which ring am I in? ═══
-  // Subtle ring number on the ground at center-bottom
-  const ringIdx = Math.max(0, Math.floor((playerDist - 5) / 6)) // coreRadius=5, ringWidth=6
-  const zoneKeysArr = Object.keys(MOUNTAIN_LORE)
-  const currentZoneKey = zoneKeysArr[Math.min(ringIdx, zoneKeysArr.length - 1)]
-  const currentZoneLabel = ZONE_LABELS[currentZoneKey || ''] || currentZoneKey || ''
 
   // Ground ring stripe — thin colored line at the horizon
   if (currentZoneKey) {
-    const zoneObj = ZONES[currentZoneKey.toUpperCase()] || Object.values(ZONES)[0]
+    const zoneObj = ZONES[currentZoneKey] || Object.values(ZONES)[0]
     if (zoneObj) {
       lidarCtx.globalAlpha = 0.4
       lidarCtx.fillStyle = zoneObj.color
@@ -1705,8 +1605,8 @@ function renderLidar(): void {
   // Zone label below compass
   if (currentZoneLabel) {
     lidarCtx.font = '9px Courier New'
-    lidarCtx.fillStyle = ZONES[currentZoneKey!.toUpperCase()]?.color || '#888'
-    lidarCtx.fillText(`RING ${ringIdx + 1} · ${currentZoneLabel}`, cw / 2, 22)
+    lidarCtx.fillStyle = ZONES[currentZoneKey!]?.color || '#888'
+    lidarCtx.fillText(`${currentZoneLabel} · ${Math.round(nearestPanelDist)}m`, cw / 2, 22)
   }
 
   // Zone teleport shortcuts — subtle key hints
@@ -1769,7 +1669,7 @@ function renderLidar(): void {
 
     const wallChar = LIDAR_PLAN[my]?.[mx] || '#'
     const loreKey = WALL_LORE[wallChar] || ''
-    const zone = ZONES[loreKey.toUpperCase()] || ZONES.CAVE || Object.values(ZONES)[0]!
+    const zone = ZONES[loreKey] || Object.values(ZONES)[0]!
 
     const rh: RayHit = { screenX: x, perp, drawStart, drawEnd, mapX: mx, mapY: my, side, wallX, loreKey, zone }
     hits.push(rh)
@@ -1797,7 +1697,7 @@ function renderLidar(): void {
       if (curFace) { faces.push(curFace); curFace = null }
       continue
     }
-    if (curFace && h.mapX === curFace.mapX && h.mapY === curFace.mapY && h.side === curFace.side) {
+    if (curFace && h.loreKey === curFace.loreKey && h.side === curFace.side && h.loreKey !== '') {
       curFace.endX = x
       curFace.minDrawStart = Math.min(curFace.minDrawStart, h.drawStart)
       curFace.maxDrawEnd = Math.max(curFace.maxDrawEnd, h.drawEnd)
@@ -1883,7 +1783,9 @@ function renderLidar(): void {
 
     // Center face: use inscribed rect bounds for text area
     const textTop = isCenter ? inscribedTop : face.minDrawStart
-    const textBot = isCenter ? inscribedBot : face.maxDrawEnd
+    // When editor is active, push textBot up so text doesn't render behind the editor bar
+    const editorBarOffset = (editorActive && isCenter) ? Math.round(lidarCanvas.height * 0.25) : 0
+    const textBot = Math.max(textTop + 40, (isCenter ? inscribedBot : face.maxDrawEnd) - editorBarOffset)
     const textFaceH = textBot - textTop
 
     // Render media overlay if active
@@ -1977,13 +1879,38 @@ function renderLidar(): void {
       
       lidarCtx.fillText(`[${face.zone.name}]${geo}${timeStr}`, face.startX + padding, textTop + 6)
 
-      lidarCtx.font = `${fontSize}px Courier New`
+      lidarCtx.font = `${Math.round(fontSize)}px Courier New`
       let ly = textTop + 22
-      let lineIdx = 0
+      let lineIdx = Math.floor(PANEL_SCROLL[face.loreKey] || 0)
 
       while (ly < textBot - 4 && lineIdx < lines.length) {
-        const txt = lines[lineIdx]!
+        let txt = lines[lineIdx]!
         lidarCtx.globalAlpha = 0.9 + 0.1 * Math.sin(lineIdx * 0.2 + time * 0.15)
+
+        // ── MARKDOWN FORMATTING ──
+        let x = face.startX + padding
+        let customFont = ''
+        let customColor = ''
+        
+        if (txt.startsWith('# ')) {
+          txt = txt.substring(2)
+          customFont = `bold ${Math.round(fontSize * 1.5)}px Courier New`
+          customColor = '#daa520'
+        } else if (txt.startsWith('## ')) {
+          txt = txt.substring(3)
+          customFont = `bold ${Math.round(fontSize * 1.2)}px Courier New`
+          customColor = '#ccc'
+        } else if (txt.startsWith('> ')) {
+          txt = txt.substring(2)
+          x += 20
+          customFont = `italic ${Math.round(fontSize)}px Courier New`
+          customColor = '#777'
+        } else if (txt.startsWith('- ')) {
+          txt = '• ' + txt.substring(2)
+          x += 10
+        }
+        
+        if (customFont) lidarCtx.font = customFont
 
         // Hot-word scan — ALL scene-graph words are interactive
         type Seg = { start: number; end: number; color: string; isPortal: boolean }
@@ -2002,9 +1929,10 @@ function renderLidar(): void {
           }
         hotSegs.sort((a, b) => a.start - b.start)
 
-        let x = face.startX + padding
+        const defaultFill = customColor || (isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0')
+
         if (hotSegs.length === 0) {
-          lidarCtx.fillStyle = isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0'
+          lidarCtx.fillStyle = defaultFill
           lidarCtx.fillText(txt, x, ly)
         } else {
           let cur = 0
@@ -2012,7 +1940,7 @@ function renderLidar(): void {
             if (seg.start < cur) continue
             if (seg.start > cur) {
               const plain = txt.substring(cur, seg.start)
-              lidarCtx.fillStyle = isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0'
+              lidarCtx.fillStyle = defaultFill
               lidarCtx.fillText(plain, x, ly)
               x += lidarCtx.measureText(plain).width
             }
@@ -2026,7 +1954,8 @@ function renderLidar(): void {
               lidarCtx.shadowBlur = 10
               lidarCtx.fillText(hotText, x, ly)
               // Solid underline for portals
-              lidarCtx.fillRect(x, ly + fontSize - 1, hotW, 2)
+              const underlineY = ly + (customFont ? 4 : fontSize - 1)
+              lidarCtx.fillRect(x, underlineY, hotW, 2)
             } else {
               // ═══ LOCAL: warm glow, dotted underline — click shows clue ═══
               lidarCtx.fillStyle = seg.color
@@ -2035,13 +1964,16 @@ function renderLidar(): void {
               lidarCtx.globalAlpha = 0.75
               lidarCtx.fillText(hotText, x, ly)
               // Dotted underline for local keywords
+              const underlineY = ly + (customFont ? 4 : fontSize - 1)
               for (let dx = 0; dx < hotW; dx += 4) {
-                lidarCtx.fillRect(x + dx, ly + fontSize - 1, 2, 1)
+                lidarCtx.fillRect(x + dx, underlineY, 2, 1)
               }
               lidarCtx.globalAlpha = 0.9 + 0.1 * Math.sin(lineIdx * 0.2 + time * 0.15)
             }
             // ALL keywords are clickable — record hit box
-            hotWordHits.push({ x, y: ly, w: hotW, h: lh, word: hotText, color: seg.color, zone: face.loreKey })
+            let finalH = lh
+            if (customFont && customFont.includes('1.5')) finalH *= 1.5
+            hotWordHits.push({ x, y: ly, w: hotW, h: finalH, word: hotText, color: seg.color, zone: face.loreKey })
 
             lidarCtx.shadowBlur = 2
             lidarCtx.shadowColor = face.zone.color
@@ -2049,14 +1981,17 @@ function renderLidar(): void {
             cur = seg.end
           }
           if (cur < txt.length) {
-            lidarCtx.fillStyle = isDaytime ? lerpColor('#e8e0d0', '#1a1510', dayGroundT) : '#e8e0d0'
+            lidarCtx.fillStyle = defaultFill
             lidarCtx.fillText(txt.substring(cur), x, ly)
           }
         }
 
+        // Restore font if changed
+        if (customFont) lidarCtx.font = `${Math.round(fontSize)}px Courier New`
+
         ly += lh
         lineIdx++
-        if (lineIdx > 200) break
+        if (lineIdx > PANEL_SCROLL[face.loreKey] + 100) break // safety break
       }
 
       lidarCtx.shadowBlur = 0
@@ -2068,8 +2003,11 @@ function renderLidar(): void {
         lidarCtx.fillStyle = '#0ca'
         lidarCtx.fillText(`✎ EDITING · ${lines.length} LINES`, face.startX + padding, textBot - 12)
       } else {
+        // Show overflow indicator if text exceeds visible area
+        const overflowLines = lines.length - lineIdx
+        const overflowText = overflowLines > 0 ? ` · +${overflowLines} MORE ↓` : ''
         lidarCtx.fillStyle = '#0ca'
-        lidarCtx.fillText(`[E] EDIT / [[LINK]] · [C] CONVERSE · ${lines.length} LINES`, face.startX + padding, textBot - 12)
+        lidarCtx.fillText(`[E] EDIT · @ LINK · ${lines.length} LINES${overflowText}`, face.startX + padding, textBot - 12)
       }
 
       // Hover highlight on clickable hot words
@@ -2112,7 +2050,7 @@ function renderLidar(): void {
 
   // ═══ LAYER 3: Investigation Tendrils ═══
   // When a clue is active, draw threads to all visible connected words
-  if (activePursuit && hotWordHits.length > 0) {
+  if (activePursuit && Object.keys(CLUE_GRAPH).length > 0 && hotWordHits.length > 0) {
     // Find the active word's hit box(es) on screen
     const activeHits = hotWordHits.filter(h => {
       const node = CLUE_GRAPH[h.word]
@@ -2227,7 +2165,7 @@ function renderLidar(): void {
     lidarCtx.textBaseline = 'bottom'
     lidarCtx.fillStyle = '#555'
     const skyLabel = skyModeLock === 'auto' ? '' : skyModeLock === 'light' ? ' · ☀ LIGHT' : ' · ☽ DARK'
-    lidarCtx.fillText(`WASD MOVE · SPACE SCAN · C CHAT · L MODE · 1-5 TELEPORT · ESC EXIT${skyLabel}`, cw / 2, ch - 12)
+    lidarCtx.fillText(`WASD MOVE · E/C EDIT · ⌘F SEARCH · L MODE · 1-5 TELEPORT · ESC EXIT${skyLabel}`, cw / 2, ch - 12)
   }
 
 
@@ -2251,7 +2189,7 @@ function renderLidar(): void {
       } else {
         // Zone wall — full color
         const wk = WALL_LORE[t]
-        const wz = wk ? (ZONES[wk.toUpperCase()] || null) : null
+        const wz = wk ? (ZONES[wk] || null) : null
         mmCtx.fillStyle = wz ? wz.color : '#444'
         mmCtx.globalAlpha = 0.6
       }
@@ -2259,40 +2197,18 @@ function renderLidar(): void {
     }
   }
 
-  // Ring structure overlay — concentric circles for clarity
-  mmCtx.globalAlpha = 0.25
-  mmCtx.strokeStyle = '#666'
-  mmCtx.lineWidth = 0.5
-  const coreR = 5 // must match coreRadius
-  const ringW = 6 // must match ringWidth
-  const nZones = Object.keys(MOUNTAIN_LORE).length
-  for (let z = 0; z <= nZones; z++) {
-    const r = (coreR + z * ringW) * mmScale
-    mmCtx.beginPath()
-    mmCtx.arc(mmCx, mmCy, r, 0, Math.PI * 2)
-    mmCtx.stroke()
-  }
-
-  // Cardinal corridor lines
-  mmCtx.globalAlpha = 0.15
-  mmCtx.strokeStyle = '#888'
-  mmCtx.lineWidth = 1
-  const totalR = (coreR + nZones * ringW) * mmScale
-  mmCtx.beginPath()
-  mmCtx.moveTo(mmCx, mmCy - totalR); mmCtx.lineTo(mmCx, mmCy + totalR) // N-S
-  mmCtx.moveTo(mmCx - totalR, mmCy); mmCtx.lineTo(mmCx + totalR, mmCy) // E-W
-  mmCtx.stroke()
-
-  // Ring number labels
-  mmCtx.globalAlpha = 0.4
-  mmCtx.font = 'bold 7px Courier New'
-  mmCtx.fillStyle = '#888'
+  // Panel labels on minimap
+  mmCtx.font = 'bold 5px Courier New'
   mmCtx.textAlign = 'center'
-  mmCtx.textBaseline = 'middle'
-  for (let z = 0; z < nZones; z++) {
-    const labelR = (coreR + z * ringW + ringW / 2) * mmScale
-    mmCtx.fillText(String(z + 1), mmCx + labelR * 0.7, mmCy - labelR * 0.7)
+  mmCtx.textBaseline = 'top'
+  for (const [zone, pos] of Object.entries(ZONE_POSITIONS)) {
+    const label = zone.replace('panel_', '')
+    const zoneColor = ZONES[zone]?.color || '#666'
+    mmCtx.fillStyle = zoneColor
+    mmCtx.globalAlpha = 0.7
+    mmCtx.fillText(label, pos.x * mmScale, (pos.y - 1) * mmScale)
   }
+
 
   mmCtx.globalAlpha = 1
 
@@ -2333,12 +2249,13 @@ function renderLidar(): void {
     }
   }
 
-  // Draw zone cluster dots
+  // Draw zone cluster dots — only for zones that have hyperlinks
   mmCtx.globalAlpha = 1
   for (const [zone, pos] of Object.entries(mmZones)) {
     const zoneNodes = Object.values(CLUE_GRAPH).filter(n => n.zone === zone)
+    if (zoneNodes.length === 0) continue // Skip zones with no hyperlinks
     const collected = zoneNodes.filter(n => n.collected).length
-    const zoneColor = ZONES[zone.toUpperCase()]?.color || '#888'
+    const zoneColor = ZONES[zone]?.color || '#888'
 
     // Zone dot — size based on number of nodes
     const r = 3 + Math.min(4, zoneNodes.length * 0.3)
@@ -2503,64 +2420,277 @@ document.getElementById('btn-lidar')!.addEventListener('click', () => { setMode(
 // DOCKED EDITOR BAR — EVENT WIRING
 // ══════════════════════════════════════════════════════════════
 document.getElementById('editor-bar-dismiss')!.addEventListener('click', () => editorClose())
+
+// ── UNDO BUTTON ──
+document.getElementById('btn-undo')!.addEventListener('click', () => {
+  if (!editorActive || !editorZone) return
+  if (undoPop(editorZone)) {
+    // Refresh textarea with restored state
+    const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+    ta.value = (MOUNTAIN_LORE[editorZone] || []).join('\n')
+    const infoEl = document.getElementById('editor-bar-info')
+    const remaining = undoCount(editorZone)
+    if (infoEl) {
+      infoEl.textContent = `↶ undone (${remaining} left)`
+      infoEl.style.color = '#0ca'
+      setTimeout(() => { if (infoEl) { infoEl.textContent = 'auto-saving'; infoEl.style.color = '' } }, 1500)
+    }
+    playAsmrClick()
+  }
+})
+
+// ── INLINE PANEL RENAME — click the zone label to rename ──
+document.getElementById('editor-bar-zone')!.addEventListener('click', () => {
+  if (!editorActive || !editorZone) return
+  const zoneEl = document.getElementById('editor-bar-zone')!
+  const currentLabel = ZONE_LABELS[editorZone] || editorZone
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.value = currentLabel
+  input.style.cssText = `background:#111; color:#0ca; border:1px solid #0ca; font-size:11px;
+    font-family:Courier New; font-weight:900; padding:2px 6px; width:140px; outline:none;`
+  const commit = () => {
+    const newName = input.value.trim()
+    if (newName && newName !== currentLabel) {
+      renameZone(editorZone, newName)
+      zoneEl.textContent = `✎ ${newName}`
+    } else {
+      zoneEl.textContent = `✎ ${currentLabel}`
+    }
+  }
+  input.addEventListener('blur', commit)
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') { commit(); input.blur() }
+    if (e.key === 'Escape') { zoneEl.textContent = `✎ ${currentLabel}`; input.remove() }
+  })
+  zoneEl.textContent = ''
+  zoneEl.appendChild(input)
+  input.focus()
+  input.select()
+})
+
+// ── FILE IMPORT — drag-drop .txt/.md onto the textarea ──
+const editorTextarea = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+editorTextarea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation() })
+editorTextarea.addEventListener('drop', (e: DragEvent) => {
+  e.preventDefault()
+  e.stopPropagation()
+  if (!editorActive || !editorZone) return
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+  // Accept text files
+  if (!file.name.match(/\.(txt|md|text|markdown)$/i) && !file.type.startsWith('text/')) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = reader.result as string
+    const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+    // Append or replace? Append to existing content.
+    const separator = ta.value.trim() ? '\n' : ''
+    ta.value = ta.value.trimEnd() + separator + text
+    editorFlush()
+    const infoEl = document.getElementById('editor-bar-info')
+    if (infoEl) {
+      infoEl.textContent = `⊕ imported: ${file.name}`
+      infoEl.style.color = '#0fa'
+      setTimeout(() => { if (infoEl) { infoEl.textContent = 'auto-saving'; infoEl.style.color = '' } }, 2000)
+    }
+    playAsmrClick()
+  }
+  reader.readAsText(file)
+})
+
+// ── CROSS-PANEL SEARCH — Ctrl+F in LiDAR mode ──
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f' && engineMode === 'LIDAR' && !editorActive) {
+    e.preventDefault()
+    const query = prompt('Search across all panels:')
+    if (!query || !query.trim()) return
+    const q = query.trim().toLowerCase()
+    const matches: { key: string; label: string; count: number }[] = []
+    for (const [key, lines] of Object.entries(MOUNTAIN_LORE)) {
+      const fullText = lines.join(' ').toLowerCase()
+      const count = fullText.split(q).length - 1
+      if (count > 0) {
+        matches.push({ key, label: ZONE_LABELS[key] || key, count })
+      }
+    }
+    if (matches.length === 0) {
+      // Flash a brief message on screen
+      const msg = document.createElement('div')
+      msg.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+        background:rgba(0,0,0,0.9); border:1px solid #f44; color:#f44; padding:12px 24px;
+        font-family:Courier New; font-size:12px; z-index:99999; pointer-events:none;`
+      msg.textContent = `No results for "${query}"`
+      document.body.appendChild(msg)
+      setTimeout(() => msg.remove(), 2000)
+    } else if (matches.length === 1) {
+      // Go directly to the single match and open editor
+      navigateToZone(matches[0]!.key)
+      editorOpen(matches[0]!.key)
+    } else {
+      // Show results and let user pick
+      const resultsDiv = document.createElement('div')
+      resultsDiv.style.cssText = `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+        background:rgba(0,0,0,0.95); border:1px solid #0ca; padding:16px 24px;
+        font-family:Courier New; font-size:11px; z-index:99999; max-height:300px; overflow-y:auto; min-width:240px;`
+      resultsDiv.innerHTML = `<div style="color:#0ca; font-weight:bold; margin-bottom:8px; letter-spacing:2px;">SEARCH: "${query}" — ${matches.length} panels</div>`
+      for (const m of matches) {
+        const row = document.createElement('div')
+        row.style.cssText = 'color:#ccc; padding:4px 0; cursor:pointer; border-bottom:1px solid #222;'
+        row.textContent = `▸ ${m.label} (${m.count} match${m.count > 1 ? 'es' : ''})`
+        row.addEventListener('mouseenter', () => { row.style.color = '#0ca' })
+        row.addEventListener('mouseleave', () => { row.style.color = '#ccc' })
+        row.addEventListener('click', () => {
+          resultsDiv.remove()
+          navigateToZone(m.key)
+          editorOpen(m.key)
+        })
+        resultsDiv.appendChild(row)
+      }
+      const closeBtn = document.createElement('div')
+      closeBtn.style.cssText = 'color:#555; font-size:9px; margin-top:8px; text-align:center; cursor:pointer;'
+      closeBtn.textContent = 'ESC to close'
+      closeBtn.addEventListener('click', () => resultsDiv.remove())
+      resultsDiv.appendChild(closeBtn)
+      document.body.appendChild(resultsDiv)
+      // ESC to dismiss
+      const dismissSearch = (ev: KeyboardEvent) => {
+        if (ev.key === 'Escape') { resultsDiv.remove(); window.removeEventListener('keydown', dismissSearch) }
+      }
+      window.addEventListener('keydown', dismissSearch)
+    }
+  }
+})
+
 ;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).addEventListener('input', () => editorLiveUpdate())
+
+// ── @ AUTOCOMPLETE — panel linking dropdown ──
+let autoCompleteBox: HTMLDivElement | null = null
+function dismissAutocomplete(): void {
+  if (autoCompleteBox) { autoCompleteBox.remove(); autoCompleteBox = null }
+}
+;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).addEventListener('input', (e) => {
+  const ta = e.target as HTMLTextAreaElement
+  const cursorPos = ta.selectionStart
+  const textBefore = ta.value.substring(0, cursorPos)
+
+  // Find the @-trigger: @ at start of word, followed by optional filter text
+  const atMatch = textBefore.match(/@(\w*)$/)
+  if (!atMatch) { dismissAutocomplete(); return }
+
+  const filter = atMatch[1]!.toLowerCase()
+  const allKeys = Object.keys(MOUNTAIN_LORE)
+
+  // Build candidates: panels + existing hyperlink words
+  const candidates: { label: string; insert: string; type: 'panel' | 'link' }[] = []
+  for (const key of allKeys) {
+    if (key === editorZone) continue // Don't link to self
+    const label = ZONE_LABELS[key] || key.replace('panel_', 'PANEL ')
+    if (filter && !label.toLowerCase().includes(filter) && !key.includes(filter)) continue
+    candidates.push({ label, insert: `[[${label}]]`, type: 'panel' })
+  }
+  // Also suggest existing clue graph words
+  for (const word of Object.keys(CLUE_GRAPH)) {
+    if (filter && !word.toLowerCase().includes(filter)) continue
+    if (candidates.some(c => c.label.toLowerCase() === word.toLowerCase())) continue
+    candidates.push({ label: word, insert: `[[${word}]]`, type: 'link' })
+  }
+
+  if (candidates.length === 0) { dismissAutocomplete(); return }
+
+  // Position the dropdown near the textarea
+  dismissAutocomplete()
+  const box = document.createElement('div')
+  box.style.cssText = `position:fixed; bottom:180px; left:12px; right:12px; max-height:200px; overflow-y:auto;
+    background:#0a0a0a; border:1px solid #0ca; z-index:99999; font-family:Courier New; font-size:11px;
+    scrollbar-width:thin; scrollbar-color:#333 transparent;`
+
+  for (const c of candidates.slice(0, 12)) {
+    const row = document.createElement('div')
+    const typeIcon = c.type === 'panel' ? '◻' : '⟐'
+    const typeColor = c.type === 'panel' ? '#0ca' : '#daa520'
+    row.style.cssText = `padding:6px 12px; cursor:pointer; border-bottom:1px solid #111; color:#ccc;
+      display:flex; align-items:center; gap:8px;`
+    row.innerHTML = `<span style="color:${typeColor}; font-size:13px;">${typeIcon}</span> ${c.label}`
+    row.addEventListener('mouseenter', () => { row.style.background = '#111' })
+    row.addEventListener('mouseleave', () => { row.style.background = 'transparent' })
+    row.addEventListener('mousedown', (ev) => {
+      ev.preventDefault() // Don't blur textarea
+      // Replace @filter with the link
+      const atStart = textBefore.lastIndexOf('@')
+      ta.value = ta.value.substring(0, atStart) + c.insert + ta.value.substring(cursorPos)
+      ta.selectionStart = ta.selectionEnd = atStart + c.insert.length
+      dismissAutocomplete()
+      editorFlush()
+      playAsmrClick()
+    })
+    box.appendChild(row)
+  }
+
+  document.body.appendChild(box)
+  autoCompleteBox = box
+})
+// Dismiss autocomplete on blur
+;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).addEventListener('blur', () => {
+  setTimeout(dismissAutocomplete, 200) // Short delay for click to register
+})
 ;(document.getElementById('editor-bar-textarea') as HTMLTextAreaElement).addEventListener('keydown', (e: KeyboardEvent) => {
   e.stopPropagation() // don't let WASD move player while typing
   if (e.key === 'Escape') { editorClose(); e.preventDefault() }
-  // @-mention AI: when user presses Enter and current line starts with @
+  // //-trigger AI: when user presses Enter and current line starts with //
   if (e.key === 'Enter') {
     const ta = e.target as HTMLTextAreaElement
     const cursorPos = ta.selectionStart
     const textBefore = ta.value.substring(0, cursorPos)
     const lastNewline = textBefore.lastIndexOf('\n')
     const currentLine = textBefore.substring(lastNewline + 1)
-    if (currentLine.trim().startsWith('@') && currentLine.trim().length > 2) {
+    
+    if (currentLine.trim().startsWith('//') && currentLine.trim().length > 3 && !currentLine.includes('[AI]')) {
       e.preventDefault()
-      const prompt = currentLine.trim().substring(1).trim()
-      // Remove the @-line from the textarea
-      const before = ta.value.substring(0, lastNewline + 1)
-      const after = ta.value.substring(cursorPos)
-      ta.value = before + after
-      ta.selectionStart = ta.selectionEnd = before.length
+      const prompt = currentLine.trim().substring(2).trim()
+      
+      // Inject thinking state directly into the textarea to make the panel a chat interface
+      const before = ta.value.substring(0, ta.selectionEnd)
+      const after = ta.value.substring(ta.selectionEnd)
+      ta.value = before + '\n// [AI thinking...]' + after
+      ta.selectionStart = ta.selectionEnd = before.length + 20 // move cursor after thinking text
       editorFlush()
-      // Send to AI
-      const aiEl = document.getElementById('editor-ai-response')!
-      aiEl.style.display = 'block'
-      aiEl.innerHTML = `<span style="color:#555;">⟳ thinking...</span>`
-      // Use existing sendContextChat logic inline
+      
+      // Hide the old AI display if it was visible
+      document.getElementById('editor-ai-response')!.style.display = 'none'
+      
+      // Check LLM connection
       if (!llmUrl) {
-        aiEl.innerHTML = `<span style="color:#c44;">No LLM connected. Set via Sheet B or ?llm_url= param.</span>`
+        ta.value = ta.value.replace('// [AI thinking...]', '// [AI] No LLM connected. Click Tab A to configure.')
+        editorFlush()
         return
       }
-      const wallText = (MOUNTAIN_LORE[editorZone] || []).join(' ').substring(0, 500)
+      
+      const wallText = (MOUNTAIN_LORE[editorZone] || []).join('\n').substring(0, 800)
       const messages = [
-        { role: 'system', content: `You are a worldtext architect. The user is editing "${ZONE_LABELS[editorZone] || editorZone}". Current wall text:\n\n${wallText}\n\nRespond concisely (2-3 sentences). Your response will be written onto the wall.` },
+        { role: 'system', content: `You are a worldtext architect responding directly within the wall text of "${ZONE_LABELS[editorZone] || editorZone}". Current wall text:\n\n${wallText}\n\nRespond concisely (1-3 sentences) to the user's prompt. Do NOT prefix with "//" or "[AI]" as that is handled by the system.` },
         { role: 'user', content: prompt }
       ]
+      
       fetch(llmUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(llmKey ? { Authorization: `Bearer ${llmKey}` } : {}) },
         body: JSON.stringify({ model: llmModel, messages, max_tokens: 150 })
       }).then(r => r.json()).then(data => {
         const reply = data.choices?.[0]?.message?.content || 'No response.'
-        aiEl.innerHTML = `<div style="color:#daa520; margin-bottom:4px;">◂ ${reply}</div>
-          <div style="display:flex; gap:6px; margin-top:4px;">
-            <button id="ai-accept" style="font-size:8px; background:#0ca; color:#000; border:none; padding:2px 10px; cursor:pointer; font-family:Courier New; font-weight:900;">✓ WRITE TO WALL</button>
-            <button id="ai-dismiss" style="font-size:8px; background:#333; color:#888; border:none; padding:2px 10px; cursor:pointer; font-family:Courier New;">✕ DISMISS</button>
-          </div>`
-        document.getElementById('ai-accept')?.addEventListener('click', () => {
-          // Append AI reply to textarea
-          const ta2 = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
-          ta2.value = ta2.value.trimEnd() + '\n' + reply
-          editorFlush()
-          aiEl.style.display = 'none'
-          playAsmrClick()
-        })
-        document.getElementById('ai-dismiss')?.addEventListener('click', () => {
-          aiEl.style.display = 'none'
-        })
+        
+        // Format the reply nicely
+        const formattedReply = '// [AI] ' + reply.replace(/\n/g, ' ')
+        ta.value = ta.value.replace('// [AI thinking...]', formattedReply)
+        
+        // Move cursor to bottom if it was at the thinking text
+        ta.selectionStart = ta.selectionEnd = ta.value.length
+        editorFlush()
+        playAsmrClick()
       }).catch(err => {
-        aiEl.innerHTML = `<span style="color:#c44;">Error: ${err}</span>`
+        ta.value = ta.value.replace('// [AI thinking...]', '// [AI] Connection error.')
+        editorFlush()
       })
     }
   }
@@ -2586,7 +2716,30 @@ document.getElementById('btn-link')!.addEventListener('click', () => {
   ta.focus()
   editorFlush()
   playAsmrClick()
+  playAsmrClick()
 })
+
+// ═══ PANEL SCROLLING — wheel over canvas to scroll the wall text
+window.addEventListener('wheel', (e) => {
+  if (engineMode !== 'LIDAR') return
+  if (e.target === document.getElementById('editor-bar-textarea')) return // Let textarea scroll natively
+  if (document.getElementById('sheet-backdrop')?.classList.contains('on')) return // Don't scroll when UI sheets are open
+
+  if (lastFacedLoreKey) {
+    const delta = e.deltaY > 0 ? 1 : -1
+    let scroll = Math.floor(PANEL_SCROLL[lastFacedLoreKey] || 0)
+    
+    // Loosely bound scroll to text length
+    const lines = MOUNTAIN_LORE[lastFacedLoreKey] || []
+    const maxScroll = Math.max(0, lines.length - 15) // Assume ~15 lines visible at a time
+    
+    scroll += delta
+    if (scroll < 0) scroll = 0
+    if (scroll > maxScroll) scroll = maxScroll
+    
+    PANEL_SCROLL[lastFacedLoreKey] = scroll
+  }
+}, { passive: true })
 
 // Markdown export button
 document.getElementById('btn-export-md')?.addEventListener('click', () => exportMarkdown())
@@ -2738,7 +2891,7 @@ RULES FOR SCENE GRAPH:
       if (data.sceneGraph && Array.isArray(data.sceneGraph)) {
         for (const n of data.sceneGraph) {
           if (!n.word || !n.zone || !n.connections || !n.clue) continue
-          const color = ZONES[n.zone.toUpperCase()]?.color || '#888'
+          const color = ZONES[n.zone]?.color || '#888'
           CLUE_GRAPH[n.word] = {
             word: n.word, color, zone: n.zone,
             connections: n.connections, clue: n.clue, collected: false,
@@ -2753,7 +2906,7 @@ RULES FOR SCENE GRAPH:
       wallLineCache.clear()
 
       // Regenerate circular LiDAR map for the new zones
-      generateCircularMap(Object.keys(MOUNTAIN_LORE))
+      generateEmptyFieldMap(Object.keys(MOUNTAIN_LORE))
 
       // Rebuild grid cells so walls use new text
       for (let y = 0; y < GRID_SIZE; y++) {
@@ -2786,7 +2939,7 @@ RULES FOR SCENE GRAPH:
   const statusText = isConnected ? `✓ Connected: ${llmModel}` : 'Paste API key to connect'
   llmDiv.innerHTML = `
     <div style="color:#0ff; font-size:10px; letter-spacing:2px; margin-bottom:8px;">🤖 LLM ENGINE · <span style="color:${statusColor}; font-size:9px;">${statusText}</span></div>
-    <div style="font-size:9px; color:#888; margin-bottom:8px;">Paste your OpenAI API key below. Press C in LIDAR to chat with any wall text. Responses write onto the walls.</div>
+    <div style="font-size:9px; color:#888; margin-bottom:8px;">Paste your API key below. Open any panel (Press E) and start a new line with // your prompt and press Enter to chat.</div>
     <div style="display:flex; gap:6px; margin-bottom:6px;">
       <input type="password" id="llm-key-input" placeholder="sk-... (OpenAI API Key)" 
         value="${llmKey}" style="flex:1; background:#0a0a0a; color:#ccc; border:1px solid ${isConnected ? '#0fa' : '#444'}; padding:6px 10px; font-size:11px; font-family:Courier New;">
@@ -2821,7 +2974,7 @@ function populateLoreSheet(): void {
   loreBody.innerHTML = ''
   buildOneShotImport() // ⚡ ONE-SHOT IMPORT goes at the top
   for (const [key, texts] of Object.entries(MOUNTAIN_LORE)) {
-    const zone = ZONES[key.toUpperCase()] || Object.values(ZONES)[0]!
+    const zone = ZONES[key] || Object.values(ZONES)[0]!
     const div = document.createElement('div')
     div.style.marginBottom = '16px'
     div.innerHTML =
@@ -2967,7 +3120,7 @@ function populateLoreSheet(): void {
       let added = 0
       for (const n of nodes) {
         if (!n.word || !n.zone || !n.connections || !n.clue) continue
-        const color = ZONES[n.zone.toUpperCase()]?.color || '#888'
+        const color = ZONES[n.zone]?.color || '#888'
         CLUE_GRAPH[n.word] = {
           word: n.word, color, zone: n.zone,
           connections: n.connections, clue: n.clue, collected: false,
@@ -2998,67 +3151,81 @@ function populateLoreSheet(): void {
 }
 populateLoreSheet()
 
-// Sheet B: Collected Clues Journal (dynamic)
+// Sheet B: Panel Index (replaces old Clue Journal)
 const csprBody = document.getElementById('cspr-body')!
 function populateCluesSheet(): void {
   csprBody.innerHTML = ''
-  if (collectedClues.length === 0) {
-    csprBody.innerHTML = `<div style="color:#555; font-size:12px; padding:20px; text-align:center;">No clues collected yet.<br>Click glowing words on the walls to begin your investigation.</div>`
-    return
-  }
-
-  // Summary header
-  const total = Object.keys(CLUE_GRAPH).length
+  
+  // Header
   const header = document.createElement('div')
-  header.innerHTML = `<div style="color:#daa520; font-size:11px; letter-spacing:2px; margin-bottom:12px;">INVESTIGATION LOG · ${collectedClues.length}/${total} CLUES COLLECTED</div>`
+  const panelCount = Object.keys(MOUNTAIN_LORE).length
+  const totalWords = Object.values(MOUNTAIN_LORE).reduce((sum, lines) => sum + lines.join(' ').split(/\s+/).filter(w => w).length, 0)
+  header.innerHTML = `<div style="color:#daa520; font-size:11px; letter-spacing:2px; margin-bottom:12px;">PANEL INDEX · ${panelCount} PANELS · ${totalWords} WORDS</div>`
   csprBody.appendChild(header)
 
-  // Each collected clue — now clickable for navigation
-  for (const node of collectedClues) {
+  // Each panel — clickable to navigate + open editor
+  const sortedKeys = Object.keys(MOUNTAIN_LORE).sort()
+  for (const key of sortedKeys) {
+    const lines = MOUNTAIN_LORE[key] || []
+    const wordCount = lines.join(' ').split(/\s+/).filter(w => w).length
+    const label = ZONE_LABELS[key] || key
+    const preview = lines[0]?.substring(0, 60) || '(empty)'
+    const scroll = PANEL_SCROLL[key] || 0
+    
     const div = document.createElement('div')
     div.style.cssText = 'border-bottom:1px solid #1a1a1a; padding:8px 0; cursor:pointer;'
     div.addEventListener('mouseenter', () => { div.style.background = '#111' })
     div.addEventListener('mouseleave', () => { div.style.background = '' })
-    const connections = node.connections.map(c => {
-      const cn = CLUE_GRAPH[c]
-      const color = cn ? cn.color : '#666'
-      const mark = cn?.collected ? '✓' : '○'
-      return `<span class="clue-conn-link" data-word="${c}" style="color:${color}; font-size:10px; margin-right:8px; cursor:pointer; text-decoration:underline dotted;">${mark} ${c}</span>`
-    }).join('')
     div.innerHTML = `
-      <div style="color:${node.color}; font-weight:bold; font-size:12px; text-transform:uppercase;">
-        ▸ ${node.word} <span style="color:#555; font-size:9px; font-weight:normal;">${ZONE_LABELS[node.zone] || node.zone.toUpperCase()} · CLICK TO NAVIGATE</span>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="color:#0ca; font-weight:bold; font-size:11px; text-transform:uppercase;">${label}</span>
+        <span style="color:#555; font-size:9px;">${wordCount} words · ${lines.length} lines${scroll > 0 ? ` · ↓${scroll}` : ''}</span>
       </div>
-      <div style="color:#999; font-size:11px; line-height:1.4; margin:4px 0;">${node.clue}</div>
-      <div style="margin-top:4px;">${connections}</div>
+      <div style="color:#666; font-size:10px; margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${preview}</div>
     `
-    // Click the clue word → navigate to its zone in LiDAR
-    div.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).classList.contains('clue-conn-link')) return // handled below
-      navigateToZone(node.zone)
+    div.addEventListener('click', () => {
+      PANEL_SCROLL[key] = 0 // Reset scroll to top
+      navigateToZone(key)
+      editorOpen(key)
+      // Close the sheet
+      const backdrop = document.getElementById('sheet-backdrop')
+      if (backdrop) backdrop.classList.remove('on')
+      document.getElementById('sheet-b')?.classList.remove('on')
     })
     csprBody.appendChild(div)
   }
-
-  // Connection links → navigate to that word's zone
-  csprBody.querySelectorAll('.clue-conn-link').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const word = (el as HTMLElement).dataset.word
-      if (word) {
-        const cn = CLUE_GRAPH[word]
-        if (cn) navigateToZone(cn.zone)
-      }
-    })
-  })
 }
 
-// Sheet C: Lens config
-;(document.getElementById('range-size') as HTMLInputElement).addEventListener('input', function () { charSize = parseInt(this.value, 10); currentFont = '' })
-;(document.getElementById('range-coalesce') as HTMLInputElement).addEventListener('input', function () { coalesceRadius = parseInt(this.value, 10) })
-;(document.getElementById('range-speed') as HTMLInputElement).addEventListener('input', function () { waveSpeed = parseInt(this.value, 10) })
-document.getElementById('btn-rel-on')!.addEventListener('click', () => { showRelations = true })
-document.getElementById('btn-rel-off')!.addEventListener('click', () => { showRelations = false })
+// Sheet C: Formatting Toolkit
+function injectFormatToken(token: string) {
+  const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+  if (!editorActive || !ta) {
+    alert('Please open a panel editor (Press E) first.')
+    return
+  }
+  const start = ta.selectionStart
+  const end = ta.selectionEnd
+  const textBefore = ta.value.substring(0, start)
+  
+  // Find start of current line
+  const lastNewline = textBefore.lastIndexOf('\n')
+  const lineStart = lastNewline + 1
+  
+  // Inject the token at the line start
+  ta.value = ta.value.substring(0, lineStart) + token + ta.value.substring(lineStart)
+  
+  // Update selection
+  ta.selectionStart = ta.selectionEnd = end + token.length
+  
+  editorFlush()
+  ta.focus()
+  playAsmrClick()
+}
+
+document.getElementById('btn-fmt-h1')?.addEventListener('click', () => injectFormatToken('# '))
+document.getElementById('btn-fmt-h2')?.addEventListener('click', () => injectFormatToken('## '))
+document.getElementById('btn-fmt-quote')?.addEventListener('click', () => injectFormatToken('> '))
+document.getElementById('btn-fmt-list')?.addEventListener('click', () => injectFormatToken('- '))
 
 // Sheet D: Document management
 document.getElementById('btn-export-png')!.addEventListener('click', () => {
@@ -3117,11 +3284,9 @@ document.getElementById('btn-build-monolith')?.addEventListener('click', (e) => 
   MOUNTAIN_LORE[key] = [`(blank panel ${newIdx})`]
   LORE_FULL[key] = `(blank panel ${newIdx})`
   ZONE_LABELS[key] = `PANEL ${newIdx}`
-  const gridColors = ['#daa520', '#4682b4', '#cd853f', '#5f9ea0', '#9370db', '#8fbc8f', '#bc8f8f', '#f4a460']
-  ZONES[key.toUpperCase()] = {
+  ZONES[key] = {
     name: `PANEL ${newIdx}`,
-    color: gridColors[newIdx % gridColors.length]!,
-    minR: 0, maxR: 999,
+    color: GRID_COLORS[newIdx % GRID_COLORS.length]!,
     flavor: `PANEL ${newIdx}`
   }
   generateEmptyFieldMap(Object.keys(MOUNTAIN_LORE))
@@ -3163,25 +3328,31 @@ document.getElementById('btn-clear-data')?.addEventListener('click', () => {
 setMode('LIDAR') // Start directly in the spatial editor
 loop()
 
-// ── ONBOARDING OVERLAY ──
-const ONBOARD_KEY = 'golden-egg-onboarded'
-if (!localStorage.getItem(ONBOARD_KEY)) {
+function showHelpOverlay() {
   const ob = document.createElement('div')
   ob.style.cssText = `position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.92);
     display:flex; align-items:center; justify-content:center; font-family:Courier New; cursor:pointer;`
-  ob.innerHTML = `<div style="max-width:420px; padding:32px; border:2px solid #0ca; background:#0a0a0a; text-align:center;">
+  ob.innerHTML = `<div style="max-width:500px; padding:32px; border:2px solid #0ca; background:#0a0a0a; text-align:center; overflow-y:auto; max-height:90vh;">
     <div style="font-size:22px; color:#daa520; font-weight:900; letter-spacing:2px; margin-bottom:16px;">GOLDEN EGG</div>
     <div style="font-size:11px; color:#999; line-height:1.8; text-align:left; margin-bottom:20px;">
-      <div style="color:#0ca; font-weight:bold; margin-bottom:8px;">HOW TO USE THIS TOOL:</div>
+      <div style="color:#0ca; font-weight:bold; margin-bottom:8px;">HOW TO NAVIGATE AND EDIT:</div>
       <div><span style="color:#0ca;">WASD</span> or <span style="color:#0ca;">JOYSTICK</span> — Walk around</div>
       <div><span style="color:#0ca;">MOUSE</span> — Look around (drag)</div>
       <div><span style="color:#0ca;">CLICK WALL</span> or <span style="color:#0ca;">[E]</span> — Edit the panel you face</div>
-      <div><span style="color:#0ca;">[[word]]</span> — Create a hyperlink to another panel</div>
-      <div><span style="color:#0ca;">[C]</span> — Chat about what you're reading</div>
+      <div><span style="color:#0ca;">@</span> in editor — Autocomplete panel links (replaces [[word]])</div>
+      <div><span style="color:#0ca;">⌘F / Ctrl+F</span> — Search across all panels</div>
+      <div><span style="color:#0ca;">DROP .txt/.md</span> — Import a file onto a wall</div>
+      <div><span style="color:#0ca;">↶ UNDO</span> — Undo wall edits (20 levels per panel)</div>
       <div><span style="color:#0ca;">ESC</span> — Close editor / exit</div>
       <div style="margin-top:8px; color:#666;">Sheet D (tab bar) → BUILD NEW MONOLITH to add panels</div>
+
+      <div style="color:#daa520; font-weight:bold; margin-bottom:8px; margin-top:20px;">HOW TO DEPLOY THE LLM:</div>
+      <div><span style="color:#daa520;">1.</span> Click the <b>A</b> tab (LORE MATERIAL) in the bottom right corner.</div>
+      <div><span style="color:#daa520;">2.</span> Enter your API Key and URL under the "LLM ENGINE" section.</div>
+      <div><span style="color:#daa520;">3.</span> Open any panel editor (Press E on a wall).</div>
+      <div><span style="color:#daa520;">4.</span> Start a new line with <span style="color:#daa520;">// your question</span> and press Enter. The AI's response will be embedded directly into the wall text, turning the panel into a permanent chat log.</div>
     </div>
-    <div style="font-size:13px; color:#0ca; font-weight:900; letter-spacing:3px;">TAP ANYWHERE TO BEGIN</div>
+    <div style="font-size:13px; color:#0ca; font-weight:900; letter-spacing:3px;">TAP TO CLOSE</div>
   </div>`
   ob.addEventListener('click', () => {
     ob.remove()
@@ -3189,13 +3360,25 @@ if (!localStorage.getItem(ONBOARD_KEY)) {
     playAsmrClick()
   })
   ob.addEventListener('touchstart', (e) => {
-    e.preventDefault()
-    ob.remove()
-    try { localStorage.setItem(ONBOARD_KEY, '1') } catch {}
-    playAsmrClick()
-  }, { passive: false })
+    if (e.target === ob) {
+      e.preventDefault()
+      ob.remove()
+      try { localStorage.setItem(ONBOARD_KEY, '1') } catch {}
+      playAsmrClick()
+    }
+  })
   document.body.appendChild(ob)
 }
+
+const ONBOARD_KEY = 'golden-egg-onboarded'
+if (!localStorage.getItem(ONBOARD_KEY)) {
+  showHelpOverlay()
+}
+
+document.getElementById('btn-help')?.addEventListener('click', () => {
+  showHelpOverlay()
+})
+
 
 // ═══ MOBILE TOUCH CONTROLS ═══
 // Virtual joystick + action buttons for touch devices
@@ -3256,7 +3439,7 @@ if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
   const mobileActions: [string, string, () => void][] = [
     ['EDIT', '✎', () => { if (lastFacedLoreKey) editorOpen(lastFacedLoreKey) }],
     ['SCAN', '⊕', () => lidarScan()],
-    ['CHAT', 'C', () => { if (lastFacedLoreKey) openContextChat() }],
+    ['CHAT', 'C', () => { if (lastFacedLoreKey) editorOpen(lastFacedLoreKey) }],
     ['☀/☽', 'L', () => { skyModeLock = skyModeLock === 'auto' ? 'light' : skyModeLock === 'light' ? 'dark' : 'auto' }],
     ['EXIT', '✕', () => setMode('GRID')],
   ]
