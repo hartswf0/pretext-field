@@ -296,6 +296,7 @@ function editorFlush(): void {
   wallLineCache.clear()
   prepCache.clear()
   editorPersist()
+  updateBlockCount()
 }
 
 // Auto-save on every keystroke (debounced 150ms for performance)
@@ -403,7 +404,7 @@ interface Block {
   id: string        // crypto.randomUUID()
   text: string
   created: number   // Date.now()
-  type: 'text' | 'h1' | 'h2' | 'quote' | 'list'
+  type: 'text' | 'h1' | 'h2' | 'quote' | 'list' | 'hr'
 }
 
 const BLOCK_STORE: Record<string, Block[]> = {}
@@ -411,8 +412,9 @@ const BLOCK_STORE: Record<string, Block[]> = {}
 function mintBlock(text: string): Block {
   // Detect type from markdown prefix
   let type: Block['type'] = 'text'
-  if (text.startsWith('# ')) type = 'h1'
+  if (text.trim() === '---' || text.trim() === '***' || text.trim() === '___') type = 'hr'
   else if (text.startsWith('## ')) type = 'h2'
+  else if (text.startsWith('# ')) type = 'h1'
   else if (text.startsWith('> ')) type = 'quote'
   else if (text.startsWith('- ')) type = 'list'
   return { id: crypto.randomUUID(), text, created: Date.now(), type }
@@ -691,6 +693,14 @@ function navigateToZone(zone: string): void {
 function onHotWordClick(hit: HotWordHit): void {
   const word = hit.word
   const lowerWord = word.toLowerCase()
+
+  // ── URL: open in new tab ──
+  if (word.match(/^https?:\/\//i)) {
+    window.open(word, '_blank', 'noopener')
+    const out = document.getElementById('scanner-output')
+    if (out) { out.innerText = `OPENING: ${word}`; out.style.color = '#0af' }
+    return
+  }
 
   // Look up in CLUE_GRAPH (case-insensitive match)
   let node: ClueNode | null = null
@@ -2089,8 +2099,25 @@ function renderLidar(): void {
         if (renderedBlocks > 0) {
           const gap = wb.type === 'h1' ? lh * 1.2
                     : wb.type === 'h2' ? lh * 0.8
+                    : wb.type === 'hr' ? lh * 0.3
                     : lh * 0.5
           ly += gap
+        }
+
+        // ── HR: draw a horizontal rule and skip text rendering ──
+        if (wb.type === 'hr') {
+          lidarCtx.globalAlpha = 0.25
+          lidarCtx.fillStyle = face.zone.color
+          const hrY = ly + lh * 0.3
+          lidarCtx.fillRect(face.startX + padding, hrY, textW * 0.85, 1)
+          // Subtle center dot
+          lidarCtx.globalAlpha = 0.4
+          lidarCtx.fillRect(face.startX + padding + textW * 0.42, hrY - 1, 3, 3)
+          lidarCtx.globalAlpha = 0.92
+          ly += lh * 0.6
+          renderedBlocks++
+          globalLineIdx++
+          continue
         }
 
         // Block-level formatting
@@ -2170,6 +2197,20 @@ function renderLidar(): void {
               idx = txt.toLowerCase().indexOf(word.toLowerCase(), idx + word.length)
             }
           }
+
+          // URL auto-detection — highlight and make clickable
+          const urlRegex = /https?:\/\/[^\s)}\]]+/gi
+          let urlMatch: RegExpExecArray | null
+          while ((urlMatch = urlRegex.exec(txt)) !== null) {
+            // Only add if not overlapping with existing segments
+            const uStart = urlMatch.index
+            const uEnd = uStart + urlMatch[0].length
+            const overlaps = hotSegs.some(s => (uStart < s.end && uEnd > s.start))
+            if (!overlaps) {
+              hotSegs.push({ start: uStart, end: uEnd, color: '#0af', isPortal: false })
+            }
+          }
+
           hotSegs.sort((a, b) => a.start - b.start)
 
           const defaultFill = (wb.type !== 'text' && wb.type !== 'list') ? blockColor : blockColor
@@ -3472,6 +3513,27 @@ document.getElementById('btn-fmt-h1')?.addEventListener('click', () => injectFor
 document.getElementById('btn-fmt-h2')?.addEventListener('click', () => injectFormatToken('## '))
 document.getElementById('btn-fmt-quote')?.addEventListener('click', () => injectFormatToken('> '))
 document.getElementById('btn-fmt-list')?.addEventListener('click', () => injectFormatToken('- '))
+document.getElementById('btn-fmt-hr')?.addEventListener('click', () => {
+  const ta = document.getElementById('editor-bar-textarea') as HTMLTextAreaElement
+  if (!editorActive || !ta) return
+  const pos = ta.selectionStart
+  const before = ta.value.substring(0, pos)
+  const after = ta.value.substring(pos)
+  ta.value = before + '\n---\n' + after
+  ta.selectionStart = ta.selectionEnd = pos + 5
+  editorFlush()
+  ta.focus()
+  playAsmrClick()
+})
+
+// Update block count in editor toolbar
+function updateBlockCount(): void {
+  const el = document.getElementById('editor-block-count')
+  if (el && editorZone) {
+    const blocks = BLOCK_STORE[editorZone] || []
+    el.textContent = `${blocks.length} ¶`
+  }
+}
 
 // Sheet D: Document management
 document.getElementById('btn-export-png')!.addEventListener('click', () => {

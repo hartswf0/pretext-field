@@ -193,6 +193,15 @@
             #minimap-canvas { width: 48px !important; height: 48px !important; }
             #status-bar { display: none; }
         }
+        /* ── INLINE FORMAT BUTTONS ── */
+        .fmt-btn {
+            background: transparent; border: 1px solid #333; color: #888;
+            cursor: pointer; padding: 2px 8px; font-family: var(--font);
+            letter-spacing: 0.5px; border-radius: 2px; min-width: 24px;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .fmt-btn:hover { border-color: #0ca; color: #0ca; }
+        .fmt-btn:active { background: #111; }
         /* ── MINIMAL SCROLLBARS ── */
         #editor-panel-nav::-webkit-scrollbar,
         .sheet-body::-webkit-scrollbar,
@@ -252,6 +261,18 @@
                     <div id="editor-panel-nav" style="display:flex; gap:0; overflow-x:auto; background:#000; border-bottom:1px solid #222; padding:0 4px; flex-shrink:0;"></div>
                     <!-- AI response area (hidden until @-triggered) -->
                     <div id="editor-ai-response" style="display:none; font-size:10px; color:#daa520; background:rgba(218,165,32,0.05); border-bottom:1px solid #333; padding:6px 12px; max-height:80px; overflow-y:auto; line-height:1.4; font-family:var(--font);"></div>
+                    <!-- Inline format toolbar — always visible while editing -->
+                    <div id="editor-fmt-bar" style="display:flex; gap:2px; padding:3px 8px; background:#0a0a0a; border-bottom:1px solid #1a1a1a; flex-shrink:0; align-items:center;">
+                        <button class="fmt-btn" id="btn-fmt-h1" title="Heading 1" style="font-weight:900; color:#daa520; font-size:11px;">H1</button>
+                        <button class="fmt-btn" id="btn-fmt-h2" title="Heading 2" style="font-weight:bold; color:#aaa; font-size:10px;">H2</button>
+                        <span style="color:#222; margin:0 2px;">│</span>
+                        <button class="fmt-btn" id="btn-fmt-quote" title="Blockquote" style="font-style:italic; color:#777; font-size:10px;">❝</button>
+                        <button class="fmt-btn" id="btn-fmt-list" title="Bullet list" style="color:#888; font-size:10px;">•</button>
+                        <span style="color:#222; margin:0 2px;">│</span>
+                        <button class="fmt-btn" id="btn-fmt-hr" title="Horizontal rule" style="color:#555; font-size:9px;">——</button>
+                        <span style="flex:1;"></span>
+                        <span id="editor-block-count" style="font-size:8px; color:#444; font-family:var(--font); letter-spacing:1px;"></span>
+                    </div>
                     <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type to edit wall · @ to link panels · @question for AI · Drop .txt/.md to import"></textarea>
                 </div>
             </div>
@@ -286,7 +307,7 @@
         <nav id="tab-bar">
             <button class="tab-btn" id="tab-a"><span class="tab-letter">A</span>LORE</button>
             <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>INDEX</button>
-            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>FORMAT</button>
+            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>REF</button>
             <button class="tab-btn" id="tab-d"><span class="tab-letter">D</span>SAVE</button>
         </nav>
     </div>
@@ -302,23 +323,35 @@
         <div class="sheet-body" id="cspr-body"></div>
     </div>
     <div class="sheet" id="sheet-c">
-        <div class="sheet-handle"><span class="sheet-title">C · FORMATTING</span><button class="sheet-close" id="close-c">×</button></div>
+        <div class="sheet-handle"><span class="sheet-title">C · REFERENCE</span><button class="sheet-close" id="close-c">×</button></div>
         <div class="sheet-body">
-            <div class="sh-label" style="color:#daa520;">EDITOR TOOLKIT</div>
-            <div style="font-size:10px; color:#888; margin-bottom:8px;">Open a panel editor, then click buttons below to inject formatting.</div>
-            
-            <div class="sh-row">
-                <button class="sh-btn" id="btn-fmt-h1" style="font-weight:900; color:#daa520;">H1 TITLE</button>
-                <button class="sh-btn" id="btn-fmt-h2" style="font-weight:bold; color:#ccc;">H2 SUBTITLE</button>
+            <div class="sh-label" style="color:#daa520;">FORMATTING SYNTAX</div>
+            <div style="font-size:10px; color:#888; margin-bottom:12px; line-height:1.6;">
+                Use the toolbar above the editor, or type these prefixes on any line:
             </div>
-            
-            <div class="sh-row" style="margin-top:6px;">
-                <button class="sh-btn" id="btn-fmt-quote" style="font-style:italic; color:#777;">> BLOCKQUOTE</button>
-                <button class="sh-btn" id="btn-fmt-list">○ BULLET LIST</button>
+            <div style="font-size:10px; color:#aaa; font-family:var(--font); line-height:2;">
+                <div><span style="color:#daa520; font-weight:900;">  # </span> Heading 1 — large gold title</div>
+                <div><span style="color:#ccc; font-weight:bold;"> ## </span> Heading 2 — section subtitle</div>
+                <div><span style="color:#777; font-style:italic;">  > </span> Blockquote — indented with bar</div>
+                <div><span style="color:#888;">  - </span> Bullet list — dot-prefixed item</div>
+                <div><span style="color:#555;"> --- </span> Horizontal rule — visual separator</div>
             </div>
-
-            <div class="sh-label" style="margin-top:16px;">V-Scroll Overflow</div>
-            <div style="font-size:10px; color:#666;">Alternatively, scroll your mouse wheel when facing a text wall in LiDAR mode.</div>
+            <div class="sh-label" style="margin-top:16px;">KEYBOARD SHORTCUTS</div>
+            <div style="font-size:10px; color:#aaa; font-family:var(--font); line-height:2;">
+                <div><span style="color:#0ca;">E</span> — Open editor on faced wall</div>
+                <div><span style="color:#0ca;">@</span> — Link panel / AI query</div>
+                <div><span style="color:#0ca;">[[word]]</span> — Create hyperlink</div>
+                <div><span style="color:#0ca;">Ctrl+F</span> — Search all panels</div>
+                <div><span style="color:#0ca;">WASD</span> — Move through space</div>
+                <div><span style="color:#0ca;">1-9</span> — Teleport to panel</div>
+                <div><span style="color:#0ca;">L</span> — Cycle sky mode</div>
+                <div><span style="color:#0ca;">Scroll</span> — Scroll wall text</div>
+            </div>
+            <div class="sh-label" style="margin-top:16px;">EMBEDS</div>
+            <div style="font-size:10px; color:#aaa; font-family:var(--font); line-height:2;">
+                <div><span style="color:#0fa;">https://...</span> — URLs auto-highlight as clickable</div>
+                <div><span style="color:#0fa;">⊕ MEDIA</span> — Attach image/video to wall</div>
+            </div>
         </div>
     </div>
     <div class="sheet" id="sheet-d">
