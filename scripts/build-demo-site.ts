@@ -9,7 +9,7 @@ const outdir = path.join(root, 'site')
 const glob = new Glob('**/*.html')
 const entrypoints: string[] = []
 for await (const file of glob.scan(root)) {
-  if (file.includes('node_modules') || file.includes('site/') || file.includes('dist/') || file.includes('cave-demos/') || file.includes('ICARO-QUINE/') || file.includes('GOLDEN LENS/') || file.includes('mempalace/')) continue
+  if (file.includes('node_modules') || file.includes('site/') || file.includes('dist/') || file.includes('cave-demos/') || file.includes('ICARO-QUINE/') || file.includes('GOLDEN LENS/') || file.includes('mempalace/') || file.includes('ISLANDS/') || file.includes('ripples-bridge/')) continue
   entrypoints.push(file)
 }
 console.log(`[site:build] Found ${entrypoints.length} HTML entrypoints`)
