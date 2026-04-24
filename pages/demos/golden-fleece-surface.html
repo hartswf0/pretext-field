@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ARGO · Operative Cartography</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=EB+Garamond:ital,wght@0,400;1,400&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
+  <style>
+    /* ═══════════════════════════════════════════════════════
+     * DESIGN TOKENS — Achilles v2 white-field system
+     * WCAG AA contrast: all text > 4.5:1 against bg
+     * ═══════════════════════════════════════════════════════ */
+    :root {
+      --bg: #f4f4f0;
+      --black: #000000;
+      --white: #ffffff;
+      --act-a: #0033cc;
+      --act-b: #c8a800;
+      --act-c: #e60000;
+      --act-d: #000000;
+      --bw: 3px;
+      --tab-h: 56px;
+      --tl-h: 56px;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --ink: #1a1a1a;
+      --dim: #666;
+      --mono: "Share Tech Mono", monospace;
+      --serif: "EB Garamond", serif;
+      --display: "Cinzel", serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; border-radius: 0 !important; }
+    html, body {
+      width: 100%; height: 100%; margin: 0; padding: 0;
+      overflow: hidden; position: fixed; inset: 0;
+      height: 100dvh;
+      background: var(--bg); color: var(--black);
+      font-family: var(--mono); font-size: 14px;
+      user-select: none; -webkit-user-select: none;
+    }
+    button, input { font-family: inherit; }
+
+    /* ── STRUCTURE ── */
+    #app {
+      display: flex; flex-direction: column;
+      width: 100%; height: 100%; height: 100dvh;
+    }
+
+    /* ── THREE.JS ZONE ── */
+    #canvas-zone {
+      flex: 1 1 0%; position: relative; overflow: hidden;
+      background: #eae7e0;
+    }
+    #three-wrap { position: absolute; inset: 0; z-index: 1; }
+    #walk-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: none; cursor: crosshair; }
+    #flat-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: none; cursor: crosshair; }
+
+    /* ── FIELD BANNER (event toast) — below scale buttons ── */
+    #field-banner {
+      position: absolute; top: 54px; left: 10px;
+      max-width: 480px;
+      z-index: 25;
+      background: rgba(255,255,255,0.95);
+      border: 2px solid var(--black);
+      padding: 8px 14px;
+      font-size: 12px; font-weight: 700; line-height: 1.3;
+      pointer-events: none;
+      opacity: 0; transform: translateY(-6px);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    #field-banner.on { opacity: 1; transform: translateY(0); }
+    .fb-kicker {
+      font-size: 9px; font-weight: 900;
+      letter-spacing: 0.12em; color: var(--dim);
+      text-transform: uppercase; margin-bottom: 1px;
+    }
+
+    /* ── WALK MINIMAP (top-left overlay in walk mode) ── */
+    #walk-minimap {
+      position: absolute; top: 10px; left: 10px;
+      width: 180px; height: 180px;
+      z-index: 15; display: none;
+      border: 2px solid var(--black);
+      background: rgba(240,236,228,0.92);
+      image-rendering: auto;
+    }
+
+    /* ── HELP BUTTON + OVERLAY ── */
+    #help-btn {
+      position: absolute; bottom: 10px; right: 10px; z-index: 20;
+      width: 32px; height: 32px;
+      background: var(--white); border: 2px solid var(--black);
+      font: 900 14px var(--mono);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.1s;
+    }
+    #help-btn:hover { background: var(--black); color: var(--white); }
+    #help-overlay {
+      display: none; position: absolute; inset: 0; z-index: 50;
+      background: rgba(255,255,255,0.97);
+      overflow-y: auto; padding: 48px 40px;
+      font: 12px/1.7 var(--mono);
+    }
+    #help-overlay.on { display: block; }
+    #help-overlay h2 { font-size: 18px; font-weight: 900; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    #help-overlay h3 { font-size: 13px; font-weight: 900; margin: 18px 0 6px; text-transform: uppercase; color: var(--dim); }
+    #help-overlay table { border-collapse: collapse; margin: 6px 0 12px; }
+    #help-overlay td { padding: 2px 12px 2px 0; font-size: 11px; vertical-align: top; }
+    #help-overlay .key { font-weight: 900; min-width: 60px; }
+    #help-close {
+      position: absolute; top: 16px; right: 20px;
+      font: 900 18px var(--mono); background: none; border: none; cursor: pointer;
+    }
+
+    /* ── HOVER TIP ── */
+    #hover-tip {
+      position: absolute; z-index: 30;
+      background: rgba(255,255,255,0.95);
+      border: 2px solid var(--black);
+      padding: 6px 12px;
+      font-size: 13px; font-weight: 900;
+      pointer-events: none; display: none;
+      box-shadow: 2px 2px 0 var(--black);
+    }
+
+    /* ── CONTEXT RING ── */
+    #ctx-ring {
+      position: absolute; z-index: 35;
+      display: none; flex-direction: column; gap: 4px;
+      background: rgba(255,255,255,0.95);
+      border: 2px solid var(--black);
+      padding: 8px;
+      box-shadow: 3px 3px 0 var(--black);
+    }
+    #ctx-ring.open { display: flex; }
+    .ctx-btn {
+      padding: 10px 16px; font-size: 13px; font-weight: 900;
+      text-transform: uppercase;
+      border: 2px solid var(--black); background: var(--white);
+      cursor: pointer; box-shadow: 2px 2px 0 var(--black);
+      min-height: 44px;
+    }
+    .ctx-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--black); }
+
+    /* ── SCALE INDICATOR ── */
+    #scale-indicator {
+      position: absolute; top: 10px; right: 10px; z-index: 20;
+      display: flex; gap: 4px;
+    }
+    .scale-btn {
+      padding: 8px 14px; font-size: 11px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      border: 2px solid var(--black); background: var(--white);
+      cursor: pointer; min-height: 36px;
+      transition: background 0.1s, color 0.1s;
+    }
+    .scale-btn:active { transform: translate(2px,2px); }
+    .scale-btn.on { background: var(--black); color: var(--white); }
+
+    /* ── INFO READOUT ── */
+    #info-readout {
+      position: absolute; bottom: 10px; left: 10px; z-index: 20;
+      background: rgba(255,255,255,0.92);
+      border: 2px solid var(--black);
+      padding: 8px 14px;
+      font-size: 11px; line-height: 1.5;
+      max-width: 320px; display: none;
+    }
+    #info-readout.open { display: block; }
+    .ir-title { font-size: 13px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; }
+    .ir-row { display: flex; justify-content: space-between; gap: 12px; }
+    .ir-k { font-weight: 900; color: var(--dim); text-transform: uppercase; font-size: 10px; }
+    .ir-v { font-weight: 900; }
+
+    /* ── OPERATOR BUTTONS ── */
+    .op-btn.on { background: var(--black); color: var(--white); }
+    .op-dot { display: inline-block; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── TIMELINE STRIP ── */
+    #timeline-zone {
+      flex: 0 0 var(--tl-h);
+      background: var(--bg);
+      border-top: var(--bw) solid var(--black);
+      display: flex; overflow: hidden; z-index: 40;
+    }
+    #tl-controls {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 10px; flex-shrink: 0;
+    }
+    .tl-ctrl-btn {
+      background: var(--white); color: var(--black);
+      border: 2px solid var(--black);
+      padding: 6px 12px; font-size: 12px; font-weight: 900;
+      cursor: pointer; text-transform: uppercase;
+      box-shadow: 2px 2px 0 var(--black);
+      flex-shrink: 0; min-height: 44px;
+      display: flex; align-items: center;
+    }
+    .tl-ctrl-btn:active { transform: translate(2px,2px); box-shadow: 0 0 0 var(--black); }
+    #tl-node-strip {
+      flex: 1; display: flex; gap: 4px;
+      padding: 6px 8px; overflow-x: auto;
+      align-items: center; scrollbar-width: none;
+    }
+    #tl-node-strip::-webkit-scrollbar { display: none; }
+    .tl-node {
+      flex: 0 0 auto; height: 44px; min-width: 90px; max-width: 160px;
+      padding: 0 12px;
+      border: 2px solid var(--black); background: var(--white);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      cursor: pointer; font-size: 11px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      user-select: none; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      transition: border-color 0.1s, background 0.1s;
+    }
+    .tl-node.on { border-left: 5px solid var(--act-c); background: #fff0f0; }
+    .tl-node-dot { width: 10px; height: 10px; flex-shrink: 0; }
+    .tl-node-name { overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── LLM EVENT TIMELINE ── */
+    #tl-event-strip {
+      display: flex; gap: 4px; padding: 4px 8px;
+      overflow-x: auto; scrollbar-width: none;
+      border-top: 1px solid #ddd; min-height: 0;
+      transition: min-height 0.2s;
+    }
+    #tl-event-strip::-webkit-scrollbar { display: none; }
+    #tl-event-strip:empty { min-height: 0; padding: 0; border: none; }
+    .tl-event {
+      flex: 0 0 auto; min-width: 140px; max-width: 220px;
+      padding: 6px 10px; background: var(--white);
+      border: 2px solid var(--black); font-size: 10px;
+      cursor: pointer; position: relative;
+      transition: transform 0.08s, box-shadow 0.08s;
+    }
+    .tl-event:hover { transform: translateY(-2px); box-shadow: 2px 3px 0 var(--black); }
+    .tl-event-op { font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+    .tl-event-node { font-weight: 700; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tl-event-time { font-size: 9px; color: var(--dim); margin-top: 2px; }
+    .tl-event-bar { position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+    .tl-event.cascade { border-style: dashed; opacity: 0.8; }
+    .tl-event.cascade .tl-event-op::before { content: '\21B3 '; }
+
+    /* ── BUFFER RING (state snapshots) ── */
+    #buffer-ring {
+      flex: 0 0 auto; display: flex; gap: 3px;
+      padding: 4px 8px; overflow-x: auto;
+      scrollbar-width: none; align-items: center;
+    }
+    #buffer-ring::-webkit-scrollbar { display: none; }
+    .buf-snap {
+      flex: 0 0 auto; width: 40px; height: 40px;
+      border: 2px solid var(--black); background: var(--white);
+      cursor: pointer; position: relative;
+      transition: border-color 0.1s, transform 0.08s;
+      overflow: hidden;
+    }
+    .buf-snap:hover { transform: translateY(-2px); box-shadow: 2px 2px 0 var(--black); }
+    .buf-snap.current { border-color: #e60000; border-width: 3px; }
+    .buf-snap canvas { width: 100%; height: 100%; display: block; }
+    .buf-snap-label { position: absolute; bottom: 0; left: 0; right: 0;
+      font: 900 7px var(--mono); text-align: center;
+      background: rgba(255,255,255,0.85); line-height: 1.2;
+      text-transform: uppercase;
+    }
+    .buf-undo-btn {
+      flex: 0 0 auto; width: 32px; height: 40px;
+      border: 2px solid var(--black); background: var(--white);
+      font: 900 14px var(--mono); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.1s;
+    }
+    .buf-undo-btn:hover { background: var(--black); color: var(--white); }
+    .buf-undo-btn:disabled { opacity: 0.3; cursor: default; }
+    .buf-undo-btn:disabled:hover { background: var(--white); color: var(--black); }
+
+    /* ── TAB BAR ── */
+    #tab-bar {
+      flex: 0 0 calc(var(--tab-h) + var(--safe-b));
+      display: flex;
+      border-top: var(--bw) solid var(--black);
+      background: var(--white); z-index: 60;
+      padding-bottom: var(--safe-b);
+    }
+    .tab-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: var(--tab-h); font-size: 10px; font-weight: 900;
+      text-transform: uppercase; color: var(--black);
+      cursor: pointer; background: var(--white); border: none;
+      border-right: 2px solid var(--black);
+      position: relative; letter-spacing: 0.05em;
+      transition: background 0.1s;
+    }
+    .tab-btn:last-child { border-right: none; }
+    .tab-letter { font-size: 22px; line-height: 1; margin-bottom: 1px; font-weight: 900; }
+    .tab-btn.on-a { background: var(--act-a); color: var(--white); }
+    .tab-btn.on-b { background: var(--act-b); color: var(--black); }
+    .tab-btn.on-c { background: var(--act-c); color: var(--white); }
+    .tab-btn.on-d { background: var(--act-d); color: var(--white); }
+
+    /* ── BOTTOM SHEETS ── */
+    #sheet-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0); pointer-events: none;
+      z-index: 70; transition: background 0.25s;
+    }
+    #sheet-backdrop.on { background: rgba(0,0,0,0.5); pointer-events: all; }
+    .sheet {
+      position: fixed; left: 0; right: 0;
+      bottom: calc(var(--tab-h) + var(--safe-b));
+      max-height: 72vh;
+      background: var(--white);
+      border-top: var(--bw) solid var(--black);
+      z-index: 80; display: flex; flex-direction: column;
+      transform: translateY(calc(100% + var(--tab-h) + var(--safe-b)));
+      transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0.32s;
+      visibility: hidden; overflow: hidden; will-change: transform;
+    }
+    .sheet.on {
+      transform: translateY(0); visibility: visible;
+      transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0s;
+    }
+    .sheet-handle {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px; background: var(--bg);
+      border-bottom: 2px solid var(--black);
+      flex-shrink: 0; min-height: 48px;
+    }
+    .sheet-title { font-size: 14px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sheet-close {
+      font-size: 24px; font-weight: 900;
+      background: none; border: none; cursor: pointer;
+      line-height: 1; width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sheet-body {
+      overflow-y: auto; flex: 1; padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      overscroll-behavior: contain;
+    }
+    .sh-btn {
+      display: flex; align-items: center; justify-content: center;
+      padding: 14px 16px; font-weight: 900; text-transform: uppercase;
+      font-size: 13px; background: var(--white);
+      border: var(--bw) solid var(--black); color: var(--black);
+      cursor: pointer; letter-spacing: 0.08em; width: 100%;
+      flex-shrink: 0; box-shadow: 3px 3px 0 var(--black);
+      transition: transform 0.05s, box-shadow 0.05s; min-height: 48px;
+    }
+    .sh-btn:active { transform: translate(3px,3px); box-shadow: 0 0 0 var(--black); }
+    .sh-btn.primary { background: var(--black); color: var(--white); }
+    .sh-row { display: flex; gap: 8px; }
+    .sh-row .sh-btn { flex: 1; }
+    .sh-label { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; }
+    .sh-input {
+      width: 100%; padding: 12px 14px;
+      border: 2px solid var(--black);
+      font-family: var(--mono); font-size: 16px; font-weight: 700;
+      background: var(--bg); outline: none;
+    }
+    .sh-input::placeholder { color: var(--dim); }
+
+    /* ── INSPECTOR (Sheet A) ── */
+    #inspector-panel { font-size: 13px; line-height: 1.5; }
+    .insp-title { font-size: 16px; font-weight: 900; text-transform: uppercase; margin-bottom: 6px; }
+    .insp-cat { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: var(--act-a); text-transform: uppercase; }
+    .insp-row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .insp-k { font-weight: 900; color: var(--dim); text-transform: uppercase; font-size: 11px; }
+    .insp-v { font-weight: 900; }
+    .insp-edges { margin-top: 8px; }
+    .insp-edge-link {
+      display: inline-block; padding: 4px 10px; margin: 2px;
+      border: 2px solid var(--black); font-size: 11px;
+      font-weight: 900; text-transform: uppercase; cursor: pointer;
+    }
+    .insp-edge-link:hover { background: var(--bg); }
+    .insp-desc {
+      font-family: var(--serif); font-size: 15px;
+      font-style: italic; color: var(--ink); line-height: 1.65;
+      margin-top: 8px; padding: 8px 0;
+      border-top: 1px solid #ddd;
+    }
+
+    /* ── WORLDTEXT EDITOR (Sheet B) ── */
+    #wt-editor {
+      width: 100%; min-height: 200px;
+      border: 2px solid var(--black); padding: 12px;
+      font-family: var(--mono); font-size: 13px; font-weight: 700;
+      background: var(--bg); color: var(--black);
+      resize: vertical; outline: none;
+      user-select: text; -webkit-user-select: text;
+      line-height: 1.6;
+    }
+
+    /* ── DESKTOP ── */
+    @media (min-width: 768px) {
+      #app { flex-direction: row; }
+      #tab-bar {
+        flex: 0 0 80px; flex-direction: column;
+        border-top: none; border-right: var(--bw) solid var(--black);
+        order: -1;
+      }
+      .tab-btn {
+        flex: 1; height: auto;
+        border-right: none; border-bottom: 2px solid var(--black);
+      }
+      .tab-btn:last-child { border-bottom: none; }
+      .sheet { left: 80px; bottom: 0; max-height: 100vh; width: 380px; }
+      #main-col { flex: 1 1 0%; display: flex; flex-direction: column; min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="main-col" style="flex:1 1 0%; display:flex; flex-direction:column; min-width:0; min-height:0;">
+
+      <!-- ── THREE.JS ZONE ── -->
+      <div id="canvas-zone">
+        <div id="three-wrap"></div>
+        <canvas id="walk-canvas"></canvas>
+        <canvas id="flat-canvas"></canvas>
+
+        <!-- Scale indicator (top-right, always visible) -->
+        <div id="scale-indicator">
+          <button class="scale-btn on" data-scale="voronoi">VORONOI</button>
+          <button class="scale-btn" data-scale="flat">FLAT</button>
+          <button class="scale-btn" data-scale="walk">WALK</button>
+          <button class="scale-btn" data-scale="sphere">SPHERE</button>
+        </div>
+
+        <!-- Field banner (below buttons, doesn't cover them) -->
+        <div id="field-banner">
+          <div class="fb-kicker">ARGO</div>
+          <div class="fb-text">Ready</div>
+        </div>
+
+        <!-- Walk minimap -->
+        <canvas id="walk-minimap" width="180" height="180"></canvas>
+
+        <!-- Help button -->
+        <button id="help-btn" title="Help / Onboarding">?</button>
+
+        <!-- Help overlay -->
+        <div id="help-overlay">
+          <button id="help-close">X</button>
+          <h2>ARGO · Operative Cartography</h2>
+          <p>A shared control surface for spatial node graphs. Navigate, inspect, and operate on world nodes through four interconnected views.</p>
+
+          <h3>Views</h3>
+          <table>
+            <tr><td class="key">VORONOI</td><td>3D perspective of the territory map. Drag nodes, hover to inspect, click to select.</td></tr>
+            <tr><td class="key">FLAT</td><td>Top-down Voronoi map. Click any territory to teleport. Same tessellation as VORONOI.</td></tr>
+            <tr><td class="key">WALK</td><td>First-person raycaster. Explore walls of text. Minimap shows position on the Voronoi.</td></tr>
+            <tr><td class="key">SPHERE</td><td>360 photosphere interior for nodes with environments.</td></tr>
+          </table>
+
+          <h3>Controls</h3>
+          <table>
+            <tr><td class="key">W/A/S/D</td><td>Move (walk mode) or navigate (flat mode)</td></tr>
+            <tr><td class="key">A/D</td><td>Turn left/right (walk mode)</td></tr>
+            <tr><td class="key">1-9</td><td>Teleport to node by index</td></tr>
+            <tr><td class="key">G</td><td>Fire operator on selected node</td></tr>
+            <tr><td class="key">P</td><td>Toggle spatial prompting (walk mode — auto-generate on territory crossing)</td></tr>
+            <tr><td class="key">H</td><td>Toggle grid overlay (voronoi mode)</td></tr>
+            <tr><td class="key">Ctrl+Z</td><td>Undo (restore previous state snapshot)</td></tr>
+            <tr><td class="key">Ctrl+Shift+Z</td><td>Redo</td></tr>
+            <tr><td class="key">Double-click</td><td>Reset to full overview (deselect + zoom out)</td></tr>
+            <tr><td class="key">ESC</td><td>Close panels</td></tr>
+            <tr><td class="key">Mouse</td><td>Orbit (voronoi), click territory (flat), drag nodes (voronoi)</td></tr>
+            <tr><td class="key">Scroll</td><td>Zoom in/out</td></tr>
+          </table>
+
+          <h3>Panels (A/B/C/D)</h3>
+          <table>
+            <tr><td class="key">A · INSPECT</td><td>Node inspector with type, affinity, photosphere access</td></tr>
+            <tr><td class="key">B · BUILD</td><td>Add nodes, set API key for image/LLM generation</td></tr>
+            <tr><td class="key">C · GRAPH</td><td>Export data, graph statistics</td></tr>
+            <tr><td class="key">D · EXPORT</td><td>WorldText export and timeline</td></tr>
+          </table>
+
+          <h3>API / Rate Limits</h3>
+          <p>OpenAI rate limits reset per-minute (~60s). The system auto-retries on 429 errors.
+          Image generation: gpt-image-1 ($0.04/img). Text analysis: gpt-4.1-mini.
+          Set a budget cap in panel B to prevent overages.</p>
+        </div>
+
+        <!-- Hover tip -->
+        <div id="hover-tip"></div>
+
+        <!-- Context ring -->
+        <div id="ctx-ring">
+          <button class="ctx-btn" data-action="inspect">INSPECT</button>
+          <button class="ctx-btn" data-action="enter">ENTER SPHERE</button>
+          <button class="ctx-btn" data-action="focus">FOCUS CAMERA</button>
+        </div>
+
+        <!-- Info readout (bottom-left) -->
+        <div id="info-readout">
+          <div class="ir-title" id="ir-title">—</div>
+          <div id="ir-body"></div>
+        </div>
+      </div>
+
+      <!-- ── TIMELINE STRIP ── -->
+      <div id="timeline-zone">
+        <div id="tl-controls">
+          <button class="buf-undo-btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>&lt;</button>
+          <button class="buf-undo-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" disabled>&gt;</button>
+          <div style="width:1px; height:28px; background:var(--black); flex-shrink:0;"></div>
+          <button class="tl-ctrl-btn" id="btn-recompile" style="font-size:11px;">&rang; /WT</button>
+          <div style="width:1px; height:20px; background:var(--black); flex-shrink:0;"></div>
+        </div>
+        <div id="buffer-ring">
+          <!-- State snapshot thumbnails populated by JS -->
+        </div>
+        <div id="tl-node-strip">
+          <!-- Node buttons populated by JS -->
+        </div>
+        <div id="tl-event-strip">
+          <!-- LLM event cards populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB BAR ── -->
+    <nav id="tab-bar">
+      <button class="tab-btn" id="tab-a" onclick="execNav('A')"><span class="tab-letter">A</span>INSPECT</button>
+      <button class="tab-btn" id="tab-b" onclick="execNav('B')"><span class="tab-letter">B</span>BUILD</button>
+      <button class="tab-btn" id="tab-c" onclick="execNav('C')"><span class="tab-letter">C</span>GRAPH</button>
+      <button class="tab-btn" id="tab-d" onclick="execNav('D')"><span class="tab-letter">D</span>EXPORT</button>
+    </nav>
+  </div>
+
+  <!-- ── SHEET BACKDROP ── -->
+  <div id="sheet-backdrop" onclick="closeAllSheets()"></div>
+
+  <!-- ── SHEET A: INSPECT ── -->
+  <div class="sheet" id="sheet-a">
+    <div class="sheet-handle">
+      <span class="sheet-title" style="color:var(--act-a);">A · NODE INSPECTOR</span>
+      <button class="sheet-close" onclick="closeAllSheets()">×</button>
+    </div>
+    <div class="sheet-body">
+      <div id="inspector-panel">
+        <div style="font-size:13px; color:var(--dim); font-weight:900; text-align:center; padding:20px;">
+          CLICK A NODE TO INSPECT
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SHEET B: BUILD (WorldText Editor) ── -->
+  <div class="sheet" id="sheet-b">
+    <div class="sheet-handle">
+      <span class="sheet-title" style="color:var(--act-b);">B · WORLDTEXT</span>
+      <button class="sheet-close" onclick="closeAllSheets()">×</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sh-label">WORLDTEXT SOURCE</div>
+      <textarea id="wt-editor" spellcheck="false"></textarea>
+      <button class="sh-btn primary" id="btn-compile">COMPILE</button>
+      <div class="sh-row">
+        <button class="sh-btn" id="btn-copy-wt">COPY</button>
+        <button class="sh-btn" id="btn-load-wt">LOAD FILE</button>
+      </div>
+      <div class="sh-label" style="margin-top:8px;">OPERATORS · <span id="token-burn" style="font-size:10px; color:var(--dim);">⊘0k</span></div>
+      <div id="op-quiver" style="display:flex; flex-direction:column; gap:3px;">
+        <div class="sh-label" style="font-size:9px; color:var(--dim); margin:2px 0;">NARRATIVE</div>
+        <button class="sh-btn op-btn on" data-op="fork" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(320,68%,55%);"></span> FORK
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">2-4 paths</span>
+        </button>
+        <div class="sh-label" style="font-size:9px; color:var(--dim); margin:2px 0;">REVEAL</div>
+        <button class="sh-btn op-btn" data-op="surface" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(205,68%,55%);"></span> SURFACE
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">causal</span>
+        </button>
+        <button class="sh-btn op-btn" data-op="modes" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(148,68%,55%);"></span> MODES
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">parallel</span>
+        </button>
+        <div class="sh-label" style="font-size:9px; color:var(--dim); margin:2px 0;">STRUCTURE</div>
+        <button class="sh-btn op-btn" data-op="limits" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(270,68%,55%);"></span> LIMITS
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">bottleneck</span>
+        </button>
+        <button class="sh-btn op-btn" data-op="zoom" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(168,68%,55%);"></span> ZOOM
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">hierarchy</span>
+        </button>
+        <div class="sh-label" style="font-size:9px; color:var(--dim); margin:2px 0;">MANIPULATE</div>
+        <button class="sh-btn op-btn" data-op="manip" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(35,68%,55%);"></span> MANIP
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">cause→effect</span>
+        </button>
+        <button class="sh-btn op-btn" data-op="play" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(38,68%,55%);"></span> PLAY
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">counterfactual</span>
+        </button>
+        <div class="sh-label" style="font-size:9px; color:var(--dim); margin:2px 0;">META</div>
+        <button class="sh-btn op-btn" data-op="holistic" style="font-size:11px; display:flex; align-items:center; gap:6px;">
+          <span class="op-dot" style="width:8px;height:8px;background:hsl(355,68%,55%);"></span> HOLISTIC
+          <span style="font-size:9px; color:var(--dim); margin-left:auto;">full audit</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SHEET C: GRAPH ── -->
+  <div class="sheet" id="sheet-c">
+    <div class="sheet-handle">
+      <span class="sheet-title" style="color:var(--act-c);">C · GRAPH</span>
+      <button class="sheet-close" onclick="closeAllSheets()">×</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sh-label">TOPOLOGY</div>
+      <div id="graph-stats" style="font-size:13px; line-height:1.6;"></div>
+      <div class="sh-label" style="margin-top:8px;">WLES DISTRIBUTION</div>
+      <div id="wles-bars"></div>
+    </div>
+  </div>
+
+  <!-- ── SHEET D: EXPORT + API ── -->
+  <div class="sheet" id="sheet-d">
+    <div class="sheet-handle">
+      <span class="sheet-title">D · API + EXPORT</span>
+      <button class="sheet-close" onclick="closeAllSheets()">×</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sh-label">OPENAI API KEY</div>
+      <form autocomplete="off" onsubmit="return false" style="margin:0;">
+      <div style="display:flex; gap:4px; align-items:center;">
+        <span id="api-dot" style="width:10px; height:10px; background:#666; flex-shrink:0;"></span>
+        <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off"
+          style="flex:1; padding:8px; border:2px solid #000; font-family:var(--mono); font-size:12px; min-height:36px; background:var(--white);">
+      </div>
+      </form>
+      <div id="api-status" style="font-size:10px; color:var(--dim); margin-top:4px;">NO KEY</div>
+      <div class="sh-row" style="margin-top:6px;">
+        <button class="sh-btn" id="btn-api-save">SAVE KEY</button>
+        <button class="sh-btn" id="btn-api-clear" style="color:var(--act-c);">CLEAR</button>
+      </div>
+
+      <div class="sh-label" style="margin-top:12px;">GENERATION</div>
+      <div id="api-budget" style="font-size:11px; line-height:1.6;">
+        <div class="ir-row"><span class="ir-k">MODEL</span><span class="ir-v" id="api-model">gpt-image-2</span></div>
+        <div class="ir-row"><span class="ir-k">COST</span><span class="ir-v" id="api-cost">$0.00</span></div>
+        <div class="ir-row"><span class="ir-k">IMAGES</span><span class="ir-v" id="api-count">0</span></div>
+        <div class="ir-row"><span class="ir-k">STATUS</span><span class="ir-v" id="api-health">IDLE</span></div>
+      </div>
+
+      <div class="sh-label" style="margin-top:12px;">EXPORT</div>
+      <button class="sh-btn" id="btn-export-json">EXPORT JSON</button>
+      <button class="sh-btn" id="btn-export-wt">EXPORT WORLDTEXT</button>
+      <button class="sh-btn" id="btn-screenshot">SCREENSHOT</button>
+    </div>
+  </div>
+
+  <script>
+    // ── NAV / SHEETS (extracted from Achilles v2) ──
+    let activeNav = null;
+    function execNav(id) {
+      const wasActive = activeNav === id;
+      closeAllSheets();
+      if (!wasActive) {
+        activeNav = id;
+        ['a','b','c','d'].forEach(c => document.getElementById('tab-'+c).className = 'tab-btn');
+        document.getElementById('tab-'+id.toLowerCase()).classList.add('on-'+id.toLowerCase());
+        document.getElementById('sheet-'+id.toLowerCase()).classList.add('on');
+        document.getElementById('sheet-backdrop').classList.add('on');
+      }
+    }
+    function closeAllSheets() {
+      ['a','b','c','d'].forEach(id => {
+        const s = document.getElementById('sheet-'+id); if (s) s.classList.remove('on');
+        const t = document.getElementById('tab-'+id); if (t) t.className = 'tab-btn';
+      });
+      document.getElementById('sheet-backdrop').classList.remove('on');
+      activeNav = null;
+    }
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === '1') execNav('A');
+      if (e.key === '2') execNav('B');
+      if (e.key === '3') execNav('C');
+      if (e.key === '4') execNav('D');
+      if (e.key === 'Escape') closeAllSheets();
+    });
+    // Field banner
+    function showBanner(kicker, text, durationMs = 3000) {
+      const el = document.getElementById('field-banner');
+      el.querySelector('.fb-kicker').textContent = kicker;
+      el.querySelector('.fb-text').textContent = text;
+      el.classList.add('on');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove('on'), durationMs);
+    }
+    // Expose to module script
+    window.execNav = execNav;
+    window.closeAllSheets = closeAllSheets;
+    window.showBanner = showBanner;
+  </script>
+  <script type="module" src="golden-fleece-surface.ts"></script>
+</body>
+</html>

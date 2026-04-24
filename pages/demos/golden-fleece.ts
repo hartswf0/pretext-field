@@ -1,7 +1,13 @@
 // ══════════════════════════════════════════════════════════════
-// GOLDEN EDITOR × PRETEXT — Inline Worldtext Editor
+// GOLDEN FLEECE × PRETEXT — WorldText Spatial Engine
 //
-// Derived from GOLDEN SHIELD. Every wall surface is now an
+// Extends Golden Egg with:
+//   - WLES Type System (World / Location / Entity / State)
+//   - WorldText /wt Compiler (text → typed nodes via LLM)
+//   - Operator System (Fork, Surface, Limits, Zoom, Play, Holistic)
+//   - Ecology HUD (field health: density, connections, type balance)
+//   - Panel-level WLES classification
+//
 // editable text panel. Click any wall in LiDAR mode to open
 // the inline editor. Edits flow live into the walls.
 //
@@ -42,6 +48,362 @@ const THEME = {
   border:      _cv('--border',       '#333'),
   textPrimary: _cv('--text-primary', '#ccc'),
   textMuted:   _cv('--text-muted',   '#888'),
+}
+
+// ═══════════════════════════════════════════════════════════
+// WLES TYPE SYSTEM — World / Location / Entity / State
+// Ported from Twine Bridge. Every text node has a type.
+// ═══════════════════════════════════════════════════════════
+type WLESType = 'W' | 'L' | 'E' | 'S' | 'raw'
+
+interface WorldNode {
+  id: string
+  text: string
+  type: WLESType
+  label: string
+  panel: string           // Golden Egg panel assignment
+  connections: string[]   // Scene graph edges to other node IDs
+  metadata: Record<string, unknown>
+  created: number
+}
+
+// Master registry of all WorldNodes extracted by /wt
+const WORLD_NODES: Record<string, WorldNode> = {}
+
+function mintWorldNode(text: string, type: WLESType, panel: string, label?: string): WorldNode {
+  const node: WorldNode = {
+    id: crypto.randomUUID(),
+    text,
+    type,
+    label: label || text.slice(0, 40),
+    panel,
+    connections: [],
+    metadata: {},
+    created: Date.now(),
+  }
+  WORLD_NODES[node.id] = node
+  return node
+}
+
+// ═══════════════════════════════════════════════════════════
+// OPERATOR SYSTEM — LLM-powered analytical instruments
+// Ported from Twine Bridge POML operators.
+// Each takes panel text and produces structured output.
+// ═══════════════════════════════════════════════════════════
+const FLEECE_BASE_SYS = `You are a WORLD COMPILER. You analyze and extend narrative structures with extreme specificity.
+
+RULES:
+- Name every entity, location, mechanic, and relation explicitly.
+- Be concrete: materials, colors, sounds, temperatures, distances, timestamps.
+- Avoid filler adjectives (mysterious, enigmatic, cryptic, ethereal, eerie). Show don't tell.
+- Every sentence must contain either a PROPER NOUN, a SPECIFIC MECHANIC, or a CAUSAL LINK.
+- Prefer short declarative sentences over long flowing prose.
+- Reference exact elements from the source text — don't invent generics.
+- Output should read like a technical bible, not a fantasy novel.
+- Never use: "whispers", "beckons", "tapestry", "labyrinthine", "ethereal", "enigmatic", "cryptic", "eldritch".`
+
+interface FleeceOperator {
+  key: string
+  label: string
+  hue: number
+  verb: string
+  category: string
+  sys: string
+}
+
+const FLEECE_OPS: Record<string, FleeceOperator> = {
+  fork: {
+    key: 'fork', label: 'FORK', hue: 320, verb: 'Generate 3 branching paths', category: 'Narrative',
+    sys: `You are a NARRATIVE FORKING ENGINE. Generate exactly 3 distinct paths from the source material.
+
+REQUIREMENTS:
+- Each fork must diverge on a DIFFERENT AXIS: one spatial, one temporal, one causal.
+- Name every character, object, and location with a specific proper noun.
+- State what physically changes. What breaks? What appears? What moves where?
+- Each fork: 2-3 paragraphs MAX. Dense. No filler.
+- Include at least one: dialogue line, physical measurement, or timestamp per fork.
+- NEVER use these words: mysterious, enigmatic, cryptic, ethereal, beckons, whispers, tapestry, labyrinthine.
+
+FORMAT:
+# FORK 1: [Specific Action Title]
+[Concrete, specific narrative.]
+
+# FORK 2: [Different Axis Title]
+[Different direction entirely.]
+
+# FORK 3: [Third Axis Title]
+[Structural reversal or perspective shift.]`
+  },
+  surface: {
+    key: 'surface', label: 'SURFACE', hue: 205, verb: 'Trace causal chains', category: 'Reveal',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Trace hidden causal chains between entities in this text. What relations connect entities? What event sequences unfold? Map causality not visible from names alone. Format as a structured list with ## headings.`
+  },
+  limits: {
+    key: 'limits', label: 'LIMITS', hue: 270, verb: 'Find narrative bottlenecks', category: 'Structure',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Identify narrative bottlenecks. Which entities concentrate the most relations? Where does story flow narrow through a single entity or state? Name exact choke points. Format with ## headings.`
+  },
+  modes: {
+    key: 'modes', label: 'MODES', hue: 148, verb: 'Find parallel storylines', category: 'Reveal',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Identify parallel storylines. Which entities appear in multiple threads? Which events unfold independently? Map the parallel narratives. Format with ## headings.`
+  },
+  zoom: {
+    key: 'zoom', label: 'ZOOM', hue: 168, verb: 'Decompose hierarchy', category: 'Structure',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Decompose hierarchy. Level 1: genre/theme. Level 2: entity groups. Level 3: individual states and events. Name elements at each level. Format with ## headings.`
+  },
+  play: {
+    key: 'play', label: 'PLAY', hue: 38, verb: 'Identify counterfactuals', category: 'Manipulate',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Identify counterfactuals. What if key entity removed? What cascades? What becomes impossible? Format with ## headings.`
+  },
+  holistic: {
+    key: 'holistic', label: 'HOLISTIC', hue: 355, verb: 'Full world audit', category: 'Meta',
+    sys: `${FLEECE_BASE_SYS}\nDIRECTIVE: Full world audit. Entity census, relation graph, event timeline, state inventory, bottleneck, counterfactual. Format with ## headings.`
+  },
+}
+
+// Run an operator on a panel's text
+async function runFleeceOperator(opKey: string, panelKey: string, apiKey: string, apiUrl: string, model: string): Promise<string | null> {
+  const op = FLEECE_OPS[opKey]
+  if (!op) return null
+  const text = (MOUNTAIN_LORE[panelKey] || []).join('\n')
+  if (!text.trim()) return null
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+    const res = await fetch(apiUrl, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: op.sys },
+          { role: 'user', content: text },
+        ],
+        max_tokens: 1500,
+        temperature: 0.5,
+      }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content?.trim() || null
+  } catch (e: any) {
+    console.error(`Operator ${opKey} failed:`, e)
+    return null
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// /WT COMPILER — Text → Typed WLES WorldNodes
+// Ported from Twine Bridge. Sends text through LLM with
+// WorldText Generator prompt, parses output into typed nodes.
+// ═══════════════════════════════════════════════════════════
+const WT_SYS_PROMPT = `You are a <WorldText Compiler>. Convert the input into structured WorldText.
+
+FORMAT (each element on its own line):
+world <WorldName> {
+  location <LocationName> { description: "1-sentence physical description" }
+  entity <EntityName> : type { location: <Loc>, traits: ["trait1","trait2"] }
+  rel [verb](<EntityA> -> <EntityB>)
+  state <Entity.property> = value
+  event <EventName> { actors: [<A>,<B>], effects: ["effect"] }
+}
+
+RULES:
+- Extract EVERY named character, place, object, force, concept.
+- Entity types: character, creature, object, system, force, concept, structure.
+- Relations should be specific verbs: [chases], [controls], [fears], [contains], [blocks], [transforms].
+- States should capture measurable properties: health, mood, position, intensity.
+- EVERY location and entity MUST have a description field.
+- Put each element on its own line.
+- Output ONLY the world block. No commentary.`
+
+interface WTExtracted {
+  worldName: string
+  locations: string[]
+  entities: { name: string; type: string }[]
+  relations: { rel: string; from: string; to: string }[]
+  states: { key: string; value: string }[]
+  events: string[]
+}
+
+function parseWorldText(wt: string): WTExtracted {
+  const result: WTExtracted = {
+    worldName: 'Compiled',
+    locations: [], entities: [], relations: [], states: [], events: [],
+  }
+
+  const wnMatch = wt.match(/world\s+<([^>]+)>/)
+  if (wnMatch) result.worldName = wnMatch[1]!
+
+  const wtNorm = wt.replace(/\|/g, '\n').replace(/;\s*/g, '\n')
+
+  // Locations
+  const locReg = /location\s+<?([^>{}\\n|]+)>?/gi
+  let lm
+  while ((lm = locReg.exec(wtNorm)) !== null) {
+    const n = lm[1]!.trim()
+    if (n && n.length > 1) result.locations.push(n)
+  }
+
+  // Entities
+  const entReg = /entity\s+<?([^>{}\\n|:]+)>?(?:\s*:\s*(\w+))?/gi
+  while ((lm = entReg.exec(wtNorm)) !== null) {
+    const n = lm[1]!.trim()
+    if (n && n.length > 1) result.entities.push({ name: n, type: lm[2] || 'unknown' })
+  }
+
+  // Relations
+  const relReg = /rel\s+\[([^\]]+)\]\s*\(?<?([^>\s,)]+)>?\s*->\s*<?([^>\s,)]+)>?\)?/gi
+  while ((lm = relReg.exec(wtNorm)) !== null) {
+    result.relations.push({ rel: lm[1]!.trim(), from: lm[2]!.trim(), to: lm[3]!.trim() })
+  }
+
+  // States
+  const stReg = /state\s+<?([^>=\\n|]+)>?\s*=\s*([^\\n|{}]+)/gi
+  while ((lm = stReg.exec(wtNorm)) !== null) {
+    result.states.push({ key: lm[1]!.trim(), value: lm[2]!.trim() })
+  }
+
+  // Events
+  const evReg = /event\s+<?([^>{}\\n|]+)>?/gi
+  while ((lm = evReg.exec(wtNorm)) !== null) {
+    const n = lm[1]!.trim()
+    if (n && n.length > 1) result.events.push(n)
+  }
+
+  // Fallback: angle-bracket tokens
+  if (result.locations.length + result.entities.length + result.states.length + result.events.length === 0) {
+    const abReg = /<([A-Z][A-Za-z0-9_ ]+)>/g
+    while ((lm = abReg.exec(wt)) !== null) {
+      const name = lm[1]!.trim()
+      if (!result.entities.find(e => e.name === name)) {
+        result.entities.push({ name, type: 'extracted' })
+      }
+    }
+  }
+
+  return result
+}
+
+// Full /wt pipeline: LLM call → parse → create WorldNodes → inject into panel
+async function compileWorldText(panelKey: string, apiKey: string, apiUrl: string, model: string): Promise<WTExtracted | null> {
+  const text = (MOUNTAIN_LORE[panelKey] || []).join('\n')
+  if (!text.trim()) return null
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+    const res = await fetch(apiUrl, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: WT_SYS_PROMPT },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.3,
+        max_tokens: 1500,
+      }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const wt = data.choices?.[0]?.message?.content?.trim() || ''
+    if (!wt) return null
+
+    const extracted = parseWorldText(wt)
+
+    // Create WorldNodes from extracted elements
+    for (const loc of extracted.locations) {
+      const n = mintWorldNode(loc, 'L', panelKey, loc)
+      n.metadata.source = 'wt-compiler'
+    }
+    for (const ent of extracted.entities) {
+      const n = mintWorldNode(`${ent.name} [${ent.type}]`, 'E', panelKey, ent.name)
+      n.metadata.entityType = ent.type
+      n.metadata.source = 'wt-compiler'
+    }
+    for (const st of extracted.states) {
+      const n = mintWorldNode(`${st.key} = ${st.value}`, 'S', panelKey, st.key)
+      n.metadata.source = 'wt-compiler'
+    }
+    for (const ev of extracted.events) {
+      const n = mintWorldNode(ev, 'W', panelKey, ev)
+      n.metadata.source = 'wt-compiler'
+    }
+
+    // Wire relations as connections
+    for (const rel of extracted.relations) {
+      const fromNodes = Object.values(WORLD_NODES).filter(n => n.label === rel.from)
+      const toNodes = Object.values(WORLD_NODES).filter(n => n.label === rel.to)
+      if (fromNodes.length > 0 && toNodes.length > 0) {
+        fromNodes[0]!.connections.push(toNodes[0]!.id)
+        toNodes[0]!.connections.push(fromNodes[0]!.id)
+      }
+    }
+
+    // Auto-populate scene graph from extracted entities
+    for (const ent of extracted.entities) {
+      const lower = ent.name.toLowerCase()
+      if (!CLUE_GRAPH[lower]) {
+        CLUE_GRAPH[lower] = {
+          word: ent.name, color: THEME.accent, zone: panelKey,
+          connections: [], clue: `${ent.type} extracted by /wt compiler`,
+          collected: true,
+        }
+      }
+    }
+    rebuildHotWords()
+
+    return extracted
+  } catch (e: any) {
+    console.error('/wt compiler failed:', e)
+    return null
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ECOLOGY STATS — field health metrics
+// Computes density, type balance, connection analysis.
+// ═══════════════════════════════════════════════════════════
+interface EcologyStats {
+  totalPanels: number
+  populatedPanels: number
+  totalWords: number
+  totalNodes: number
+  typeBalance: Record<WLESType, number>
+  connectionDensity: number
+  hotWordCount: number
+  avgWordsPerPanel: number
+}
+
+function computeEcology(): EcologyStats {
+  const panels = Object.keys(MOUNTAIN_LORE)
+  let totalWords = 0
+  let populated = 0
+  for (const key of panels) {
+    const lines = MOUNTAIN_LORE[key] || []
+    const words = lines.join(' ').split(/\s+/).filter(Boolean).length
+    totalWords += words
+    if (words > 20) populated++
+  }
+
+  const typeBalance: Record<WLESType, number> = { W: 0, L: 0, E: 0, S: 0, raw: 0 }
+  let totalConnections = 0
+  for (const node of Object.values(WORLD_NODES)) {
+    typeBalance[node.type]++
+    totalConnections += node.connections.length
+  }
+
+  const nodeCount = Object.keys(WORLD_NODES).length
+  return {
+    totalPanels: panels.length,
+    populatedPanels: populated,
+    totalWords,
+    totalNodes: nodeCount,
+    typeBalance,
+    connectionDensity: nodeCount > 0 ? totalConnections / nodeCount : 0,
+    hotWordCount: Object.keys(HOT_WORDS).length,
+    avgWordsPerPanel: panels.length > 0 ? Math.round(totalWords / panels.length) : 0,
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -337,7 +699,7 @@ function editorLiveUpdate(): void {
 }
 
 // ── PERSISTENCE — IndexedDB primary, localStorage fallback ──
-const STORAGE_KEY = 'golden-egg-lore'
+const STORAGE_KEY = 'golden-fleece-lore'
 let idbReady = false
 
 function editorPersist(): void {
@@ -359,10 +721,10 @@ let diskDebounce: ReturnType<typeof setTimeout> | null = null
 async function backupToDisk(): Promise<void> {
   if (!diskDirHandle) return
   try {
-    const fileHandle = await diskDirHandle.getFileHandle('golden-egg-vault.json', { create: true })
+    const fileHandle = await diskDirHandle.getFileHandle('golden-fleece-vault.json', { create: true })
     const writable = await fileHandle.createWritable()
     const payload = {
-      _format: 'golden-egg-vault-v1',
+      _format: 'golden-fleece-vault-v1',
       exportedAt: new Date().toISOString(),
       blocks: BLOCK_STORE,
       metadata: PANEL_METADATA,
@@ -438,7 +800,7 @@ function exportMarkdown(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `golden-egg-${Date.now()}.md`
+  a.download = `golden-fleece-${Date.now()}.md`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -493,7 +855,7 @@ for (let i = 1; i <= 16; i++) {
   const key = `panel_${i}`
   const lines = i === 1 
     ? [
-      "GOLDEN EGG · EMPTY FIELD",
+      "GOLDEN FLEECE · WORLDTEXT ENGINE",
       "This is Panel 1. You are standing in an empty structural field.",
       "Press E on any wall to edit it. Type your text. Build your architecture.",
       "Use the @ key in the editor to link panels together."
@@ -513,11 +875,11 @@ const MOUNTAIN_MEDIA: Record<string, { type: 'image' | 'video', url: string, el?
 
 // ── PANEL METADATA (Spatio-Temporal Tracking) ──
 const PANEL_METADATA: Record<string, { lastEditTime: number }> = {}
-const META_STORAGE_KEY = 'golden-egg-meta'
+const META_STORAGE_KEY = 'golden-fleece-meta'
 
 // ═══ INDEXEDDB PERSISTENCE ═══
 // Async wrapper with localStorage fallback for initial render
-const IDB_NAME = 'golden-egg-db'
+const IDB_NAME = 'golden-fleece-db'
 const IDB_VERSION = 1
 const IDB_STORE = 'blocks'
 
@@ -3448,6 +3810,118 @@ FORMATTING RULES FOR TEXT LINES:
 function populateLoreSheet(): void {
   loreBody.innerHTML = ''
   buildOneShotImport() // ⚡ ONE-SHOT IMPORT goes at the top
+
+  // ═══ OPERATOR TOOLBAR — Twine Bridge analytical instruments ═══
+  const opDiv = document.createElement('div')
+  opDiv.style.cssText = `margin-bottom:16px; border-bottom:1px solid ${THEME.border}; padding-bottom:14px;`
+  const opBtns = Object.values(FLEECE_OPS).map(op => 
+    `<button class="sh-btn fleece-op-btn" data-op="${op.key}" title="${op.verb}"
+       style="font-size:10px; font-weight:bold; padding:6px 12px; margin:3px; letter-spacing:1px;
+              border-color:hsl(${op.hue},65%,45%); color:hsl(${op.hue},65%,55%); cursor:pointer;
+              width:auto; min-height:32px; display:inline-flex; flex:0 0 auto;">
+       ${op.label}
+     </button>`
+  ).join('')
+  const currentPanel = editorZone || 'panel_1'
+  const panelLabel = ZONE_LABELS[currentPanel] || currentPanel
+  opDiv.innerHTML = `
+    <div class="sh-label" style="color:${THEME.accent}; margin-bottom:6px;">🔱 OPERATORS · ${panelLabel}</div>
+    <div style="font-size:10px; color:${THEME.textMuted}; margin-bottom:8px; line-height:1.4;">
+      Run analytical operators on the current panel. Requires API key. Output goes to a new panel.
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:2px; margin-bottom:8px;">${opBtns}</div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button class="sh-btn" id="btn-wt-compile" style="font-size:10px; font-weight:bold; padding:6px 16px;
+        border-color:${THEME.highlight}; color:${THEME.highlight}; width:auto; min-height:32px;">⟩ /WT COMPILE</button>
+      <span id="op-status" style="font-size:10px; color:${THEME.textMuted};">Ready</span>
+    </div>
+  `
+  loreBody.appendChild(opDiv)
+
+  // Operator button handlers
+  opDiv.querySelectorAll('.fleece-op-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!llmKey) { const s = document.getElementById('op-status'); if(s) s.textContent = 'Set API key first (below)'; return }
+      const opKey = (btn as HTMLElement).dataset.op!
+      const op = FLEECE_OPS[opKey]!
+      const s = document.getElementById('op-status')
+      if (s) { s.textContent = `Running ${op.label}...`; s.style.color = `hsl(${op.hue},65%,55%)` }
+      const result = await runFleeceOperator(opKey, currentPanel, llmKey, llmUrl, llmModel)
+      if (result) {
+        // Find next empty panel to put operator output
+        let targetPanel = ''
+        for (let i = 1; i <= 16; i++) {
+          const k = `panel_${i}`
+          const txt = (MOUNTAIN_LORE[k] || []).join(' ')
+          if (txt.length < 100 || txt.includes('Press [E] to edit')) { targetPanel = k; break }
+        }
+        if (!targetPanel) targetPanel = `panel_${Math.min(Object.keys(MOUNTAIN_LORE).length + 1, 16)}`
+        // Write result to panel
+        const lines = result.split('\n').filter(l => l.trim().length > 0)
+        BLOCK_STORE[targetPanel] = lines.map(l => mintBlock(l))
+        syncLoreFromBlocks(targetPanel)
+        renameZone(targetPanel, `${op.label}: ${panelLabel}`)
+        wallLineCache.clear()
+        prepCache.clear()
+        editorPersist()
+        if (s) { s.textContent = `✓ ${op.label} → ${ZONE_LABELS[targetPanel]}`; s.style.color = THEME.accent }
+        populateLoreSheet()
+      } else {
+        if (s) { s.textContent = 'Operator returned empty'; s.style.color = '#f44' }
+      }
+    })
+  })
+
+  // /wt Compile handler
+  document.getElementById('btn-wt-compile')!.addEventListener('click', async () => {
+    if (!llmKey) { const s = document.getElementById('op-status'); if(s) s.textContent = 'Set API key first'; return }
+    const s = document.getElementById('op-status')
+    if (s) { s.textContent = 'Compiling WorldText...'; s.style.color = THEME.highlight }
+    const result = await compileWorldText(currentPanel, llmKey, llmUrl, llmModel)
+    if (result) {
+      wallLineCache.clear()
+      prepCache.clear()
+      editorPersist()
+      const total = result.locations.length + result.entities.length + result.states.length + result.events.length
+      if (s) { s.textContent = `✓ /wt: ${result.worldName} — ${total} elements, ${result.relations.length} relations`; s.style.color = THEME.accent }
+      populateLoreSheet()
+    } else {
+      if (s) { s.textContent = '/wt returned empty'; s.style.color = '#f44' }
+    }
+  })
+
+  // ═══ ECOLOGY HUD — field health metrics ═══
+  const eco = computeEcology()
+  const ecoDiv = document.createElement('div')
+  ecoDiv.style.cssText = `margin-bottom:16px; border-bottom:1px solid ${THEME.border}; padding-bottom:14px;`
+  const typeBar = (label: string, count: number, hue: number) => {
+    const pct = eco.totalNodes > 0 ? Math.round(count / eco.totalNodes * 100) : 0
+    return `<div style="display:flex; align-items:center; gap:6px; margin:2px 0;">
+      <span style="font-size:11px; font-weight:bold; color:hsl(${hue},60%,55%); width:18px;">${label}</span>
+      <div style="flex:1; height:6px; background:${THEME.bgCard}; border-radius:3px; overflow:hidden;">
+        <div style="width:${pct}%; height:100%; background:hsl(${hue},60%,50%); border-radius:3px; transition:width 0.3s;"></div>
+      </div>
+      <span style="font-size:10px; color:${THEME.textMuted}; width:36px; text-align:right;">${count}</span>
+    </div>`
+  }
+  ecoDiv.innerHTML = `
+    <div class="sh-label" style="color:${THEME.accent}; margin-bottom:8px;">📊 ECOLOGY · FIELD HEALTH</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:11px; margin-bottom:10px;">
+      <div><span style="color:${THEME.textMuted};">Panels:</span> <strong style="color:${THEME.textPrimary};">${eco.populatedPanels}/${eco.totalPanels}</strong></div>
+      <div><span style="color:${THEME.textMuted};">Words:</span> <strong style="color:${THEME.textPrimary};">${eco.totalWords.toLocaleString()}</strong></div>
+      <div><span style="color:${THEME.textMuted};">Avg/Panel:</span> <strong style="color:${THEME.textPrimary};">${eco.avgWordsPerPanel}</strong></div>
+      <div><span style="color:${THEME.textMuted};">Portals:</span> <strong style="color:${THEME.textPrimary};">${eco.hotWordCount}</strong></div>
+      <div><span style="color:${THEME.textMuted};">WLES Nodes:</span> <strong style="color:${THEME.textPrimary};">${eco.totalNodes}</strong></div>
+      <div><span style="color:${THEME.textMuted};">Connections:</span> <strong style="color:${THEME.textPrimary};">${eco.connectionDensity.toFixed(1)}/node</strong></div>
+    </div>
+    <div style="font-size:10px; color:${THEME.textMuted}; margin-bottom:4px; letter-spacing:1px;">WLES TYPE BALANCE</div>
+    ${typeBar('W', eco.typeBalance.W, 45)}
+    ${typeBar('L', eco.typeBalance.L, 205)}
+    ${typeBar('E', eco.typeBalance.E, 120)}
+    ${typeBar('S', eco.typeBalance.S, 280)}
+  `
+  loreBody.appendChild(ecoDiv)
+
   for (const [key, texts] of Object.entries(MOUNTAIN_LORE)) {
     const zone = ZONES[key] || Object.values(ZONES)[0]!
     const div = document.createElement('div')
@@ -3727,12 +4201,12 @@ function updateBlockCount(): void {
 document.getElementById('btn-export-png')!.addEventListener('click', () => {
   const c = engineMode === 'GRID' ? canvas : lidarCanvas
   const link = document.createElement('a')
-  link.download = `golden-egg-${Date.now()}.png`; link.href = c.toDataURL('image/png'); link.click()
+  link.download = `golden-fleece-${Date.now()}.png`; link.href = c.toDataURL('image/png'); link.click()
 })
 document.getElementById('btn-export-lore')!.addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(BLOCK_STORE, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
-  link.download = `golden-egg-blocks-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
+  link.download = `golden-fleece-blocks-${Date.now()}.json`; link.href = URL.createObjectURL(blob); link.click()
 })
 
 // Cold Storage: Link a local folder via File System Access API
@@ -3851,7 +4325,7 @@ function showHelpOverlay() {
   ob.style.cssText = `position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.92);
     display:flex; align-items:center; justify-content:center; font-family:Courier New; cursor:pointer;`
   ob.innerHTML = `<div style="max-width:500px; padding:32px; border:2px solid ${THEME.accent}; background:${THEME.bgDark}; text-align:center; overflow-y:auto; max-height:90vh;">
-    <div style="font-size:22px; color:${THEME.gold}; font-weight:900; letter-spacing:2px; margin-bottom:16px;">GOLDEN EGG</div>
+    <div style="font-size:22px; color:${THEME.gold}; font-weight:900; letter-spacing:2px; margin-bottom:16px;">GOLDEN FLEECE</div>
     <div style="font-size:11px; color:${THEME.textMuted}; line-height:1.8; text-align:left; margin-bottom:20px;">
       <div style="color:${THEME.accent}; font-weight:bold; margin-bottom:8px;">HOW TO NAVIGATE AND EDIT:</div>
       <div><span style="color:${THEME.accent};">WASD</span> or <span style="color:${THEME.accent};">JOYSTICK</span> — Walk around</div>
@@ -3869,6 +4343,14 @@ function showHelpOverlay() {
       <div><span style="color:${THEME.gold};">2.</span> Enter your API Key and URL under the "LLM ENGINE" section.</div>
       <div><span style="color:${THEME.gold};">3.</span> Open any panel editor (Press E on a wall).</div>
       <div><span style="color:${THEME.gold};">4.</span> Start a new line with <span style="color:${THEME.gold};">// your question</span> and press Enter. The AI's response will be embedded directly into the wall text, turning the panel into a permanent chat log.</div>
+
+      <div style="color:${THEME.highlight}; font-weight:bold; margin-bottom:8px; margin-top:20px;">FLEECE OPERATORS (in Sheet A):</div>
+      <div><span style="color:${THEME.highlight};">FORK</span> — Generate 3 branching narrative paths</div>
+      <div><span style="color:${THEME.highlight};">SURFACE</span> — Trace hidden causal chains</div>
+      <div><span style="color:${THEME.highlight};">LIMITS</span> — Find narrative bottlenecks</div>
+      <div><span style="color:${THEME.highlight};">ZOOM</span> — Decompose hierarchy levels</div>
+      <div><span style="color:${THEME.highlight};">HOLISTIC</span> — Full world audit</div>
+      <div><span style="color:${THEME.highlight};">⟩ /WT</span> — Compile text → typed WLES nodes</div>
     </div>
     <div style="font-size:13px; color:${THEME.accent}; font-weight:900; letter-spacing:3px;">TAP TO CLOSE</div>
   </div>`
@@ -3888,7 +4370,7 @@ function showHelpOverlay() {
   document.body.appendChild(ob)
 }
 
-const ONBOARD_KEY = 'golden-egg-onboarded'
+const ONBOARD_KEY = 'golden-fleece-onboarded'
 if (!localStorage.getItem(ONBOARD_KEY)) {
   showHelpOverlay()
 }

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GOLDEN FLEECE · WorldText Engine</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%232563eb'/><stop offset='1' stop-color='%231d4ed8'/></linearGradient></defs><path d='M32 4C18 4 8 14 8 14v20c0 14 24 26 24 26s24-12 24-26V14S46 4 32 4z' fill='url(%23g)' stroke='%231e40af' stroke-width='2'/><rect x='22' y='22' width='20' height='14' fill='none' stroke='%231e40af' stroke-width='1.5'/><line x1='24' y1='26' x2='40' y2='26' stroke='%231e40af' stroke-width='1'/><line x1='24' y1='30' x2='36' y2='30' stroke='%231e40af' stroke-width='1'/><line x1='24' y1='34' x2='32' y2='34' stroke='%231e40af' stroke-width='1'/></svg>">
+    <meta name="description" content="Golden Fleece: spatial worldtext engine with WLES type system, /wt compiler, and LLM operators. Walk your text in 3D.">
+    <style>
+        :root {
+            --bg: #f5f5f5;
+            --gold: #1e40af;
+            --amber: #111;
+            --rust: #6b7280;
+            --blue: #2563eb;
+            --indigo: #4f46e5;
+            --accent: #2563eb;
+            --font: 'Courier New', Courier, monospace;
+            --highlight: #2563eb;
+            --bg-dark: #f9fafb;
+            --bg-card: #fff;
+            --border: #e5e7eb;
+            --text-primary: #111;
+            --text-muted: #6b7280;
+            --bw: 1px;
+            --status-h: 42px;
+            --tab-h: 64px;
+            --safe-b: env(safe-area-inset-bottom, 0px);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; border-radius: 0 !important; }
+
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            overflow: hidden; position: fixed; inset: 0;
+            height: 100dvh;
+            background: var(--bg); color: var(--amber);
+            font-family: var(--font);
+        }
+
+        #app { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; }
+
+        /* ── STATUS BAR ── */
+        #status-bar {
+            flex: 0 0 var(--status-h);
+            display: flex; align-items: center;
+            background: #fff; color: #111;
+            border-bottom: 1px solid #e5e7eb;
+            z-index: 50; font-size: 11px; padding: 0 8px; gap: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .sb-group { display: flex; align-items: center; gap: 5px; padding: 0 10px; border-right: 1px solid #e5e7eb; flex: 1; justify-content: center; }
+        .sb-group:last-child { border-right: none; }
+        .sb-label { font-size: 10px; font-weight: 900; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
+        .sb-val { font-size: 14px; font-weight: 900; color: #111; font-variant-numeric: tabular-nums; }
+
+        /* ── CANVAS ZONE ── */
+        #canvas-zone { flex: 1 1 0%; position: relative; overflow: hidden; background: var(--bg); }
+        #viz-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+        /* ── READER PANEL ── */
+        #reader-panel {
+            position: absolute; left: 16px; top: 52px; bottom: 100px;
+            width: 280px; z-index: 30;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none; transition: opacity 0.3s;
+        }
+        #zone-header { border-bottom: 1px solid #d1d5db; padding-bottom: 5px; color: var(--accent); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; }
+        #text-display { border-left: 2px solid #d1d5db; padding-left: 12px; min-height: 60px; color: #374151; line-height: 1.5; font-size: 13px; background: rgba(255,255,255,0.9); padding: 10px; overflow-y: auto; max-height: 300px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        #data-display { font-size: 10px; color: #9ca3af; }
+        #pretext-reader { border-left: 2px solid var(--accent); padding-left: 12px; min-height: 40px; color: var(--accent); line-height: 1.3; font-size: 12px; background: rgba(255,255,255,0.95); padding: 8px; display: none; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        #pretext-reader.visible { display: block; }
+        #pretext-reader .pt-label { font-size: 9px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+        #pretext-reader canvas { width: 100%; image-rendering: auto; display: block; background: #fff; }
+
+        /* ── HUD OVERLAY ── */
+        .hud-overlay { position: absolute; bottom: 20px; right: 16px; z-index: 25; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+        .hud-panel { color: #6b7280; font-size: 11px; pointer-events: auto; }
+        #minimap-canvas { width: 100px; height: 100px; background: rgba(255,255,255,0.9); border: 1px solid #d1d5db; pointer-events: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+        .header-controls { position: absolute; top: 12px; right: 12px; z-index: 50; display: flex; gap: 6px; }
+        .btn-ui { background: #fff; border: 1px solid #d1d5db; color: #374151; padding: 4px 10px; cursor: pointer; font-family: var(--font); font-size: 11px; transition: all 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn-ui:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* NO CRT OVERLAY. NO AMBIENT GLOW. */
+        .crt-overlay { display: none !important; }
+        .ambient-glow { display: none !important; }
+
+        /* ── LIDAR LAYER ── */
+        #lidar-layer { position: absolute; inset: 0; z-index: 20; display: none; background: #1e293b; }
+        #lidar-layer.active { display: block; }
+        #lidar-canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+        .crosshair { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; transform: translate(-50%,-50%); border: 1px solid rgba(37,99,235,0.5); border-radius: 50%; pointer-events: none; z-index: 35; }
+        .crosshair::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: var(--accent); transform: translate(-50%,-50%); border-radius: 50%; }
+        #scanner-output { position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%); width: 85%; max-width: 600px; z-index: 40; background: rgba(255,255,255,0.97); padding: 12px; border: 1px solid #d1d5db; color: #111; font-family: var(--font); font-size: 12px; line-height: 1.3; max-height: 200px; overflow-y: auto; white-space: pre-wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; }
+        #scanner-output.visible { display: block; }
+        .btn-lidar { background: var(--accent); border: 1px solid var(--accent); color: #fff; padding: 4px 12px; cursor: pointer; font-family: var(--font); font-size: 11px; font-weight: 700; transition: all 0.15s; }
+        .btn-lidar:hover { background: #1d4ed8; }
+        .controls-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 36px; z-index: 30; pointer-events: none; display: flex; justify-content: center; align-items: center; background: linear-gradient(to top, rgba(255,255,255,0.95) 0%, transparent 100%); color: #6b7280; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+
+        /* ── EDITOR BAR ── */
+        #editor-bar {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            z-index: 45; display: none;
+            background: rgba(255,255,255,0.97);
+            border-top: 1px solid #d1d5db;
+            backdrop-filter: blur(12px);
+            transition: transform 0.2s ease;
+        }
+        #editor-bar.active { display: flex; flex-direction: column; }
+
+        #editor-bar-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 12px; background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+        #editor-bar-zone { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+        #editor-bar-info { flex: 1; text-align: right; font-size: 9px; color: #9ca3af; letter-spacing: 1px; }
+        #editor-bar-dismiss {
+            font-size: 14px; background: none; border: 1px solid #d1d5db;
+            color: #9ca3af; cursor: pointer; width: 24px; height: 24px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #editor-bar-dismiss:hover { color: var(--accent); border-color: var(--accent); }
+
+        #editor-bar-textarea {
+            width: 100%; height: 120px; max-height: 40vh;
+            resize: vertical; border: none; outline: none;
+            background: #fff; color: #111;
+            font-family: var(--font); font-size: 13px;
+            line-height: 1.5; padding: 10px 12px;
+            caret-color: var(--accent);
+        }
+        #editor-bar-textarea::selection { background: rgba(37,99,235,0.15); color: #111; }
+        #editor-bar-textarea::placeholder { color: #d1d5db; }
+
+        #editor-bar.active ~ .crosshair { top: 35%; }
+
+        /* ── TAB BAR ── */
+        #tab-bar {
+            flex: 0 0 calc(var(--tab-h) + var(--safe-b));
+            display: flex; border-top: 1px solid #e5e7eb;
+            background: #fff; z-index: 60; padding-bottom: var(--safe-b);
+        }
+        .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: var(--tab-h); font-size: 11px; font-weight: 900; text-transform: uppercase; color: #374151; cursor: pointer; background: #fff; border: none; border-right: 1px solid #e5e7eb; letter-spacing: 0.05em; transition: background 0.1s; }
+        .tab-btn:last-child { border-right: none; }
+        .tab-letter { font-size: 24px; line-height: 1; margin-bottom: 3px; font-weight: 900; }
+        .tab-btn.on { background: var(--accent); color: #fff; }
+
+        /* ── SHEET SYSTEM ── */
+        #sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0); pointer-events: none; z-index: 70; transition: background 0.25s; }
+        #sheet-backdrop.on { background: rgba(0,0,0,0.3); pointer-events: all; }
+        .sheet { position: fixed; left: 0; right: 0; bottom: calc(var(--tab-h) + var(--safe-b)); max-height: 70vh; background: #fff; border-top: 1px solid #d1d5db; z-index: 80; display: flex; flex-direction: column; transform: translateY(calc(100% + var(--tab-h) + var(--safe-b))); transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0.32s; visibility: hidden; overflow: hidden; will-change: transform; box-shadow: 0 -4px 16px rgba(0,0,0,0.08); }
+        .sheet.on { transform: translateY(0); visibility: visible; transition: transform 0.32s cubic-bezier(0.25,1.0,0.5,1), visibility 0s linear 0s; }
+        .sheet-handle { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+        .sheet-title { font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+        .sheet-close { font-size: 20px; font-weight: 900; background: none; border: none; cursor: pointer; line-height: 1; color: #9ca3af; }
+        .sheet-close:hover { color: var(--accent); }
+        .sheet-body { overflow-y: auto; flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .sh-btn { display: flex; align-items: center; justify-content: center; padding: 12px 16px; font-weight: 900; text-transform: uppercase; font-size: 11px; background: #fff; border: 1px solid #d1d5db; color: #374151; cursor: pointer; letter-spacing: 0.1em; width: 100%; transition: all 0.1s; min-height: 44px; font-family: var(--font); }
+        .sh-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .sh-btn:active { background: #f3f4f6; }
+        .sh-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .sh-btn.primary:hover { background: #1d4ed8; }
+        .sh-row { display: flex; gap: 8px; }
+        .sh-row .sh-btn { flex: 1; }
+        .sh-label { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; margin-bottom: 4px; }
+        .sh-range { width: 100%; accent-color: var(--accent); height: 20px; }
+
+        #pretext-hud { position: absolute; bottom: 36px; left: 16px; z-index: 30; font-size: 9px; color: var(--accent); pointer-events: none; font-family: var(--font); letter-spacing: 0.06em; display: none; }
+
+        @media (max-width: 600px) {
+            #reader-panel { width: 200px; left: 8px; top: 50px; bottom: 80px; }
+            #reader-panel #text-display { font-size: 11px; }
+            #pretext-hud { display: none !important; }
+            .hud-panel { display: none !important; }
+            #minimap-canvas { width: 60px !important; height: 60px !important; }
+            .hud-overlay { bottom: 10px; right: 8px; }
+            .header-controls { top: 6px; right: 6px; gap: 4px; }
+            .btn-ui { display: none !important; }
+            .btn-lidar { font-size: 0 !important; width: 28px; height: 28px; padding: 0 !important; display: flex !important; align-items: center; justify-content: center; border-radius: 50%; }
+            .btn-lidar::after { content: '✕'; font-size: 14px; }
+            #status-bar { font-size: 8px; height: 18px; }
+            .sb-group:not(:first-child) { display: none; }
+            #scanner-output { font-size: 10px; padding: 8px; bottom: 18%; }
+            .crosshair { width: 16px; height: 16px; }
+            #tab-bar { --tab-h: 36px; }
+            .tab-letter { font-size: 18px; }
+            .tab-btn { font-size: 10px; }
+            #editor-bar-textarea { font-size: 12px; height: 100px; }
+        }
+        @media (max-width: 400px) {
+            .header-controls { top: 4px; right: 4px; }
+            .btn-lidar { width: 24px !important; height: 24px !important; }
+            .btn-lidar::after { font-size: 12px; }
+            #minimap-canvas { width: 48px !important; height: 48px !important; }
+            #status-bar { display: none; }
+        }
+        /* ── INLINE FORMAT BUTTONS ── */
+        .fmt-btn {
+            background: #fff; border: 1px solid #d1d5db; color: #6b7280;
+            cursor: pointer; padding: 2px 8px; font-family: var(--font);
+            letter-spacing: 0.5px; border-radius: 2px; min-width: 24px;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .fmt-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .fmt-btn:active { background: #f3f4f6; }
+        /* ── MINIMAL SCROLLBARS ── */
+        #editor-panel-nav::-webkit-scrollbar,
+        .sheet-body::-webkit-scrollbar,
+        #editor-bar-textarea::-webkit-scrollbar {
+            height: 3px; width: 3px;
+        }
+        #editor-panel-nav::-webkit-scrollbar-track,
+        .sheet-body::-webkit-scrollbar-track,
+        #editor-bar-textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #editor-panel-nav::-webkit-scrollbar-thumb,
+        .sheet-body::-webkit-scrollbar-thumb,
+        #editor-bar-textarea::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+        }
+        #editor-panel-nav::-webkit-scrollbar-thumb:hover,
+        .sheet-body::-webkit-scrollbar-thumb:hover,
+        #editor-bar-textarea::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+        #editor-panel-nav { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        .sheet-body { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        #editor-bar-textarea { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="status-bar">
+            <div class="sb-group"><span class="sb-label">GOLDEN FLEECE</span><span class="sb-val" id="sb-mode">TOPO</span></div>
+            <div class="sb-group"><span class="sb-label">ZONE</span><span class="sb-val" id="sb-zone">—</span></div>
+            <div class="sb-group"><span class="sb-label">PRETEXT</span><span class="sb-val" id="sb-layout">—</span></div>
+            <div class="sb-group"><span class="sb-label">EDIT</span><span class="sb-val" id="sb-llm" style="font-size:8px">—</span></div>
+        </div>
+
+        <div id="canvas-zone">
+            <div class="ambient-glow"></div>
+            <canvas id="viz-canvas"></canvas>
+
+            <div id="lidar-layer">
+                <canvas id="lidar-canvas"></canvas>
+                <div class="crosshair"></div>
+                <div id="scanner-output">PRESS [E] TO EDIT WALL</div>
+
+                <!-- DOCKED EDITOR BAR -->
+                <div id="editor-bar">
+                    <div id="editor-bar-header">
+                        <span id="editor-bar-zone" title="Click to rename" style="cursor:text;">—</span>
+                        <button id="btn-undo" style="font-size:9px; background:#fff; border:1px solid #d1d5db; color:#374151; cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;" title="Undo (Ctrl+Z panel-level)">↶ UNDO</button>
+                        <button id="btn-link" style="font-size:9px; background:#fff; border:1px solid var(--accent); color:var(--accent); cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⟐ LINK</button>
+                        <input type="file" id="media-upload" accept="image/*,video/*" style="display:none">
+                        <button id="btn-attach-media" style="font-size:9px; background:#fff; border:1px solid var(--accent); color:var(--accent); cursor:pointer; padding:2px 8px; font-family:var(--font); font-weight:900; letter-spacing:1px;">⊕ MEDIA</button>
+                        <span id="editor-bar-info">auto-saving</span>
+                        <button id="editor-bar-dismiss">✕</button>
+                    </div>
+                    <div id="editor-panel-nav" style="display:flex; gap:0; overflow-x:auto; background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:0 4px; flex-shrink:0;"></div>
+                    <div id="editor-ai-response" style="display:none; font-size:10px; color:var(--accent); background:rgba(37,99,235,0.03); border-bottom:1px solid #e5e7eb; padding:6px 12px; max-height:80px; overflow-y:auto; line-height:1.4; font-family:var(--font);"></div>
+                    <div id="editor-fmt-bar" style="display:flex; gap:2px; padding:3px 8px; background:#f9fafb; border-bottom:1px solid #e5e7eb; flex-shrink:0; align-items:center;">
+                        <button class="fmt-btn" id="btn-fmt-h1" title="Heading 1" style="font-weight:900; color:var(--accent); font-size:11px;">H1</button>
+                        <button class="fmt-btn" id="btn-fmt-h2" title="Heading 2" style="font-weight:bold; color:#6b7280; font-size:10px;">H2</button>
+                        <span style="color:#e5e7eb; margin:0 2px;">│</span>
+                        <button class="fmt-btn" id="btn-fmt-quote" title="Blockquote" style="font-style:italic; color:#6b7280; font-size:10px;">❝</button>
+                        <button class="fmt-btn" id="btn-fmt-list" title="Bullet list" style="color:#6b7280; font-size:10px;">•</button>
+                        <span style="color:#e5e7eb; margin:0 2px;">│</span>
+                        <button class="fmt-btn" id="btn-fmt-hr" title="Horizontal rule" style="color:#9ca3af; font-size:9px;">——</button>
+                        <span style="flex:1;"></span>
+                        <span id="editor-block-count" style="font-size:8px; color:#9ca3af; font-family:var(--font); letter-spacing:1px;"></span>
+                    </div>
+                    <textarea id="editor-bar-textarea" spellcheck="false" placeholder="Type to edit wall · @ to link panels · @question for AI · Drop .txt/.md to import"></textarea>
+                </div>
+            </div>
+
+            <div class="crt-overlay"></div>
+
+            <div class="header-controls">
+                <button class="btn-ui" id="btn-help" style="color:var(--accent); font-weight:900;">?</button>
+                <button class="btn-ui" id="btn-view">VIEW: TOPO</button>
+                <button class="btn-ui" id="btn-recenter">RE-CENTER</button>
+                <button class="btn-ui" id="btn-size-up">SIZE +</button>
+                <button class="btn-ui" id="btn-size-dn">SIZE −</button>
+                <button class="btn-lidar" id="btn-lidar">ENTER EDITOR</button>
+            </div>
+
+            <div id="reader-panel">
+                <div id="zone-header">AWAITING TEXT...</div>
+                <div id="text-display">Press E on any wall to write on it.<br>Every surface is a text editor.</div>
+                <div id="pretext-reader"><div class="pt-label">PRETEXT LAYOUT</div><canvas id="pt-reader-canvas" width="256" height="200"></canvas></div>
+                <div style="font-size:10px; color:#9ca3af; margin-top:4px;">DATA: <span id="data-display">—</span></div>
+            </div>
+
+            <div class="hud-overlay">
+                <div class="hud-panel" id="ui-coords">LOC: 0,0</div>
+                <canvas id="minimap-canvas" width="100" height="100"></canvas>
+            </div>
+
+            <div class="controls-bar" id="grid-controls"><div>SCROLL TO ZOOM · DRAG TO PAN · [E] TO EDIT WALL</div></div>
+            <div id="pretext-hud"></div>
+        </div>
+
+        <nav id="tab-bar">
+            <button class="tab-btn" id="tab-a"><span class="tab-letter">A</span>LORE</button>
+            <button class="tab-btn" id="tab-b"><span class="tab-letter">B</span>INDEX</button>
+            <button class="tab-btn" id="tab-c"><span class="tab-letter">C</span>REF</button>
+            <button class="tab-btn" id="tab-d"><span class="tab-letter">D</span>SAVE</button>
+        </nav>
+    </div>
+
+    <div id="sheet-backdrop"></div>
+
+    <div class="sheet" id="sheet-a">
+        <div class="sheet-handle"><span class="sheet-title">A · LORE MATERIAL</span><button class="sheet-close" id="close-a">×</button></div>
+        <div class="sheet-body" id="lore-body"></div>
+    </div>
+    <div class="sheet" id="sheet-b">
+        <div class="sheet-handle"><span class="sheet-title">B · PANEL INDEX</span><button class="sheet-close" id="close-b">×</button></div>
+        <div class="sheet-body" id="cspr-body"></div>
+    </div>
+    <div class="sheet" id="sheet-c">
+        <div class="sheet-handle"><span class="sheet-title">C · REFERENCE</span><button class="sheet-close" id="close-c">×</button></div>
+        <div class="sheet-body">
+            <div class="sh-label" style="color:var(--accent);">FORMATTING SYNTAX</div>
+            <div style="font-size:10px; color:#6b7280; margin-bottom:12px; line-height:1.6;">
+                Use the toolbar above the editor, or type these prefixes on any line:
+            </div>
+            <div style="font-size:10px; color:#374151; font-family:var(--font); line-height:2;">
+                <div><span style="color:var(--accent); font-weight:900;">  # </span> Heading 1 — large title</div>
+                <div><span style="color:#374151; font-weight:bold;"> ## </span> Heading 2 — section subtitle</div>
+                <div><span style="color:#6b7280; font-style:italic;">  > </span> Blockquote — indented with bar</div>
+                <div><span style="color:#6b7280;">  - </span> Bullet list — dot-prefixed item</div>
+                <div><span style="color:#9ca3af;"> --- </span> Horizontal rule — visual separator</div>
+            </div>
+            <div class="sh-label" style="margin-top:16px;">KEYBOARD SHORTCUTS</div>
+            <div style="font-size:10px; color:#374151; font-family:var(--font); line-height:2;">
+                <div><span style="color:var(--accent);">E</span> — Open editor on faced wall</div>
+                <div><span style="color:var(--accent);">@</span> — Link panel / AI query</div>
+                <div><span style="color:var(--accent);">[[word]]</span> — Create hyperlink</div>
+                <div><span style="color:var(--accent);">Ctrl+F</span> — Search all panels</div>
+                <div><span style="color:var(--accent);">WASD</span> — Move through space</div>
+                <div><span style="color:var(--accent);">1-9</span> — Teleport to panel</div>
+                <div><span style="color:var(--accent);">L</span> — Cycle sky mode</div>
+                <div><span style="color:var(--accent);">Scroll</span> — Scroll wall text</div>
+            </div>
+            <div class="sh-label" style="margin-top:16px;">EMBEDS</div>
+            <div style="font-size:10px; color:#374151; font-family:var(--font); line-height:2;">
+                <div><span style="color:var(--accent);">https://...</span> — URLs auto-highlight as clickable</div>
+                <div><span style="color:var(--accent);">⊕ MEDIA</span> — Attach image/video to wall</div>
+            </div>
+        </div>
+    </div>
+    <div class="sheet" id="sheet-d">
+        <div class="sheet-handle"><span class="sheet-title">D · DOCUMENT</span><button class="sheet-close" id="close-d">×</button></div>
+        <div class="sheet-body">
+            <div class="sh-label">Architecture</div>
+            <button class="sh-btn primary" id="btn-build-monolith" style="margin-bottom:8px">BUILD NEW MONOLITH</button>
+            <button class="sh-btn primary" id="btn-new-doc">NEW BLANK DOCUMENT</button>
+            <div class="sh-label" style="margin-top:12px">Export</div>
+            <button class="sh-btn" id="btn-export-md">EXPORT AS MARKDOWN (.md)</button>
+            <button class="sh-btn" id="btn-export-lore">EXPORT LORE (JSON)</button>
+            <button class="sh-btn" id="btn-export-png">CURRENT FRAME (PNG)</button>
+            <div class="sh-label" style="margin-top:12px; color:var(--accent);">Cold Storage (Survival)</div>
+            <div style="font-size:10px; color:#6b7280; margin-bottom:6px;">Link a local folder. Golden Egg will auto-save to it continuously.</div>
+            <button class="sh-btn" id="btn-link-disk" style="border-color:var(--accent); color:var(--accent);">🔗 LINK BACKUP FOLDER</button>
+            <div id="disk-status" style="font-size:9px; color:#9ca3af; text-align:center; margin-top:4px; margin-bottom:12px;">Not linked</div>
+            <div class="sh-label" style="margin-top:12px">Data</div>
+            <button class="sh-btn" id="btn-clear-data" style="border-color:#ef4444;color:#ef4444;">CLEAR ALL SAVED DATA</button>
+        </div>
+    </div>
+
+    <script type="module" src="./golden-fleece.ts"></script>
+</body>
+</html>
