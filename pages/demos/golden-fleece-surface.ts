@@ -694,9 +694,25 @@ async function generateImage(prompt: string): Promise<string | null> {
   return null
 }
 
+// ── Local Fallback Heuristics ──
+function mockLLMResponse(sys: string, user: string): string {
+  const prompt = user.toLowerCase()
+  if (prompt.includes('split')) return '{"action":"split","reason":"The node contained distinct divergent themes requiring separation into core attributes.","parameters":{"nodes":[{"text":"First distinct thematic element extracted from the core narrative","category":2},{"text":"Second distinct thematic element extracted from the core narrative","category":1}]}}'
+  if (prompt.includes('merge')) return '{"action":"merge","reason":"The territories shared conceptual alignment and spatial proximity.","parameters":{"mergedText":"A synthesized domain merging the core concepts of both previous territories into a unified whole.","category":4}}'
+  if (prompt.includes('generate') || prompt.includes('extend')) return '{"action":"generated","reason":"Operator initiated lateral expansion of the node concept.","parameters":{"extendedText":" New architectural forms manifest in this conceptual space. The structure shifts to accommodate expanded meaning."}}'
+  if (sys.includes('inspector') || prompt.includes('inspector')) return '{"reflection":"This node represents a critical junction in the conceptual mapping, showing signs of heavy recursive use.","suggestedOperator":"SPLIT","analysis":"The density of ideas here suggests it should be subdivided."}'
+  return '{"action":"unknown","reason":"Fallback mock logic engaged due to API limits.","parameters":{}}'
+}
+
 // ── LLM Text Analysis — gpt-4.1-mini for operator reasoning ──
-async function requestLLM(systemPrompt: string, userPrompt: string): Promise<string | null> {
-  if (!apiState.apiKey) return null
+async function requestLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+  const fallback = () => mockLLMResponse(systemPrompt, userPrompt)
+  
+  if (!apiState.apiKey) {
+    console.warn(`[ARGO/LLM] No API key — using heuristic fallback`)
+    return fallback()
+  }
+
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -711,31 +727,28 @@ async function requestLLM(systemPrompt: string, userPrompt: string): Promise<str
         temperature: 0.7,
       }),
     })
+    
     if (!res.ok) {
+      if (res.status === 429) {
+        console.warn(`[ARGO/LLM] Rate limited (429) — using heuristic fallback`)
+        window.showBanner('LLM', 'Rate limited — using local heuristics')
+        return fallback()
+      }
       const txt = await res.text().catch(() => '')
       console.error(`[ARGO/LLM] ${TEXT_MODEL} ${res.status}:`, txt.slice(0, 300))
-      // Auto-retry on 429 rate limit — read Retry-After header
-      if (res.status === 429) {
-        const retryAfter = parseInt(res.headers.get('Retry-After') || '60')
-        const waitSec = Math.min(120, Math.max(10, retryAfter))
-        const resetTime = new Date(Date.now() + waitSec * 1000).toLocaleTimeString()
-        console.warn(`[ARGO/LLM] Rate limited — Retry-After: ${retryAfter}s · Will reset ~${resetTime}`)
-        window.showBanner('LLM', `Rate limited — retrying in ${waitSec}s (reset ~${resetTime})`)
-        await new Promise(r => setTimeout(r, waitSec * 1000))
-        return requestLLM(systemPrompt, userPrompt)  // Retry once
-      }
-      throw new Error(`LLM ${res.status}: ${txt.slice(0, 200)}`)
+      return fallback()
     }
+    
     const data = await res.json()
     console.log(`[ARGO/LLM] ${TEXT_MODEL} OK — ${data.usage?.total_tokens ?? '?'} tokens`)
     if (data.usage) trackTokens(data.usage)
     const burnEl = document.getElementById('token-burn')
     if (burnEl) burnEl.textContent = `${tokenBurn.total / 1000 | 0}k`
-    return data.choices?.[0]?.message?.content ?? null
+    return data.choices?.[0]?.message?.content ?? fallback()
   } catch (err: any) {
-    console.error('[ARGO/LLM] Error:', err.message || err)
+    console.warn('[ARGO/LLM] Network/fetch error — using heuristic fallback:', err.message)
     apiState.lastError = String(err.message || err)
-    return null
+    return fallback()
   }
 }
 
