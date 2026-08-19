@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#101514">
+<title>TERMINUS ONE · TWO THUMB FLIGHT</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101514;color:#ffd76e;font:12px ui-monospace,monospace}
+#loading{position:fixed;inset:0;display:grid;place-items:center;letter-spacing:.16em}
+</style>
+</head>
+<body>
+<div id="loading">FOLDING THE CONTROLS INTO THE WORLD</div>
+<script>
+(async function(){
+  const SOURCE = '/pretext-field/terminus-one-37.html';
+  try{
+    const res = await fetch(SOURCE, { cache:'no-store' });
+    if(!res.ok) throw new Error('source ' + res.status);
+    let src = await res.text();
+
+    function replaceOnce(find, replacement, name){
+      if(!src.includes(find)) throw new Error('patch marker missing: ' + name);
+      src = src.replace(find, replacement);
+    }
+
+    replaceOnce(
+      '</style>',
+      `
+/* TERMINUS ONE 38 · controls are part of the world, not a separate alley */
+#stage{bottom:0!important}
+#strip,#tray{display:none!important}
+#cap{
+  bottom:calc(154px + env(safe-area-inset-bottom))!important;
+  max-width:76vw!important;
+}
+#thumbDeck{
+  position:absolute;inset:0;z-index:14;pointer-events:none;
+}
+.thumbTouch{
+  position:absolute;
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  width:clamp(126px,34vw,172px);
+  height:clamp(126px,34vw,172px);
+  pointer-events:auto;
+  touch-action:none;
+  overscroll-behavior:contain;
+  -webkit-user-select:none;user-select:none;
+}
+#turnTouch{left:max(14px,env(safe-area-inset-left))}
+#glideTouch{right:max(14px,env(safe-area-inset-right))}
+.thumbCircle{
+  position:absolute;inset:5px;border-radius:50%;
+  border:1.5px solid rgba(255,215,110,.48);
+  background:radial-gradient(circle,rgba(18,21,20,.34) 0 48%,rgba(18,21,20,.12) 49% 67%,transparent 68%);
+  box-shadow:0 0 0 1px rgba(18,21,20,.28);
+  transition:border-color .12s ease,background .12s ease,opacity .12s ease;
+  opacity:.72;pointer-events:none;
+}
+.thumbTouch.active .thumbCircle{
+  opacity:1;border-color:#ffd76e;
+  background:radial-gradient(circle,rgba(255,215,110,.10) 0 48%,rgba(18,21,20,.20) 49% 67%,transparent 68%);
+}
+.thumbAxisH,.thumbAxisV{
+  position:absolute;background:rgba(255,215,110,.24);pointer-events:none;
+}
+.thumbAxisH{left:18%;right:18%;top:50%;height:1px}
+.thumbAxisV{top:18%;bottom:18%;left:50%;width:1px}
+.thumbKnob{
+  position:absolute;left:50%;top:50%;width:32px;height:32px;margin:-16px;
+  border:2px solid #ffd76e;border-radius:50%;background:rgba(16,21,20,.90);
+  box-shadow:0 0 0 5px rgba(16,21,20,.16);
+  transform:translate3d(0,0,0);will-change:transform;pointer-events:none;
+}
+.thumbName{
+  position:absolute;left:0;right:0;bottom:22px;text-align:center;
+  color:#f1eee4;font:700 9px ui-monospace,monospace;letter-spacing:.16em;
+  pointer-events:none;text-shadow:0 1px 4px #101514;
+}
+.thumbValue{
+  position:absolute;left:0;right:0;top:23px;text-align:center;
+  color:#ffd76e;font:700 9px ui-monospace,monospace;letter-spacing:.12em;
+  pointer-events:none;text-shadow:0 1px 4px #101514;
+}
+#glideTouch.idle .thumbCircle{border-color:rgba(255,215,110,.85);opacity:1}
+#glideTouch.idle .thumbKnob{background:#ffd76e;border-color:#101514}
+#turnTouch.idle{opacity:.45}
+#landingGhost{
+  position:absolute;left:0;top:0;z-index:13;width:30px;height:30px;margin:-15px 0 0 -15px;
+  border:1.5px dashed #ffd76e;border-radius:50%;pointer-events:none;display:none;
+  box-shadow:0 0 0 4px rgba(18,21,20,.20);
+}
+#landingGhost:after{
+  content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;
+  margin:-2px;border-radius:50%;background:#ffd76e;
+}
+@media (orientation:landscape){
+  .thumbTouch{width:138px;height:138px;bottom:calc(10px + env(safe-area-inset-bottom))}
+  #cap{bottom:calc(130px + env(safe-area-inset-bottom))!important}
+}
+@media (max-height:560px){
+  .thumbTouch{width:118px;height:118px}
+  .thumbName{bottom:17px}.thumbValue{top:17px}
+}
+      </style>`,
+      'control css'
+    );
+
+    replaceOnce(
+      '<div id="boot"><div class="bx">',
+      `<div id="thumbDeck" aria-label="two thumb flight controls">
+  <div class="thumbTouch" id="turnTouch" aria-label="turn">
+    <div class="thumbCircle">
+      <div class="thumbAxisH"></div>
+      <div class="thumbKnob" id="turnKnob"></div>
+      <div class="thumbValue" id="turnValue">TURN</div>
+      <div class="thumbName">LEFT / RIGHT</div>
+    </div>
+  </div>
+  <div class="thumbTouch idle" id="glideTouch" aria-label="launch and glide">
+    <div class="thumbCircle">
+      <div class="thumbAxisV"></div>
+      <div class="thumbKnob" id="glideKnob"></div>
+      <div class="thumbValue" id="glideValue">LAUNCH</div>
+      <div class="thumbName" id="glideName">TAP</div>
+    </div>
+  </div>
+</div>
+<div id="landingGhost" aria-hidden="true"></div>
+<div id="boot"><div class="bx">`,
+      'thumb html'
+    );
+
+    replaceOnce(
+      "g.fillText(hero.active ? 'DRAG THE STRIP TO STEER' : 'TOUCH THE STRIP TO LAUNCH', cx, 154);",
+      "g.fillText(drop ? 'TWO THUMBS · FLY THE LETTER' : hero.active ? 'RIGHT TAP · RELEASE MAIL' : 'RIGHT THUMB · LAUNCH', cx, 154);",
+      'console instruction'
+    );
+
+    replaceOnce(
+      "if (hero0.active && hero0.mode === 'rail' && morphT < 0.02 && viewMode !== 'chase'){",
+      "if (hero0.active && hero0.mode === 'rail' && drop === null && morphT < 0.02 && viewMode !== 'chase'){",
+      'stop world rotation during letter chase'
+    );
+
+    replaceOnce(
+      "} else if (!wasHeld && !wasBoard && !wasPlane && !wasDial && dtms < 300 && flickDist > 60 &&",
+      "} else if (false && !wasHeld && !wasBoard && !wasPlane && !wasDial && dtms < 300 && flickDist > 60 &&",
+      'retire flick gesture'
+    );
+
+    replaceOnce(
+      "window.addEventListener('keydown', function(e){",
+      `/* ================================================================
+   TERMINUS ONE 38 · TWO THUMBS, ONE CONTINUOUS OBJECT
+   left thumb = lateral steering
+   right thumb = launch/release on tap, vertical flight on drag
+   the same positions continue when the plane becomes the letter
+   ================================================================ */
+const turnTouch = document.getElementById('turnTouch');
+const glideTouch = document.getElementById('glideTouch');
+const turnKnob38 = document.getElementById('turnKnob');
+const glideKnob38 = document.getElementById('glideKnob');
+const turnValue38 = document.getElementById('turnValue');
+const glideValue38 = document.getElementById('glideValue');
+const glideName38 = document.getElementById('glideName');
+const landingGhost38 = document.getElementById('landingGhost');
+
+const thumb38 = {
+  left:{ active:false, id:null, ox:0, oy:0, v:0, moved:0 },
+  right:{ active:false, id:null, ox:0, oy:0, v:0, moved:0, startedIdle:false }
+};
+const THUMB_R38 = 48;
+const THUMB_DEAD38 = 0.07;
+const THUMB_TAP38 = 12;
+
+function thumbPoint38(e, el){
+  const r = el.getBoundingClientRect();
+  return { x:e.clientX-r.left, y:e.clientY-r.top };
+}
+function dead38(v){ return Math.abs(v) < THUMB_DEAD38 ? 0 : THREE.MathUtils.clamp(v,-1,1); }
+
+function syncThumbFlight38(){
+  state.steerX = thumb38.left.active ? thumb38.left.v : 0;
+  state.steerY = thumb38.right.active ? thumb38.right.v : 0;
+  state.steering = thumb38.left.active || thumb38.right.active;
+  if(drop){
+    drop.sx = state.steerX;
+    drop.sy = state.steerY;
+  }
+}
+function modeLabels38(){
+  const hero = planes[0];
+  const idle = !hero.active && !drop;
+  turnTouch.classList.toggle('idle', idle);
+  glideTouch.classList.toggle('idle', idle);
+
+  if(drop){
+    turnValue38.textContent = thumb38.left.active
+      ? (thumb38.left.v < -.08 ? 'LEFT' : thumb38.left.v > .08 ? 'RIGHT' : 'STRAIGHT')
+      : 'TURN';
+    glideValue38.textContent = thumb38.right.active
+      ? (thumb38.right.v < -.08 ? 'LIFT' : thumb38.right.v > .08 ? 'DIVE' : 'GLIDE')
+      : 'GLIDE';
+    glideName38.textContent = 'LIFT / DIVE';
+  } else if(hero.active){
+    turnValue38.textContent = thumb38.left.active
+      ? (thumb38.left.v < -.08 ? 'LEFT' : thumb38.left.v > .08 ? 'RIGHT' : 'STRAIGHT')
+      : 'TURN';
+    glideValue38.textContent = thumb38.right.active
+      ? (thumb38.right.v < -.08 ? 'CLIMB' : thumb38.right.v > .08 ? 'DESCEND' : 'LEVEL')
+      : 'RELEASE';
+    glideName38.textContent = thumb38.right.active ? 'CLIMB / DIVE' : 'TAP MAIL';
+  } else {
+    turnValue38.textContent = 'TURN';
+    glideValue38.textContent = 'LAUNCH';
+    glideName38.textContent = 'TAP';
+  }
+}
+
+turnTouch.addEventListener('pointerdown', function(e){
+  if(thumb38.left.active) return;
+  e.preventDefault(); e.stopPropagation();
+  userTouched = true; initAudio();
+  turnTouch.setPointerCapture(e.pointerId);
+  const p = thumbPoint38(e,turnTouch);
+  Object.assign(thumb38.left,{active:true,id:e.pointerId,ox:p.x,oy:p.y,v:0,moved:0});
+  turnTouch.classList.add('active');
+  syncThumbFlight38(); modeLabels38();
+});
+turnTouch.addEventListener('pointermove', function(e){
+  const s=thumb38.left; if(!s.active || s.id!==e.pointerId) return;
+  e.preventDefault(); e.stopPropagation();
+  const p=thumbPoint38(e,turnTouch), dx=p.x-s.ox, dy=p.y-s.oy;
+  s.moved=Math.max(s.moved,Math.hypot(dx,dy));
+  s.v=dead38(dx/THUMB_R38);
+  turnKnob38.style.transform='translate3d('+(s.v*THUMB_R38)+'px,0,0)';
+  syncThumbFlight38(); modeLabels38();
+});
+function leftEnd38(e){
+  const s=thumb38.left; if(!s.active || s.id!==e.pointerId) return;
+  e.preventDefault(); e.stopPropagation();
+  Object.assign(s,{active:false,id:null,v:0,moved:0});
+  turnKnob38.style.transform='translate3d(0,0,0)';
+  turnTouch.classList.remove('active');
+  syncThumbFlight38(); modeLabels38();
+}
+turnTouch.addEventListener('pointerup',leftEnd38);
+turnTouch.addEventListener('pointercancel',leftEnd38);
+
+glideTouch.addEventListener('pointerdown', function(e){
+  if(thumb38.right.active) return;
+  e.preventDefault(); e.stopPropagation();
+  userTouched = true; initAudio();
+  glideTouch.setPointerCapture(e.pointerId);
+  const p=thumbPoint38(e,glideTouch);
+  const wasIdle=!planes[0].active && !drop;
+  if(wasIdle) spawnPlane();
+  Object.assign(thumb38.right,{
+    active:true,id:e.pointerId,ox:p.x,oy:p.y,v:0,moved:0,startedIdle:wasIdle
+  });
+  glideTouch.classList.add('active');
+  syncThumbFlight38(); modeLabels38();
+});
+glideTouch.addEventListener('pointermove', function(e){
+  const s=thumb38.right; if(!s.active || s.id!==e.pointerId) return;
+  e.preventDefault(); e.stopPropagation();
+  const p=thumbPoint38(e,glideTouch), dx=p.x-s.ox, dy=p.y-s.oy;
+  s.moved=Math.max(s.moved,Math.hypot(dx,dy));
+  s.v=dead38(dy/THUMB_R38);
+  glideKnob38.style.transform='translate3d(0,'+(s.v*THUMB_R38)+'px,0)';
+  syncThumbFlight38(); modeLabels38();
+});
+function rightEnd38(e){
+  const s=thumb38.right; if(!s.active || s.id!==e.pointerId) return;
+  e.preventDefault(); e.stopPropagation();
+  const shouldRelease=!s.startedIdle && !drop && planes[0].active && s.moved<THUMB_TAP38;
+  Object.assign(s,{active:false,id:null,v:0,moved:0,startedIdle:false});
+  glideKnob38.style.transform='translate3d(0,0,0)';
+  glideTouch.classList.remove('active');
+  syncThumbFlight38();
+  if(shouldRelease){
+    if(releaseDrop()){
+      viewMode='letter';
+      navigator.vibrate?.(14);
+    }
+  }
+  modeLabels38();
+}
+glideTouch.addEventListener('pointerup',rightEnd38);
+glideTouch.addEventListener('pointercancel',rightEnd38);
+
+const landingV38 = new THREE.Vector3();
+function updateLandingGhost38(){
+  if(!drop || !state.dropPredict){
+    landingGhost38.style.display='none';
+    return;
+  }
+  const sl=surfaceLocal(state.dropPredict[0],state.dropPredict[1]);
+  landingV38.copy(sl.pos).addScaledVector(sl.normal,.018);
+  worldGroup.localToWorld(landingV38);
+  landingV38.project(camera);
+  if(landingV38.z < -1 || landingV38.z > 1){
+    landingGhost38.style.display='none';
+    return;
+  }
+  const r=renderer.domElement.getBoundingClientRect();
+  const x=(landingV38.x*.5+.5)*r.width;
+  const y=(-landingV38.y*.5+.5)*r.height;
+  if(x<8 || x>r.width-8 || y<58 || y>r.height-8){
+    landingGhost38.style.display='none';
+    return;
+  }
+  landingGhost38.style.display='block';
+  landingGhost38.style.transform='translate3d('+Math.round(x)+'px,'+Math.round(y)+'px,0)';
+}
+function updateThumbMode38(){
+  modeLabels38();
+  updateLandingGhost38();
+}
+
+window.addEventListener('keydown', function(e){`,
+      'two thumb input'
+    );
+
+    const oldCamera = `function updateCamera(dt){
+  const hero = planes[0];
+  if (viewMode === 'chase' && hero.active){
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.mesh.quaternion);
+    const up = hero.mesh.position.clone()
+      .sub(new THREE.Vector3(0, WORLD_C, 0)).normalize();
+    const tgt = hero.mesh.position.clone()
+      .addScaledVector(fwd, -0.85).addScaledVector(up, 0.32);
+    camera.position.lerp(tgt, 1 - Math.exp(-4*dt));
+    camera.lookAt(hero.mesh.position.clone().addScaledVector(fwd, 0.8));
+  } else {
+    if (viewMode === 'chase') viewMode = 'podium';
+    camera.position.lerp(basePos, 1 - Math.exp(-3*dt));
+    camera.lookAt(0, 2.3, 0);
+  }
+}`;
+    const newCamera = `const CAM_CENTER38 = new THREE.Vector3(0,WORLD_C,0);
+const CAM_FWD38 = new THREE.Vector3();
+const CAM_UP38 = new THREE.Vector3();
+const CAM_TGT38 = new THREE.Vector3();
+const CAM_LOOK38 = new THREE.Vector3();
+const CAM_WORLD_V38 = new THREE.Vector3();
+
+function updateCamera(dt){
+  const hero = planes[0];
+
+  /* LETTER CHASE IS AUTOMATIC.
+     Camera follows the thing the thumbs are actually steering. */
+  if(drop && dropMesh.visible){
+    CAM_UP38.copy(dropMesh.position).sub(CAM_CENTER38).normalize();
+
+    CAM_FWD38.copy(drop.vel).applyQuaternion(worldGroup.quaternion);
+    if(CAM_FWD38.lengthSq()<1e-7)
+      CAM_FWD38.set(0,0,-1).applyQuaternion(camera.quaternion);
+    CAM_FWD38.normalize();
+
+    /* behind + slightly above; look ahead so the letter sits low in frame,
+       leaving the world and destination visible above the thumbs */
+    CAM_TGT38.copy(dropMesh.position)
+      .addScaledVector(CAM_FWD38,-0.58)
+      .addScaledVector(CAM_UP38,0.22);
+
+    const followK=1-Math.exp(-6.2*dt);
+    camera.position.lerp(CAM_TGT38,followK);
+    camera.up.lerp(CAM_UP38,1-Math.exp(-7*dt)).normalize();
+
+    CAM_LOOK38.copy(dropMesh.position)
+      .addScaledVector(CAM_FWD38,0.42)
+      .addScaledVector(CAM_UP38,-0.035);
+    camera.lookAt(CAM_LOOK38);
+    viewMode='letter';
+    return;
+  }
+
+  if(viewMode==='letter') viewMode='podium';
+
+  if (viewMode === 'chase' && hero.active){
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.mesh.quaternion);
+    const up = hero.mesh.position.clone()
+      .sub(CAM_CENTER38).normalize();
+    const tgt = hero.mesh.position.clone()
+      .addScaledVector(fwd, -0.85).addScaledVector(up, 0.32);
+    camera.position.lerp(tgt, 1 - Math.exp(-4*dt));
+    camera.up.lerp(up,1-Math.exp(-5*dt)).normalize();
+    camera.lookAt(hero.mesh.position.clone().addScaledVector(fwd, 0.8));
+  } else {
+    if (viewMode === 'chase') viewMode = 'podium';
+    camera.position.lerp(basePos, 1 - Math.exp(-3*dt));
+    camera.up.lerp(new THREE.Vector3(0,1,0),1-Math.exp(-4*dt)).normalize();
+    camera.lookAt(0, 2.3, 0);
+  }
+}`;
+    replaceOnce(oldCamera,newCamera,'letter chase camera');
+
+    replaceOnce(
+      "    updateCamera(dt);\n    renderer.render(scene, camera);",
+      "    updateCamera(dt);\n    updateThumbMode38();\n    renderer.render(scene, camera);",
+      'thumb visual update'
+    );
+
+    replaceOnce(
+      "caption('fly the dart · flick to drop the mail · then steer it down to the city', false, INVITE_SECONDS);",
+      "caption('right thumb launches · tap again to release the letter · both thumbs fly it home', false, INVITE_SECONDS);",
+      'boot instruction'
+    );
+
+    document.open();
+    document.write(src);
+    document.close();
+  }catch(err){
+    document.body.innerHTML =
+      '<div id="loading">CONTROL PATCH FAILED · '+String(err.message||err).replace(/[<>]/g,'')+'</div>';
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>
