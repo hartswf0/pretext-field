@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#101514">
 <title>TERMINUS ONE 78 · consequential relations</title>
 <meta name="description" content="A paper airplane, a real planet, and a letter you steer down to a city. Scan the code on the screen and your phone becomes the controls. Built by CONSEQUENCE WORKS.">
-<meta name="author" content="Watson Hartsoe \u00b7 CONSEQUENCE WORKS">
+<meta name="author" content="Watson Hartsoe · CONSEQUENCE WORKS">
 <meta property="og:type" content="website">
-<meta property="og:title" content="TERMINUS ONE \u00b7 a departures board you can fly">
+<meta property="og:title" content="TERMINUS ONE · a departures board you can fly">
 <meta property="og:description" content="Fly paper mail across a real world map. Scan to join from any phone \u2014 two hands, one instrument.">
 <meta property="og:image" content="https://hartswf0.github.io/pretext-field/terminus-card.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -6566,9 +6566,10 @@ function ws77Frame(now){
   if (typeof trafficList !== 'undefined'){
     const n = trafficList.length;
     WS77.sky.count = n;
-    WS77.sky.updated = Date.now();
-    WS77.sky.state = n ? 'live' : 'unavailable';
-    ws77Set(ws77SkyEl, n ? ('SKY · ' + n + ' LIVE') : 'SKY · NO SIGNAL', n ? 'live' : 'unavailable');
+    const liveSky = WS77.sky.state === 'live';
+    ws77Set(ws77SkyEl,
+      liveSky ? (n ? ('SKY · ' + n + ' LOCAL') : 'SKY · LIVE · CLEAR') : 'SKY · NO SIGNAL',
+      liveSky ? 'live' : 'unavailable');
   }
   setTimeout(function(){ requestAnimationFrame(ws77Frame); }, 250);
 }
@@ -6603,7 +6604,7 @@ const G78 = {
   relationStamp: 0,
   lastTraceKey: '',
   lastTraceAt: 0,
-  provenance: { earth:'USGS', wind:'OPEN-METEO', sky:'OPENSKY' }
+  provenance: { earth:'USGS', wind:'OPEN-METEO', sky:'ADSB.LOL' }
 };
 window.TERMINUS_GEONOSIS = G78;
 
