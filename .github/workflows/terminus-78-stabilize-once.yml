@@ -1,0 +1,49 @@
+name: Stabilize Terminus One 78
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/terminus-78-stabilize.py'
+      - '.github/workflows/terminus-78-stabilize-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stabilize-78:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Stabilize 78
+        run: python scripts/terminus-78-stabilize.py
+
+      - name: Syntax check module
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('terminus-one-78.html').read_text(encoding='utf-8')
+          start = s.rfind('<script')
+          start = s.find('>', start) + 1
+          end = s.rfind('</script>')
+          Path('/tmp/terminus-78-check.mjs').write_text(s[start:end], encoding='utf-8')
+          PY
+          node --check /tmp/terminus-78-check.mjs
+
+      - name: Verify invariants
+        run: |
+          grep -q "TERMINUS ONE · 77 · WORLD SIGNAL FIELD" terminus-one-78.html
+          grep -q "TERMINUS ONE · 78 · GEONOSIS ENGINE" terminus-one-78.html
+          grep -q "TERMINUS_SKY_PROXY" terminus-one-78.html
+          grep -q "ADSB.LOL" terminus-one-78.html
+          grep -q "reticle.visible = false" terminus-one-78.html
+          ! grep -q "opensky-network.org/api/states/all" terminus-one-78.html
+
+      - name: Commit stabilized 78
+        run: |
+          git config user.name 'Watson Hartsoe'
+          git config user.email 'watson.hartsoe@gmail.com'
+          git add terminus-one-78.html
+          git commit -m 'fix: stabilize Terminus One 78 runtime'
+          git push
