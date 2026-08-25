@@ -21,8 +21,8 @@ jobs:
         shell: bash
         run: |
           cp terminus-one-76.html terminus-one-77.html
-          python -c "from pathlib import Path; p=Path('terminus-one-77.html'); s=p.read_text(encoding='utf-8'); inj=Path('scripts/terminus-77-world-signal.js').read_text(encoding='utf-8'); s=s.replace('<title>TERMINUS ONE · a departures board you can fly</title>','<title>TERMINUS ONE 77 · the world answers</title>',1).replace('TERMINUS ONE · v2','TERMINUS ONE · 77 · THE WORLD ANSWERS',1); i=s.rfind('</script>'); assert i>=0, 'final script close missing'; s=s[:i]+'\\n'+inj+'\\n'+s[i:]; p.write_text(s,encoding='utf-8')"
-          grep -q "TERMINUS ONE · 77 · THE WORLD ANSWERS" terminus-one-77.html
+          python -c "from pathlib import Path; p=Path('terminus-one-77.html'); s=p.read_text(encoding='utf-8'); inj=Path('scripts/terminus-77-world-signal.js').read_text(encoding='utf-8'); esc=chr(92)+'u00b7'; s=s.replace('<title>TERMINUS ONE '+esc+' a departures board you can fly</title>','<title>TERMINUS ONE 77 '+esc+' the world answers</title>',1).replace('TERMINUS ONE · v2','TERMINUS ONE · 77 · THE WORLD ANSWERS',1); i=s.rfind('</script>'); assert i>=0, 'final script close missing'; s=s[:i]+'\\n'+inj+'\\n'+s[i:]; p.write_text(s,encoding='utf-8')"
+          grep -q "TERMINUS ONE 77" terminus-one-77.html
           grep -q "WORLD SIGNAL FIELD" terminus-one-77.html
           grep -q "OPEN-METEO" terminus-one-77.html
           grep -q "earthquake.usgs.gov" terminus-one-77.html
@@ -30,6 +30,8 @@ jobs:
           grep -q 'id="tzL"' terminus-one-77.html
           grep -q 'id="tzR"' terminus-one-77.html
           test $(wc -c < terminus-one-77.html) -gt $(wc -c < terminus-one-76.html)
+          python -c "from pathlib import Path; s=Path('terminus-one-77.html').read_text(encoding='utf-8'); tag='<script type=\"module\">'; a=s.rfind(tag); b=s.rfind('</script>'); assert a>=0 and b>a; Path('/tmp/terminus-one-77.mjs').write_text(s[a+len(tag):b],encoding='utf-8')"
+          node --check /tmp/terminus-one-77.mjs
           echo "76 bytes: $(wc -c < terminus-one-76.html)"
           echo "77 bytes: $(wc -c < terminus-one-77.html)"
 
@@ -40,5 +42,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add terminus-one-77.html
           git diff --cached --check
-          git commit -m "feat: fork Terminus One 77 world signals"
+          git commit -m "feat: refine Terminus One 77 world signals"
           git push origin HEAD:main
