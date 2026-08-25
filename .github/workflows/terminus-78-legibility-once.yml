@@ -21,10 +21,11 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re, subprocess, tempfile
+          import re, subprocess
           s=Path('terminus-one-78.html').read_text(encoding='utf-8')
-          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
-          js='\n'.join(b for b in blocks if 'src=' not in b[:120])
+          blocks=re.findall(r'<script([^>]*)>(.*?)</script>',s,re.S)
+          js='\n'.join(body for attrs,body in blocks
+                       if 'src=' not in attrs.lower() and 'importmap' not in attrs.lower())
           Path('/tmp/terminus78.js').write_text(js,encoding='utf-8')
           subprocess.run(['node','--check','/tmp/terminus78.js'],check=True)
           PY
