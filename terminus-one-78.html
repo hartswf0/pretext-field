@@ -7437,6 +7437,8 @@ function g781UpdateFocus3D(){
 const g781WindBase = g78UpdateWindVector;
 g78UpdateWindVector = function(){
   const r = g781WindBase();
+  /* same layer law on globe and map: raw observations exist only in ALL SIGNALS */
+  g78EarthGroup.visible = G78.filter === 'ALL' && morphT < 0.18;
   g781UpdateFocus3D();
   return r;
 };
