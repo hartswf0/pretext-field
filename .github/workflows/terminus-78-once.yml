@@ -46,7 +46,7 @@ jobs:
           assert len(out) > len(src)
           assert 'TERMINUS ONE · 78 · GEONOSIS ENGINE' in out
           assert 'GEOSIGN = difference' in out
-          assert 'FILTER · CONSEQUENCE' in out
+          assert "filter: 'CONSEQUENCE'" in out
           assert 'AGENT · ' in out
           assert 'RELINK CANDIDATE' in out
           assert 'releaseDrop' in out and 'stepGeodesic' in out
