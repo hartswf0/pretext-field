@@ -1,0 +1,78 @@
+name: Build Terminus One 78
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/terminus-78-geonosis.js'
+      - '.github/workflows/terminus-78-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-78:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fork 77 and inject Geonosis engine
+        if: ${{ hashFiles('scripts/terminus-78-geonosis.js') != '' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          src_path = Path('terminus-one-77.html')
+          payload_path = Path('scripts/terminus-78-geonosis.js')
+          out_path = Path('terminus-one-78.html')
+
+          src = src_path.read_text(encoding='utf-8')
+          payload = payload_path.read_text(encoding='utf-8')
+
+          assert 'TERMINUS ONE · 77 · WORLD SIGNAL FIELD' in src
+          assert 'releaseDrop' in src and 'stepGeodesic' in src
+          assert 'ws77RefreshWeather' in src and 'ws77RefreshEarth' in src
+          assert '</script>' in src
+
+          src = src.replace('TERMINUS ONE 77 \\u00b7 the world answers',
+                            'TERMINUS ONE 78 \\u00b7 consequential relations')
+          src = src.replace('TERMINUS ONE 77 · the world answers',
+                            'TERMINUS ONE 78 · consequential relations')
+
+          head, tail = src.rsplit('</script>', 1)
+          out = head.rstrip() + '\n\n' + payload.rstrip() + '\n\n</script>' + tail
+          out_path.write_text(out, encoding='utf-8')
+
+          assert len(out) > len(src)
+          assert 'TERMINUS ONE · 78 · GEONOSIS ENGINE' in out
+          assert 'GEOSIGN = difference' in out
+          assert 'FILTER · CONSEQUENCE' in out
+          assert 'AGENT · ' in out
+          assert 'RELINK CANDIDATE' in out
+          assert 'releaseDrop' in out and 'stepGeodesic' in out
+          assert 'ws77RefreshWeather' in out and 'ws77RefreshEarth' in out
+
+          start = out.rfind('<script')
+          start = out.find('>', start) + 1
+          end = out.rfind('</script>')
+          Path('/tmp/terminus-78-check.mjs').write_text(out[start:end], encoding='utf-8')
+          print('77 bytes:', len(src))
+          print('78 bytes:', len(out))
+          PY
+
+      - name: Syntax check 78 module
+        if: ${{ hashFiles('scripts/terminus-78-geonosis.js') != '' }}
+        run: node --check /tmp/terminus-78-check.mjs
+
+      - name: Commit Terminus One 78
+        if: ${{ hashFiles('scripts/terminus-78-geonosis.js') != '' }}
+        run: |
+          git config user.name 'Watson Hartsoe'
+          git config user.email 'watson.hartsoe@gmail.com'
+          git add terminus-one-78.html
+          if git diff --cached --quiet; then
+            echo 'No 78 changes to commit'
+            exit 0
+          fi
+          git commit -m 'feat: Terminus One 78 consequential geonosis'
+          git push
