@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#101514">
-<title>TERMINUS ONE 78 \u00b7 consequential relations</title>
+<title>TERMINUS ONE 78 · consequential relations</title>
 <meta name="description" content="A paper airplane, a real planet, and a letter you steer down to a city. Scan the code on the screen and your phone becomes the controls. Built by CONSEQUENCE WORKS.">
 <meta name="author" content="Watson Hartsoe \u00b7 CONSEQUENCE WORKS">
 <meta property="og:type" content="website">
@@ -14,6 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="TERMINUS ONE">
 <meta name="twitter:description" content="A departures board you can fly. Scan to join.">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TERMINUS ONE">
@@ -1105,9 +1106,7 @@ const reticle = (function(){
   return sp;
 })();
 function updateReticle(){
-  const dir = new THREE.Vector3().copy(camera.position)
-    .sub(new THREE.Vector3(0, WORLD_C, 0)).normalize();
-  reticle.position.set(dir.x*0.92, WORLD_C + dir.y*0.92, dir.z*0.92);
+  reticle.visible = false;
 }
 function updateGhost(){
   const hero = planes[0];
@@ -3888,38 +3887,63 @@ function tickSimTraffic(nowS){
 let liveTimer = 0;
 let liveFails = 0;
 const LOCAL_FILE = (location.protocol === 'file:');
+const TERMINUS_SKY_PROXY = 'https://lcxykqgddnekrimawpie.supabase.co/functions/v1/terminus-sky';
+const TERMINUS_SKY_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjeHlrcWdkZG5la3JpbWF3cGllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1ODYzMjQsImV4cCI6MjEwMjE2MjMyNH0.niM6yUmQ00pqavAvlJcXRwAPDpYnuZjQ1g4cuSlexdI';
+let trafficBusy = false;
 function tryLiveTraffic(){
-  if (LOCAL_FILE){                                   // a file:// page has no origin to offer
+  if (LOCAL_FILE){
     if (liveFails === 0){
-      liveFails = 2;
-      boardLine('TRAFFIC \u00b7 SIMULATED \u00b7 SERVE THE FILE FOR LIVE');
+      liveFails = 1;
+      boardLine('TRAFFIC · NO LIVE FEED · SERVE OVER HTTPS');
+      state.trafficMode = 'NO SIGNAL';
     }
     return;
   }
-  if (liveFails >= 2) return;                        // asked twice, refused twice: stop
-  fetch('https://opensky-network.org/api/states/all?lamin=-60&lomin=-180&lamax=72&lomax=180')
-    .then(function(res){ return res.json(); })
+  if (trafficBusy) return;
+  trafficBusy = true;
+  const ll = (typeof ws77CurrentLL === 'function') ? ws77CurrentLL()
+    : (planes[0] && planes[0].active ? planeLonLat(planes[0]) : [-84.388, 33.749]);
+  const url = TERMINUS_SKY_PROXY + '?lat=' + Number(ll[1]).toFixed(3) +
+    '&lon=' + Number(ll[0]).toFixed(3);
+  fetch(url, {
+    cache:'no-store',
+    headers:{
+      'apikey': TERMINUS_SKY_ANON,
+      'Authorization': 'Bearer ' + TERMINUS_SKY_ANON
+    }
+  })
+    .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
     .then(function(j){
-      if (!j || !j.states || !j.states.length) return;
+      const ac = j && Array.isArray(j.aircraft) ? j.aircraft : [];
       trafficList.length = 0;
-      for (let i = 0; i < j.states.length && trafficList.length < TRAFFIC_MAX; i++){
-        const s = j.states[i];
-        if (s[5] === null || s[6] === null) continue;
-        trafficList.push({ lon: s[5], lat: s[6], hd: ((s[10] || 0) - 90) * D2R });
+      for (let i = 0; i < ac.length && trafficList.length < TRAFFIC_MAX; i++){
+        const a = ac[i];
+        const lon = Number(a.lon), lat = Number(a.lat), track = Number(a.track);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        trafficList.push({
+          lon:lon, lat:lat,
+          hd:(Number.isFinite(track) ? track - 90 : 0) * D2R,
+          flight:String(a.flight || ''), hex:String(a.hex || ''),
+          gs:Number(a.gs) || 0, alt:Number(a.alt) || 0
+        });
       }
       liveFails = 0;
-      if (trafficList.length && state.trafficMode !== 'LIVE ADS-B'){
-        state.trafficMode = 'LIVE ADS-B';
-        boardLine('TRAFFIC \u00b7 LIVE ADS-B');
+      state.trafficMode = trafficList.length ? 'LIVE ADSB.LOL' : 'LIVE · CLEAR';
+      if (typeof WS77 !== 'undefined'){
+        WS77.source.sky = 'ADSB.LOL';
+        WS77.sky.state = 'live';
+        WS77.sky.count = trafficList.length;
+        WS77.sky.updated = Date.now();
       }
+      boardLine('TRAFFIC · ADSB.LOL · ' + trafficList.length + ' LOCAL');
     })
     .catch(function(){
       liveFails++;
-      if (liveFails === 2){                          // say it once, then be quiet
-        boardLine('TRAFFIC \u00b7 LIVE FEED CLOSED');
-        state.trafficMode = 'SIMULATED';
-      }
-    });
+      state.trafficMode = 'NO SIGNAL';
+      if (typeof WS77 !== 'undefined') WS77.sky.state = 'unavailable';
+      if (liveFails === 1) boardLine('TRAFFIC · LIVE SOURCE UNAVAILABLE');
+    })
+    .finally(function(){ trafficBusy = false; });
 }
 /* DESTINATIONS — the world keeps offering places; you choose and fly there */
 const OFFERS_MAX = 3;
@@ -5119,7 +5143,7 @@ function update(rawDt){
   updateWindow(dt);
   updateFocusSmooth(dt);
   slewToBoardTarget(dt);
-  if (state.trafficMode !== 'LIVE ADS-B') tickSimTraffic(performance.now()/1000);
+  if (!String(state.trafficMode || '').startsWith('LIVE')) tickSimTraffic(performance.now()/1000);
   liveTimer -= dt;
   if (liveTimer <= 0){ liveTimer = 30; tryLiveTraffic(); }
   updateMapWin(dt);
@@ -6311,7 +6335,7 @@ const BOOT_STAGES = [
    TERMINUS ONE · 77 · WORLD SIGNAL FIELD
    76 remains the chassis. 77 lets public world signals push back on it.
 
-   object  · SKY   · the existing OpenSky trafficList
+   object  · SKY   · local ADSB.lol traffic via browser-safe adapter
    field   · WIND  · Open-Meteo current conditions at the hero plane
    event   · EARTH · USGS M2.5+ events in the past day
 
@@ -6331,7 +6355,7 @@ const WS77 = {
   source: {
     weather: 'OPEN-METEO',
     earth: 'USGS',
-    sky: 'OPENSKY'
+    sky: 'ADSB.LOL'
   }
 };
 window.TERMINUS_WORLD_SIGNAL = WS77;
@@ -6546,7 +6570,7 @@ function ws77Frame(now){
     WS77.sky.state = n ? 'live' : 'unavailable';
     ws77Set(ws77SkyEl, n ? ('SKY · ' + n + ' LIVE') : 'SKY · NO SIGNAL', n ? 'live' : 'unavailable');
   }
-  requestAnimationFrame(ws77Frame);
+  setTimeout(function(){ requestAnimationFrame(ws77Frame); }, 250);
 }
 
 setTimeout(function(){ ws77RefreshWeather(); ws77RefreshEarth(); }, 1200);
@@ -6791,7 +6815,7 @@ function g78RelationColor(kind, score){
 }
 function g78BuildRelationGeometry(){
   g78DisposeGroup(g78RelationGroup);
-  const rels = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 8 : 14);
+  const rels = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 5 : 10);
   for (let i = 0; i < rels.length; i++){
     const r = rels[i];
     if (r.kind === 'EVENT') continue;
@@ -6884,7 +6908,7 @@ function g78SkyComposition(agentLL){
   if (n.km < 320 || G78.filter === 'ALL'){
     G78.compositions.push({ score:score, key:'SKY:' + Math.round(n.km/10),
       text:'SKY × ' + G78.agent + ' → TRAFFIC ' + Math.round(n.km) + 'KM',
-      provenance:'OPENSKY + DERIVED DISTANCE' });
+      provenance:'ADSB.LOL + DERIVED DISTANCE' });
   }
 }
 function g78RelinkCandidate(targetLL){
@@ -6902,7 +6926,7 @@ function g78RelinkCandidate(targetLL){
 
 function g78Recompute(){
   const now = performance.now();
-  if (now - G78.relationStamp < 900) return;
+  if (now - G78.relationStamp < 1800) return;
   G78.relationStamp = now;
   const agentLL = g78AgentLL();
   const targetLL = g78TargetLL();
@@ -6917,7 +6941,7 @@ function g78Recompute(){
   if (G78.filter === 'CONSEQUENCE'){
     G78.relations = G78.relations.filter(function(r){ return r.score >= 0.70; });
   }
-  G78.relations = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 8 : 14);
+  G78.relations = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 5 : 10);
 
   for (let i = 0; i < G78.relations.length; i++){
     const r = G78.relations[i];
@@ -6926,7 +6950,14 @@ function g78Recompute(){
   g78WindComposition(agentLL);
   g78SkyComposition(agentLL);
   G78.compositions.sort(function(a,b){ return b.score - a.score; });
-  g78BuildRelationGeometry();
+  const renderSig = G78.agent + '|' + G78.filter + '|' + G78.relations.map(function(r){
+    function q(ll){ return ll ? (Number(ll[0]).toFixed(1) + ',' + Number(ll[1]).toFixed(1)) : '-'; }
+    return r.kind + ':' + r.text + ':' + q(r.from) + '>' + q(r.to);
+  }).join('|');
+  if (renderSig !== G78.renderSig){
+    G78.renderSig = renderSig;
+    g78BuildRelationGeometry();
+  }
   g78PaintReadout(agentLL);
   g78MaybeTrace(agentLL);
   g78PaintControls();
@@ -7055,7 +7086,7 @@ function g78Frame(now){
   g78TraceGroup.visible = morphT < 0.18;
   g78UpdateWindVector();
   g78Recompute();
-  requestAnimationFrame(g78Frame);
+  setTimeout(function(){ requestAnimationFrame(g78Frame); }, 250);
 }
 
 boardLine('GEONOSIS · 78 · CONSEQUENCE FILTER ONLINE');
@@ -7078,7 +7109,7 @@ function g78ArcPoints(aLL, bLL, steps, radius){
 /* relations belong to the surface; straight chords falsely imply a different geometry */
 g78BuildRelationGeometry = function(){
   g78DisposeGroup(g78RelationGroup);
-  const rels = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 8 : 14);
+  const rels = G78.relations.slice(0, G78.filter === 'CONSEQUENCE' ? 5 : 10);
   for (let i = 0; i < rels.length; i++){
     const r = rels[i];
     if (r.kind === 'EVENT') continue;
