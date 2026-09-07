@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#101514">
+<title>TERMINUS POSE 80 · body controller</title>
+<style>
+:root{--ink:#101514;--paper:#faf8f1;--amber:#ffd76e;--sig:#e06a48;--muted:#9aa39e;--seat:#ffd76e}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;touch-action:manipulation}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#0a0d0c;opacity:.84}
+#ink{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#veil{position:fixed;inset:0;background:linear-gradient(rgba(16,21,20,.88),transparent 28%,transparent 68%,rgba(16,21,20,.94));pointer-events:none}
+#top{position:fixed;left:0;right:0;top:0;padding:calc(10px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:10px;z-index:4}
+#seat{font-weight:800;letter-spacing:.14em;color:var(--seat);font-size:15px;white-space:nowrap}
+#mode{font-weight:800;letter-spacing:.12em;font-size:12px;border:1px solid var(--seat);padding:6px 8px;background:rgba(16,21,20,.72)}
+#net{margin-left:auto;color:var(--muted);font-size:10px;letter-spacing:.1em}
+#readout{position:fixed;left:12px;right:12px;top:calc(54px + env(safe-area-inset-top));z-index:4;display:grid;grid-template-columns:1fr 1fr;gap:6px;pointer-events:none}
+.meter{border-top:1px solid rgba(250,248,241,.35);padding-top:5px;font-size:9px;color:var(--muted);letter-spacing:.12em}.meter b{color:var(--paper);font-size:12px}
+#prompt{position:fixed;left:50%;bottom:calc(154px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:4;width:min(92vw,430px);text-align:center;font-weight:800;letter-spacing:.11em;font-size:14px;line-height:1.45;text-shadow:0 2px 14px #000;background:rgba(16,21,20,.54);border:1px solid rgba(250,248,241,.18);padding:10px 12px}
+#prompt strong{color:var(--seat)}
+#panel{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(16,21,20,.96);border-top:1px solid rgba(250,248,241,.25);padding:9px 10px calc(9px + env(safe-area-inset-bottom));display:grid;gap:7px}
+#fields{display:grid;grid-template-columns:.8fr 1.6fr;gap:7px}
+input,button{font:700 12px ui-monospace,monospace;letter-spacing:.05em;border:1px solid rgba(250,248,241,.5);border-radius:0;background:#101514;color:#faf8f1;min-height:44px;padding:10px 11px;outline:none}
+input:focus{border-color:var(--seat)}
+button{cursor:pointer;font-weight:800;letter-spacing:.11em}#start{background:var(--paper);color:var(--ink);border-color:var(--paper)}#start.live{background:var(--seat);border-color:var(--seat)}
+#sub{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:9px;letter-spacing:.08em;line-height:1.3}#sub span:last-child{margin-left:auto;text-align:right}
+#toast{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);z-index:8;background:var(--paper);color:var(--ink);padding:14px 18px;font-weight:900;letter-spacing:.1em;display:none;text-align:center;max-width:88vw}#toast.on{display:block}
+#fault{position:fixed;inset:0;z-index:12;background:#101514;padding:18vh 24px 20px;display:none;color:#faf8f1;line-height:1.7}#fault.on{display:block}#fault b{color:var(--amber)}
+body:not(.camera) #cam,body:not(.camera) #ink{opacity:0}body:not(.camera) #veil{background:#101514}body:not(.camera) #prompt{bottom:calc(160px + env(safe-area-inset-bottom));border-color:rgba(255,215,110,.4)}
+@media(orientation:landscape){#panel{left:auto;width:360px;border-left:1px solid rgba(250,248,241,.25)}#prompt{right:372px;left:12px;transform:none;width:auto;bottom:16px}#readout{right:372px}#top{right:372px}}
+</style>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="ink"></canvas><div id="veil"></div>
+<div id="top"><div id="seat">CONNECTING</div><div id="mode">NO SEAT</div><div id="net">LINK —</div></div>
+<div id="readout"><div class="meter">BANK <b id="bank">0.00</b></div><div class="meter">PITCH <b id="pitch">0.00</b></div></div>
+<div id="prompt"><strong>JOINING THE WALL</strong><br>type a name + letter, then start the body camera</div>
+<div id="panel">
+  <div id="fields"><input id="name" maxlength="24" placeholder="YOUR NAME"><input id="mail" maxlength="72" placeholder="YOUR MAIL · a short message"></div>
+  <button id="start">START BODY CAMERA</button>
+  <div id="sub"><span>VIDEO STAYS ON THIS PHONE · ONLY POSE VALUES CROSS THE LINK</span><span>UPPER BODY IS ENOUGH</span></div>
+</div>
+<div id="toast"></div><div id="fault"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script type="module">
+'use strict';
+const $=id=>document.getElementById(id), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const JOIN=new URLSearchParams(location.search).get('join');
+const cam=$('cam'),cv=$('ink'),ctx=cv.getContext('2d'),seatEl=$('seat'),modeEl=$('mode'),netEl=$('net'),promptEl=$('prompt'),start=$('start'),nameEl=$('name'),mailEl=$('mail');
+const S={seat:0,code:'—',color:'#ffd76e',mode:'PLANE',connected:false,camera:false,launched:false,lastPoseSend:0,lastBody:0,lastPing:0,rtt:0,mailArmed:false,chestSince:0,extendDeadline:0,wingsSince:0,lostSent:false,bank:0,pitch:0,landmarks:null};
+const LM={NOSE:0,LSH:11,RSH:12,LEL:13,REL:14,LWR:15,RWR:16,LHIP:23,RHIP:24};
+let peer=null,conn=null,landmarker=null,stream=null,lastVT=-1,lastDetect=0;
+function send(p){if(conn&&conn.open){try{conn.send(p);return true}catch(e){}}return false}
+function profile(){send({t:'profile',name:nameEl.value.trim(),msg:mailEl.value.trim(),camera:S.camera});}
+nameEl.addEventListener('input',profile);mailEl.addEventListener('input',profile);
+function toast(s,ms=1250){const t=$('toast');t.textContent=s;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),ms)}
+function setMode(m){S.mode=m||'PLANE';modeEl.textContent=S.mode;modeEl.style.borderColor='var(--seat)';updatePrompt();}
+function updatePrompt(extra=''){
+  if(extra){promptEl.innerHTML=extra;return}
+  if(!S.connected){promptEl.innerHTML='<strong>JOINING THE WALL</strong><br>keep this screen open';return}
+  if(!S.camera){promptEl.innerHTML='<strong>START BODY CAMERA</strong><br>prop the phone so shoulders + hands stay in frame';return}
+  if(!S.launched){promptEl.innerHTML='<strong>WINGS OUT</strong><br>hold both arms level to become '+S.code;return}
+  if(S.mode==='MAIL'){promptEl.innerHTML='<strong>YOU ARE THE LETTER</strong><br>wings steer it · arms up = float · arms down = descend';return}
+  if(S.mailArmed){promptEl.innerHTML='<strong>MAIL IN HAND</strong><br>extend your right arm away from your chest to release it';return}
+  promptEl.innerHTML='<strong>YOU ARE THE PLANE</strong><br>lean to bank · raise/lower both wings to climb/dive · right hand to chest = mail';
+}
+function fit(){const d=Math.min(devicePixelRatio||1,2);cv.width=Math.round(innerWidth*d);cv.height=Math.round(innerHeight*d);cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',fit);fit();
+function connect(){
+  if(!JOIN||typeof Peer==='undefined'){fault('NO WALL ID','Scan the QR code on the TERMINUS POSE 80 wall.');return}
+  peer=new Peer();
+  peer.on('open',()=>{conn=peer.connect(JOIN,{reliable:false,serialization:'json'});conn.on('open',()=>{S.connected=true;profile();updatePrompt();ping();});conn.on('data',onData);conn.on('close',()=>{S.connected=false;netEl.textContent='LINK LOST';updatePrompt('<strong>LINK LOST</strong><br>scan the wall again')});});
+  peer.on('error',e=>{netEl.textContent='LINK FAILED';console.warn(e)});
+}
+function onData(d){if(!d)return;if(d.t==='seat'){S.seat=d.n;S.code=d.code||('BODY '+d.n);S.color=d.color||'#ffd76e';document.documentElement.style.setProperty('--seat',S.color);seatEl.textContent=S.code;setMode('PLANE');profile();}
+  else if(d.t==='pong'){S.rtt=Math.round(performance.now()-(+d.ts||S.lastPing));netEl.textContent='LINK '+S.rtt+'ms';}
+  else if(d.t==='mode'){if(d.mode)setMode(d.mode);if(d.mode==='PLANE'&&S.launched&&d.landed)toast('LANDED · '+String(d.landed).toUpperCase(),1800);if(d.lost)toast('MAIL LOST',1400);}
+}
+function ping(){if(!conn||!conn.open)return;S.lastPing=performance.now();send({t:'ping',ts:S.lastPing});setTimeout(ping,1000)}
+function fault(a,b){const f=$('fault');f.classList.add('on');f.innerHTML='<b>'+a+'</b><br><br>'+b}
+connect();updatePrompt();
+
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function mid(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
+function frame(lm){const sh=mid(lm[LM.LSH],lm[LM.RSH]),hp=mid(lm[LM.LHIP],lm[LM.RHIP]),sw=Math.max(.025,dist(lm[LM.LSH],lm[LM.RSH]));return{sh,hp,sw,chest:{x:sh.x+(hp.x-sh.x)*.42,y:sh.y+(hp.y-sh.y)*.42}}}
+function dead(v,d=.055){return Math.abs(v)<d?0:(v-Math.sign(v)*d)/(1-d)}
+function measure(lm){
+  const f=frame(lm),lw=lm[LM.LWR],rw=lm[LM.RWR],ls=lm[LM.LSH],rs=lm[LM.RSH];
+  const le=dist(lw,ls)/f.sw,re=dist(rw,rs)/f.sw;
+  const wings=le>1.12&&re>1.12&&Math.abs(lw.y-f.sh.y)/f.sw<.62&&Math.abs(rw.y-f.sh.y)/f.sw<.62;
+  // body lean = bank. Because x is mirrored before this point, the plane follows the player's visible lean.
+  const bank=clamp(dead((f.sh.x-f.hp.x)/f.sw)*1.45,-1,1);
+  // average wing height relative to shoulder line = pitch. Up is positive.
+  const wy=(lw.y+rw.y)*.5,pitch=clamp(dead((f.sh.y-wy)/f.sw,.08)*1.05,-1,1);
+  const chest=dist(rw,f.chest)/f.sw,reach=dist(rw,f.chest)/f.sw;
+  return{f,lw,rw,ls,rs,wings,bank,pitch,chest,reach};
+}
+function stepPose(lm,now){
+  const m=measure(lm);S.lastBody=now;S.lostSent=false;
+  S.bank+=(m.bank-S.bank)*.30;S.pitch+=(m.pitch-S.pitch)*.24;
+  $('bank').textContent=S.bank.toFixed(2);$('pitch').textContent=S.pitch.toFixed(2);
+  if(now-S.lastPoseSend>40){S.lastPoseSend=now;send({t:'pose',bank:+S.bank.toFixed(3),pitch:+S.pitch.toFixed(3),wings:m.wings?1:0});}
+  if(!S.launched){
+    if(m.wings){if(!S.wingsSince)S.wingsSince=now;if(now-S.wingsSince>700){S.launched=true;send({t:'launch'});toast(S.code+' AIRBORNE');S.wingsSince=0;updatePrompt();}}
+    else S.wingsSince=0;
+    return;
+  }
+  if(S.mode==='PLANE'){
+    if(!S.mailArmed){
+      if(m.chest<.58){if(!S.chestSince)S.chestSince=now;if(now-S.chestSince>360){S.mailArmed=true;S.extendDeadline=now+1800;if(navigator.vibrate)navigator.vibrate(20);updatePrompt();}}
+      else S.chestSince=0;
+    }else{
+      if(now>S.extendDeadline){S.mailArmed=false;S.chestSince=0;updatePrompt();}
+      else if(m.reach>1.42){S.mailArmed=false;S.chestSince=0;send({t:'mail',msg:mailEl.value.trim()});toast('MAIL RELEASED');if(navigator.vibrate)navigator.vibrate([12,35,12]);}
+    }
+  }
+}
+function draw(lm){
+  const W=innerWidth,H=innerHeight;ctx.clearRect(0,0,W,H);if(!lm)return;
+  const P=i=>({x:lm[i].x*W,y:lm[i].y*H});
+  const links=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(250,248,241,.72)';ctx.beginPath();for(const [a,b]of links){const A=P(a),B=P(b);ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y)}ctx.stroke();
+  for(const i of[11,12,13,14,15,16,23,24]){const q=P(i);ctx.fillStyle=(i===16&&S.mailArmed)?S.color:'#faf8f1';ctx.beginPath();ctx.arc(q.x,q.y,i===15||i===16?7:4,0,Math.PI*2);ctx.fill()}
+  const f=frame(lm),c={x:f.sh.x*W,y:f.sh.y*H};ctx.strokeStyle=S.color;ctx.lineWidth=2;ctx.setLineDash([6,7]);ctx.beginPath();ctx.moveTo(18,c.y);ctx.lineTo(W-18,c.y);ctx.stroke();ctx.setLineDash([]);
+  ctx.save();ctx.translate(W/2,H*.27);ctx.rotate(S.bank*.38);ctx.strokeStyle=S.color;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-54,0);ctx.lineTo(54,0);ctx.stroke();ctx.restore();
+}
+
+async function makeLandmarker(){
+  if(landmarker)return landmarker;
+  start.textContent='LOADING POSE…';start.disabled=true;
+  const {PoseLandmarker,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14');
+  const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  const opts={baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.48,minPosePresenceConfidence:.45,minTrackingConfidence:.42,outputSegmentationMasks:false};
+  try{landmarker=await PoseLandmarker.createFromOptions(vision,opts);}catch(e){opts.baseOptions.delegate='CPU';landmarker=await PoseLandmarker.createFromOptions(vision,opts)}
+  return landmarker;
+}
+async function startCamera(){
+  try{await makeLandmarker();if(stream)stream.getTracks().forEach(t=>t.stop());stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});cam.srcObject=stream;await cam.play();S.camera=true;document.body.classList.add('camera');start.disabled=false;start.textContent='BODY CAMERA ON';start.classList.add('live');profile();updatePrompt();requestAnimationFrame(loop)}
+  catch(e){start.disabled=false;start.textContent='TRY CAMERA AGAIN';fault('CAMERA COULD NOT START',(e&&e.message)||String(e))}
+}
+start.addEventListener('click',()=>{if(!S.camera)startCamera()});
+function loop(now){
+  if(!S.camera)return;
+  if(landmarker&&cam.readyState>=2&&cam.currentTime!==lastVT&&now-lastDetect>28){lastVT=cam.currentTime;lastDetect=now;let r=null;try{r=landmarker.detectForVideo(cam,Math.floor(now))}catch(e){}
+    if(r&&r.landmarks&&r.landmarks[0]){const lm=r.landmarks[0].map(p=>({x:1-p.x,y:p.y,z:p.z,visibility:p.visibility||1}));S.landmarks=lm;stepPose(lm,now);draw(lm);}else{S.landmarks=null;draw(null);if(now-S.lastBody>420&&!S.lostSent){S.lostSent=true;S.bank=S.pitch=0;send({t:'pose',bank:0,pitch:0,wings:0});updatePrompt('<strong>BODY LOST</strong><br>bring shoulders + hands back into frame');}}}
+  requestAnimationFrame(loop);
+}
+</script>
+</body></html>
