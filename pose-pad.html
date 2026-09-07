@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>POSE PAD · a body that flies TERMINUS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#faf8f1;--ink:#121514;--signal:#e06a48;--amber:#ffd76e;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--ink);color:var(--paper);font-family:var(--mono);overflow:hidden}
+  #wall{position:fixed;inset:0;border:0;background:var(--ink)}
+  #wall iframe{width:100%;height:100%;border:0;display:block}
+  #mock{position:absolute;inset:0;background:var(--ink);display:none}
+  #mock .pad{position:absolute;top:60%;width:38%;height:34%;border:1px solid var(--paper);opacity:.7;font-size:12px;padding:8px}
+  #mock #padL{left:4%} #mock #padR{right:4%}
+  #mock .log{position:absolute;top:8px;left:8px;right:8px;font-size:11px;white-space:pre;opacity:.8;line-height:1.3}
+  #eye{position:fixed;right:8px;top:8px;width:34vw;max-width:260px;aspect-ratio:3/4;background:var(--paper);border:1px solid var(--ink);z-index:5}
+  #eye canvas{width:100%;height:100%;display:block}
+  #strip.min>*:not(.row:first-child){display:none}#strip.min .row>*:not(#bHide){display:none}
+  #strip{position:fixed;left:0;right:0;bottom:0;background:var(--ink);border-top:1px solid var(--paper);padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom));font-size:12px;z-index:6;max-height:46vh;overflow:auto}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row+.row{margin-top:6px}
+  button{font:inherit;font-weight:600;background:var(--ink);color:var(--paper);border:1px solid var(--paper);padding:9px 12px;min-height:40px;cursor:pointer}
+  button.go{background:var(--paper);color:var(--ink)}
+  [hidden]{display:none!important}
+  input[type=text]{font:inherit;background:var(--ink);color:var(--paper);border:1px solid var(--paper);padding:8px;flex:1;min-width:160px}
+  input[type=range]{width:80px;accent-color:var(--paper)}
+  label{display:flex;gap:6px;align-items:center;white-space:nowrap}
+  #msg{color:var(--amber);margin-top:6px;min-height:1.2em}
+  details summary{cursor:pointer;list-style:none;padding:5px 0}
+  details summary::before{content:"";display:inline-block;width:0;height:0;border-left:6px solid var(--paper);border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:6px}
+  details[open] summary::before{transform:rotate(90deg)}
+  #testOut li{list-style:none;padding:2px 0}
+  #testOut .ok::before,#testOut .no::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px}
+  #testOut .ok::before{background:var(--amber)} #testOut .no::before{background:var(--signal)}
+  code{color:var(--amber)}
+</style>
+</head>
+<body>
+<div id="wall"><div id="mock"><div class="log" id="mockLog">MOCK PADS · waiting for a body</div><div class="pad" id="padL">FLY</div><div class="pad" id="padR">SEND</div></div></div>
+<div id="eye"><canvas id="eyeC"></canvas></div>
+<video id="cam" playsinline muted autoplay style="position:fixed;width:1px;height:1px;opacity:0"></video>
+<div id="strip">
+  <div class="row">
+    <button id="bHide">hide</button>
+    <button id="bStart" class="go">Stand here to fly</button>
+    <button id="bFlip">Flip camera</button>
+    <button id="bMock">Mock pads</button>
+    <input type="text" id="url" value="../terminus-one-78/" placeholder="TERMINUS url (same origin to drive its pads)">
+    <button id="bLoad">Load wall</button>
+  </div>
+  <div id="msg">Works only when served from pretext-field on hartswf0.github.io (same site as TERMINUS). 1. Stand here to fly and allow the camera. 2. Load wall. 3. Wings out and hold.</div>
+  <details><summary>Tune</summary>
+    <div class="row">
+      <label>bank gain <input type="range" id="tBank" min="5" max="30" value="14"></label>
+      <label>pitch gain <input type="range" id="tPitch" min="5" max="30" value="12"></label>
+      <label>pad L x <input type="range" id="tLx" min="5" max="45" value="22"></label>
+      <label>pad R x <input type="range" id="tRx" min="55" max="95" value="78"></label>
+      <label>pad y <input type="range" id="tPy" min="50" max="95" value="80"></label>
+      <label><input type="checkbox" id="tMirror" checked> mirror</label>
+    </div>
+  </details>
+  <details><summary>Self-test</summary><div class="row"><button id="bTest">Run gesture tests</button><span id="testSum"></span></div><ul id="testOut"></ul></details>
+  <details><summary>Message set</summary><pre id="schema" style="font-size:11px;line-height:1.35;white-space:pre-wrap"></pre></details>
+</div>
+
+<script>
+'use strict';
+/* POSE PAD — the body replaces the phone.
+   A camera watches the floor in front of a TERMINUS wall. A held T-pose claims a
+   seat (ALFA..FOX). Lean banks, arm dihedral pitches, stepping in dives. The right
+   hand throws / guides / chops / catches the letter. The seat is spoken two ways:
+     1. SAME SCREEN: synthetic pointer events on TERMINUS's own FLY and SEND pads
+        inside an iframe (same-origin), so the game needs no change at all.
+     2. BROADCAST: {type:'posepad',...} on BroadcastChannel('terminus-posepad')
+        and window.postMessage, for wiring into ZERO's seat protocol later.
+   Invariants: a seat is claimed only by a held T-pose; nothing can hover (pitch
+   decays to the glide when the arms come down); one body = one seat; all
+   drawing is camera pixels through the person mask, ink on paper. */
+
+const L=Object.freeze({MAX_SEATS:4,NUM_POSES:4,CLAIM_MS:1000,LOSE_MS:5000,TRACK_MEM_MS:1000,TRACK_DIST:.08,
+  DEADBAND:.06,BANK_EMA:.35,PITCH_EMA:.2,DEPTH_EMA:.15,SEND_SPEED:2.6,SEND_ARM_MS:700,STRIKE_SPEED:3.2,CATCH_MS:550,
+  TAP_MS:70,DOUBLE_MS:130,GUIDE_EXT:1.15,VIS:.5,DOT_W:64,MAX_TESTS:16});
+const SEATS=['ALFA','BRAVO','CHARLIE','DELTA','ECHO','FOX'];
+const LM={NOSE:0,LSH:11,RSH:12,LEL:13,REL:14,LWR:15,RWR:16,LHIP:23,RHIP:24,LAN:27,RAN:28};
+const cfg={bankGain:1.4,pitchGain:1.2,padL:.22,padR:.78,padY:.8,mirror:true,facing:'user'};
+
+/* ---- pure pose measures (normalised coords, y down) ---- */
+const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const vis=(lm,i)=>lm[i]&&(lm[i].visibility==null||lm[i].visibility>=L.VIS);
+function frame(lm){ // body frame: shoulder width, centres, arm extensions
+  const sw=Math.max(.02,dist(lm[LM.LSH],lm[LM.RSH])),shm=mid(lm[LM.LSH],lm[LM.RSH]),hpm=mid(lm[LM.LHIP],lm[LM.RHIP]);
+  return {sw,shm,hpm,chest:{x:shm.x+(hpm.x-shm.x)*.35,y:shm.y+(hpm.y-shm.y)*.35},
+    footY:Math.max(vis(lm,LM.LAN)?lm[LM.LAN].y:0,vis(lm,LM.RAN)?lm[LM.RAN].y:0)||hpm.y};
+}
+function isTPose(lm){ if(![LM.LWR,LM.RWR,LM.LSH,LM.RSH].every(i=>vis(lm,i)))return false;
+  const f=frame(lm),ext=i=>dist(lm[i],lm[i===LM.LWR?LM.LSH:LM.RSH])/f.sw,lev=i=>Math.abs(lm[i].y-f.shm.y)/f.sw;
+  return ext(LM.LWR)>1.35&&ext(LM.RWR)>1.35&&lev(LM.LWR)<.45&&lev(LM.RWR)<.45; }
+function bankOf(lm){const f=frame(lm);return (f.shm.x-f.hpm.x)/f.sw;}                 // lean: + = shoulders right of hips
+function dihedralOf(lm){ if(!vis(lm,LM.LWR)||!vis(lm,LM.RWR))return 0;const f=frame(lm);
+  return (f.shm.y-mid(lm[LM.LWR],lm[LM.RWR]).y)/f.sw; }                                // + = wrists above shoulders
+function deadband(v,d){return Math.abs(v)<d?0:(v-Math.sign(v)*d)/(1-d);}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---- right-hand gesture machine (pure; fed by a stream of (lm, now)) ---- */
+class Hand{
+  constructor(){this.prev=null;this.armedUntil=0;this.chestSince=null;this.sentAt=-1e9;this.hi=false;}
+  step(lm,now){
+    if(!vis(lm,LM.RWR)||!vis(lm,LM.RSH)){this.prev=null;return null;}
+    const f=frame(lm),w=lm[LM.RWR];let ev=null,speed=0,vx=0,vy=0;
+    if(this.prev){const dt=Math.max(16,now-this.prev.t)/1000;vx=(w.x-this.prev.x)/dt/f.sw;vy=(w.y-this.prev.y)/dt/f.sw;speed=Math.hypot(vx,vy);}
+    const aboveHead=w.y<lm[LM.NOSE].y,belowHip=w.y>f.hpm.y,ext=dist(w,lm[LM.RSH])/f.sw;
+    if(aboveHead)this.armedUntil=now+L.SEND_ARM_MS;
+    if(speed>L.STRIKE_SPEED&&vy>Math.abs(vx)*1.2&&belowHip&&this.hi){ev='strike';this.hi=false;this.armedUntil=0;}
+    else if(now<this.armedUntil&&!aboveHead&&speed>L.SEND_SPEED&&now-this.sentAt>600){ev='send';this.sentAt=now;this.armedUntil=0;}
+    this.hi=aboveHead||(this.hi&&w.y<f.shm.y);
+    if(dist(w,f.chest)<f.sw*.5){if(this.chestSince==null)this.chestSince=now;else if(now-this.chestSince>=L.CATCH_MS&&!ev){ev='catch';this.chestSince=-1e12;}}
+    else this.chestSince=null;
+    const guide=ext>L.GUIDE_EXT&&!aboveHead&&w.y<f.hpm.y?{x:(w.x-lm[LM.RSH].x)/f.sw,y:(w.y-lm[LM.RSH].y)/f.sw}:null;
+    this.prev={x:w.x,y:w.y,t:now};
+    return {ev,guide,speed};
+  }
+}
+
+/* ---- seats: identity tracker + claim by held T-pose ---- */
+const seats=[];let tracks=new Map(),nextId=1;
+function matchTracks(dets,now){ // nearest-neighbour on hip midpoint, BODY ARENA style
+  const live=[...tracks.values()].filter(t=>now-t.seen<L.TRACK_MEM_MS),used=new Set();
+  for(const d of dets){const f=frame(d.lm);let best=null,bd=1e9;
+    for(const t of live){if(used.has(t.id))continue;const dd=(f.hpm.x-t.x)**2+(f.hpm.y-t.y)**2;if(dd<bd){bd=dd;best=t;}}
+    if(!best||bd>L.TRACK_DIST**2){best={id:nextId++,x:f.hpm.x,y:f.hpm.y,seen:now,seat:null,tSince:null,hand:new Hand(),bank:0,pitch:0,depth0:null,depth:0,lm:null,mask:null};tracks.set(best.id,best);}
+    used.add(best.id);best.x=f.hpm.x;best.y=f.hpm.y;best.seen=now;best.lm=d.lm;best.mask=d.mask||null;best.mw=d.mw;best.mh=d.mh;}
+  for(const[id,t]of tracks){if(now-t.seen>L.LOSE_MS){if(t.seat)releaseSeat(t,now);tracks.delete(id);}}
+}
+function claimSeat(t,now){if(seats.length>=L.MAX_SEATS)return;const code=SEATS.find(c=>!seats.some(s=>s.code===c));t.seat={code,since:now};t.depth0=frame(t.lm).footY;seats.push({code,track:t});emit({type:'posepad',seat:code,event:'claim'});pads.launch(t);}
+function releaseSeat(t,now){const i=seats.findIndex(s=>s.track===t);if(i>=0)seats.splice(i,1);emit({type:'posepad',seat:t.seat.code,event:'release'});pads.release(t);t.seat=null;}
+function stepTrack(t,now){
+  const lm=t.lm;if(!lm)return;
+  if(!t.seat){if(isTPose(lm)){if(t.tSince==null)t.tSince=now;else if(now-t.tSince>=L.CLAIM_MS)claimSeat(t,now);}else t.tSince=null;return;}
+  const bank=clamp(deadband(bankOf(lm)*cfg.bankGain,L.DEADBAND),-1,1);
+  let pitch=clamp(deadband(dihedralOf(lm)*cfg.pitchGain*.5,L.DEADBAND),-1,1);
+  const f=frame(lm);t.depth+=((f.footY-t.depth0)/f.sw-t.depth)*L.DEPTH_EMA;pitch=clamp(pitch-clamp(t.depth,-1,1)*.6,-1,1);
+  t.bank+=(bank-t.bank)*L.BANK_EMA;t.pitch+=(pitch-t.pitch)*L.PITCH_EMA;
+  const h=t.hand.step(lm,now);
+  const m={type:'posepad',seat:t.seat.code,event:'steer',bank:+t.bank.toFixed(3),pitch:+t.pitch.toFixed(3)};
+  if(h&&h.guide)m.guide={x:+h.guide.x.toFixed(3),y:+h.guide.y.toFixed(3)};emit(m);pads.steer(t);
+  if(h&&h.ev){emit({type:'posepad',seat:t.seat.code,event:h.ev});pads.hand(t,h.ev);t.last={ev:h.ev,t:now};}
+  if(h&&h.guide)pads.guide(t,h.guide);
+}
+
+/* ---- speaking: broadcast + synthetic pads ---- */
+const bc=('BroadcastChannel'in window)?new BroadcastChannel('terminus-posepad'):null;
+function emit(m){m.t=performance.now()|0;if(bc)bc.postMessage(m);try{window.parent!==window&&window.parent.postMessage(m,'*');}catch(e){}window.dispatchEvent(new CustomEvent('posepad',{detail:m}));}
+const pads={ // drives elements found by position inside the wall (iframe doc or mock); protocol-free
+  doc(){const f=document.querySelector('#wall iframe');if(f){try{return f.contentDocument;}catch(e){return null;}}return document;},
+  rect(){const f=document.querySelector('#wall iframe');return f?f.getBoundingClientRect():document.getElementById('wall').getBoundingClientRect();},
+  at(fx,fy){const d=this.doc();if(!d)return null;const r=this.rect(),x=r.width*fx,y=r.height*fy;let el;if(d===document){const wall=document.getElementById('wall');el=document.elementsFromPoint(x,y).find(e=>wall.contains(e));}else el=d.elementFromPoint(x,y);return el?{el,x,y,d}:null;},
+  fire(tgt,type,id,x,y,pressed){const w=tgt.d.defaultView||window;
+    try{tgt.el.dispatchEvent(new w.PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',isPrimary:id===1,clientX:x,clientY:y,buttons:pressed?1:0,view:w}));}catch(e){}
+    const mt={pointerdown:'touchstart',pointermove:'touchmove',pointerup:'touchend'}[type];
+    try{const touch=new w.Touch({identifier:id,target:tgt.el,clientX:x,clientY:y,pageX:x,pageY:y});
+      tgt.el.dispatchEvent(new w.TouchEvent(mt,{bubbles:true,cancelable:true,touches:type==='pointerup'?[]:[touch],targetTouches:type==='pointerup'?[]:[touch],changedTouches:[touch],view:w}));}catch(e){}
+    const me={pointerdown:'mousedown',pointermove:'mousemove',pointerup:'mouseup'}[type];
+    try{tgt.el.dispatchEvent(new w.MouseEvent(me,{bubbles:true,cancelable:true,clientX:x,clientY:y,buttons:pressed?1:0,view:w}));}catch(e){}},
+  R(){return Math.min(this.rect().width,this.rect().height)*.12;},
+  launch(t){if(!seats[0]||seats[0].track!==t)return;const g=this.at(cfg.padL,cfg.padY);if(!g)return;t.padL={tgt:g,x:g.x,y:g.y};this.fire(g,'pointerdown',1,g.x,g.y,true);},
+  steer(t){if(!t.padL)return;const r=this.R(),x=t.padL.x+t.bank*r,y=t.padL.y-t.pitch*r;this.fire(t.padL.tgt,'pointermove',1,x,y,true);},
+  release(t){if(t.padL){this.fire(t.padL.tgt,'pointerup',1,t.padL.x,t.padL.y,false);t.padL=null;}if(t.padR){this.fire(t.padR.tgt,'pointerup',2,t.padR.x,t.padR.y,false);t.padR=null;}},
+  tap(t,delay,cb){const g=this.at(cfg.padR,cfg.padY);if(!g)return;setTimeout(()=>{this.fire(g,'pointerdown',2,g.x,g.y,true);setTimeout(()=>{this.fire(g,'pointerup',2,g.x,g.y,false);cb&&cb();},L.TAP_MS);},delay);},
+  hand(t,ev){if(!seats[0]||seats[0].track!==t)return;
+    if(ev==='send'){this.tap(t,0,()=>{const g=this.at(cfg.padR,cfg.padY);if(g){t.padR={tgt:g,x:g.x,y:g.y};this.fire(g,'pointerdown',2,g.x,g.y,true);}});}
+    else if(ev==='strike'){if(t.padR)this.release2(t);this.tap(t,0);this.tap(t,L.DOUBLE_MS);}
+    else if(ev==='catch'){if(t.padR)this.release2(t);const g=this.at(cfg.padR,cfg.padY);if(g){this.fire(g,'pointerdown',2,g.x,g.y,true);setTimeout(()=>this.fire(g,'pointerup',2,g.x,g.y,false),L.CATCH_MS+80);}}},
+  release2(t){this.fire(t.padR.tgt,'pointerup',2,t.padR.x,t.padR.y,false);t.padR=null;},
+  guide(t,g){if(!t.padR)return;const r=this.R(),x=t.padR.x+clamp(g.x,-1.6,1.6)*r*.7*(cfg.mirror?-1:1),y=t.padR.y+clamp(g.y,-1.6,1.6)*r*.7;this.fire(t.padR.tgt,'pointermove',2,x,y,true);}
+};
+
+/* ---- the eye view: paper cutouts, ink marks ---- */
+const eyeC=document.getElementById('eyeC'),ectx=eyeC.getContext('2d'),video=document.getElementById('cam');
+const dotC=document.createElement('canvas'),dctx=dotC.getContext('2d',{willReadFrequently:true});let vidAsp=3/4;
+function drawEye(now){
+  const r=eyeC.getBoundingClientRect(),dpr=Math.min(2,devicePixelRatio||1);if(eyeC.width!==r.width*dpr|0){eyeC.width=r.width*dpr;eyeC.height=r.height*dpr;}
+  ectx.setTransform(dpr,0,0,dpr,0,0);const W=r.width,H=r.height;ectx.fillStyle='#faf8f1';ectx.fillRect(0,0,W,H);
+  const S=p=>({x:(cfg.mirror?1-p.x:p.x)*W,y:p.y*H});
+  if(video.readyState>=2){const dw=L.DOT_W,dh=Math.max(16,Math.round(dw/vidAsp));if(dotC.width!==dw){dotC.width=dw;dotC.height=dh;}
+    dctx.save();if(cfg.mirror){dctx.translate(dw,0);dctx.scale(-1,1);}dctx.drawImage(video,0,0,dw,dh);dctx.restore();
+    const d=dctx.getImageData(0,0,dw,dh).data,cw=W/dw,ch=H/dh;ectx.fillStyle='#121514';
+    for(const t of tracks.values()){if(!t.mask||now-t.seen>200)continue;const{mask,mw,mh}=t;
+      for(let y=0;y<dh;y++){const my=Math.min(mh-1,(y*mh/dh)|0);for(let x=0;x<dw;x++){const sx=cfg.mirror?dw-1-x:x,mx=Math.min(mw-1,(sx*mw/dw)|0);if(mask[my*mw+mx]<.5)continue;
+        const o=(y*dw+x)*4,lum=(d[o]*.3+d[o+1]*.59+d[o+2]*.11)/255,s=cw*(1-lum)*.9;if(s<.4)continue;ectx.fillRect(x*cw+(cw-s)/2,y*ch+(ch-s)/2,s,s);}}}}
+  ectx.strokeStyle='#121514';ectx.lineWidth=1.5;ectx.font='600 11px "IBM Plex Mono",monospace';ectx.textAlign='left';
+  for(const t of tracks.values()){if(!t.lm||now-t.seen>200)continue;const f=frame(t.lm),c=S(f.shm);
+    if(t.seat){ectx.fillStyle='#e06a48';ectx.fillText(t.seat.code,c.x-14,c.y-f.sw*H*1.3-6);
+      // bank / pitch as ink marks
+      const bx=c.x,by=c.y+f.sw*H*1.6;ectx.strokeStyle='#121514';ectx.beginPath();ectx.moveTo(bx-30,by);ectx.lineTo(bx+30,by);ectx.stroke();
+      ectx.fillStyle='#121514';ectx.fillRect(bx+t.bank*30-2,by-6,4,12);
+      ectx.beginPath();ectx.moveTo(bx+40,by-30);ectx.lineTo(bx+40,by+30);ectx.stroke();ectx.fillRect(bx+34,by-t.pitch*30-2,12,4);
+      if(t.last&&now-t.last.t<600){ectx.fillStyle='#e06a48';ectx.fillText(t.last.ev.toUpperCase(),c.x-14,c.y-f.sw*H*1.3-20);}
+    }else{const p=t.tSince!=null?Math.min(1,(now-t.tSince)/L.CLAIM_MS):0;ectx.strokeStyle='#e06a48';ectx.beginPath();ectx.arc(c.x,c.y,10,-Math.PI/2,-Math.PI/2+p*6.283);ectx.stroke();
+      if(!p){ectx.fillStyle='#121514';ectx.fillText('wings out',c.x-28,c.y-f.sw*H*1.3-6);}}
+  }
+  if(!tracks.size){ectx.fillStyle='#121514';ectx.fillText(eye.ready?'no body':'eye off',8,16);}
+}
+
+/* ---- strip ---- */
+const $=id=>document.getElementById(id),msg=$('msg');
+$('bHide').onclick=()=>{const st=$('strip'),h=st.classList.toggle('min');$('bHide').textContent=h?'show':'hide';};
+$('bStart').onclick=()=>window.POSE_EYE&&window.POSE_EYE.open();
+$('bFlip').onclick=()=>{cfg.facing=cfg.facing==='user'?'environment':'user';cfg.mirror=cfg.facing==='user';$('tMirror').checked=cfg.mirror;window.POSE_EYE&&window.POSE_EYE.open();};
+$('bLoad').onclick=()=>loadWall($('url').value.trim());
+$('bMock').onclick=()=>loadWall('');
+$('tBank').oninput=e=>cfg.bankGain=e.target.value/10;$('tPitch').oninput=e=>cfg.pitchGain=e.target.value/10;
+$('tLx').oninput=e=>cfg.padL=e.target.value/100;$('tRx').oninput=e=>cfg.padR=e.target.value/100;$('tPy').oninput=e=>cfg.padY=e.target.value/100;
+$('tMirror').onchange=e=>cfg.mirror=e.target.checked;
+function loadWall(url){const wall=$('wall'),old=wall.querySelector('iframe');if(old)old.remove();
+  if(!url){$('mock').style.display='block';msg.textContent='Mock pads: events from your body print here.';return;}
+  $('mock').style.display='none';const f=document.createElement('iframe');f.src=url;f.allow='fullscreen';wall.prepend(f);
+  f.onload=()=>{try{void f.contentDocument.body;msg.textContent='Wall loaded, same origin: your body drives its pads.';}catch(e){msg.textContent='Wall loaded cross-origin: pads cannot be driven from here. Put pose-pad.html in the same site, or wire the broadcast messages.';}};}
+// mock pad logging
+for(const id of['padL','padR']){const el=$(id);let n=0;for(const ev of['pointerdown','pointermove','pointerup']){el.addEventListener(ev,e=>{if(ev==='pointermove'&&(n++%10))return;
+  const lg=$('mockLog');lg.textContent=(`${id} ${ev} ${e.clientX|0},${e.clientY|0}\n`+lg.textContent).split('\n').slice(0,8).join('\n');});}}
+window.addEventListener('posepad',e=>{if($('mock').style.display==='block'&&e.detail.event!=='steer'){const lg=$('mockLog');lg.textContent=(`msg ${e.detail.seat} ${e.detail.event}\n`+lg.textContent).split('\n').slice(0,8).join('\n');}});
+$('schema').textContent=`BroadcastChannel 'terminus-posepad' and window.postMessage, one object per frame per seat:
+{type:'posepad', seat:'ALFA', event:'claim'|'release'}
+{type:'posepad', seat:'ALFA', event:'steer', bank:-1..1, pitch:-1..1, guide?:{x,y}}
+{type:'posepad', seat:'ALFA', event:'send'|'strike'|'catch'}
+bank  = lean of shoulders over hips, deadband ${L.DEADBAND}, EMA ${L.BANK_EMA}
+pitch = arm dihedral minus step-in depth; decays to 0 when arms drop (no hover)
+send  = right hand raised above head, then a fling faster than ${L.SEND_SPEED} shoulder-widths/s
+strike= chop from above the shoulders to below the hips faster than ${L.STRIKE_SPEED}
+catch = right hand held on the chest ${L.CATCH_MS} ms
+guide = right arm extended: unit direction from shoulder`;
+
+/* ---- gesture tests on synthetic skeletons ---- */
+function fig(o={}){const cx=o.cx??.5,hip=o.hip??.6,s=o.s??.2,sw=s*.5,sh=hip-s;const lm=[];for(let i=0;i<33;i++)lm.push({x:cx,y:hip,visibility:1});
+  const lean=o.lean??0;lm[LM.NOSE]={x:cx+lean,y:sh-s*.45,visibility:1};lm[LM.LSH]={x:cx+sw/2+lean,y:sh,visibility:1};lm[LM.RSH]={x:cx-sw/2+lean,y:sh,visibility:1};
+  lm[LM.LHIP]={x:cx+sw*.4,y:hip,visibility:1};lm[LM.RHIP]={x:cx-sw*.4,y:hip,visibility:1};
+  const arms=o.arms??'down';const armPos={down:[[sw/2,sh+s*.5],[sw/2,sh+s]],t:[[sw/2+s*.45,sh],[sw/2+s*.9,sh]],up:[[sw/2+s*.3,sh-s*.4],[sw/2+s*.4,sh-s*.9]]}[arms];
+  lm[LM.LEL]={x:cx+armPos[0][0],y:armPos[0][1],visibility:1};lm[LM.LWR]={x:cx+armPos[1][0],y:armPos[1][1],visibility:1};
+  lm[LM.REL]={x:cx-armPos[0][0],y:armPos[0][1],visibility:1};lm[LM.RWR]={x:cx-armPos[1][0],y:armPos[1][1],visibility:1};
+  if(o.rw)lm[LM.RWR]={x:o.rw[0],y:o.rw[1],visibility:1};
+  lm[LM.LAN]={x:cx+sw*.4,y:o.foot??hip+s*1.8,visibility:1};lm[LM.RAN]={x:cx-sw*.4,y:o.foot??hip+s*1.8,visibility:1};return lm;}
+function runTests(){
+  const res=[];const T=(n,f)=>{if(res.length>=L.MAX_TESTS)return;try{res.push({n,ok:!!f()});}catch(e){res.push({n,ok:false,err:String(e)});}};
+  T('arms down is not a T-pose',()=>!isTPose(fig({arms:'down'})));
+  T('wings out is a T-pose',()=>isTPose(fig({arms:'t'})));
+  T('arms up is not a T-pose',()=>!isTPose(fig({arms:'up'})));
+  T('lean right banks positive, lean left negative',()=>bankOf(fig({lean:.03}))>.2&&bankOf(fig({lean:-.03}))<-.2);
+  T('upright has bank inside deadband',()=>deadband(bankOf(fig())*cfg.bankGain,L.DEADBAND)===0);
+  T('arms up gives positive dihedral, arms down negative',()=>dihedralOf(fig({arms:'up'}))>.5&&dihedralOf(fig({arms:'down'}))<-.5);
+  T('a raise-then-fling is a send',()=>{const h=new Hand();let ev=null;const sh=.4,cx=.5;
+    h.step(fig({rw:[cx-.05,sh-.15]}),0);h.step(fig({rw:[cx-.05,sh-.15]}),100);              // above head (nose at sh-.09)
+    ev=h.step(fig({rw:[cx-.12,sh+.02]}),160).ev||h.step(fig({rw:[cx-.22,sh+.05]}),220).ev;return ev==='send';});
+  T('a slow lower is not a send',()=>{const h=new Hand();let ev=null;h.step(fig({rw:[.45,.25]}),0);for(let i=1;i<=10;i++){const r=h.step(fig({rw:[.45,.25+i*.02]}),i*100);if(r&&r.ev)ev=r.ev;}return ev===null;});
+  T('a chop from high to below the hips is a strike',()=>{const h=new Hand();h.step(fig({rw:[.45,.3]}),0);h.step(fig({rw:[.45,.3]}),100);const r=h.step(fig({rw:[.45,.68]}),160);return r.ev==='strike';});
+  T('hand on chest for 550 ms is a catch',()=>{const h=new Hand();const f=frame(fig());let ev=null;for(let i=0;i<=8;i++){const r=h.step(fig({rw:[f.chest.x,f.chest.y]}),i*100);if(r&&r.ev)ev=r.ev;}return ev==='catch';});
+  T('extended right arm guides, hanging arm does not',()=>{const h=new Hand();h.step(fig({rw:[.2,.42]}),0);const r=h.step(fig({rw:[.2,.42]}),50);const h2=new Hand();h2.step(fig({arms:'down'}),0);const r2=h2.step(fig({arms:'down'}),50);return r.guide&&r.guide.x<-1&&!r2.guide;});
+  T('T-pose held claims a seat; leaving releases it',()=>{tracks.clear();seats.length=0;
+    for(const tm of[0,600,1100]){matchTracks([{lm:fig({arms:'t'})}],tm);for(const t of tracks.values())stepTrack(t,tm);}
+    const claimed=seats.length===1&&seats[0].code==='ALFA';matchTracks([],1100+L.LOSE_MS+1);return claimed&&seats.length===0;});
+  T('stepping in dives (pitch negative)',()=>{tracks.clear();seats.length=0;matchTracks([{lm:fig({arms:'t'})}],0);const t=[...tracks.values()][0];for(const tm of[0,600,1100]){matchTracks([{lm:fig({arms:'t'})}],tm);stepTrack(t,tm);}
+    for(let i=0;i<40;i++){matchTracks([{lm:fig({arms:'t',foot:1.0})}],1200+i*16);stepTrack(t,1200+i*16);}return t.pitch<-.2;});
+  T('synthetic pads receive down/move/up',()=>{const got=[];const el=$('padL');const on=e=>got.push(e.type);['pointerdown','pointermove','pointerup'].forEach(ev=>el.addEventListener(ev,on));
+    const show=$('mock').style.display;$('mock').style.display='block';const wasMin=$('strip').classList.contains('min');$('strip').classList.add('min');tracks.clear();seats.length=0;const t={lm:fig({arms:'t'}),bank:.5,pitch:0,seat:{code:'ALFA'}};seats.push({code:'ALFA',track:t});
+    pads.launch(t);pads.steer(t);pads.release(t);seats.length=0;$('mock').style.display=show;if(!wasMin)$('strip').classList.remove('min');['pointerdown','pointermove','pointerup'].forEach(ev=>el.removeEventListener(ev,on));
+    return got.join(',')==='pointerdown,pointermove,pointerup';});
+  tracks.clear();seats.length=0;
+  const ul=$('testOut');ul.innerHTML='';let pass=0;for(const r of res){const li=document.createElement('li');li.className=r.ok?'ok':'no';li.textContent=r.n+(r.err?' — '+r.err:'');ul.append(li);if(r.ok)pass++;}
+  $('testSum').textContent=`${pass}/${res.length} pass`;}
+$('bTest').onclick=runTests;
+
+/* ---- loop ---- */
+const eye={ready:false};
+function loop(){const now=performance.now();if(window.POSE_EYE&&window.POSE_EYE.ready){eye.ready=true;const dets=window.POSE_EYE.see(now);if(dets){matchTracks(dets,now);for(const t of tracks.values())stepTrack(t,now);}}
+  drawEye(now);requestAnimationFrame(loop);}
+window.POSEPAD={cfg,L,tracks,seats,fig,isTPose,bankOf,dihedralOf,Hand,matchTracks,stepTrack,pads,video,setAsp:a=>{vidAsp=a;}};
+loop();
+</script>
+<script type="module">
+import {PoseLandmarker,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const P=window.POSEPAD;let pl=null,stream=null,lastTs=0,masksOK=true,lastVT=-1;
+window.POSE_EYE={ready:false,
+  async open(){const msg=document.getElementById('msg');msg.textContent='Loading the eye…';
+    try{if(!pl){const v=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+        pl=await PoseLandmarker.createFromOptions(v,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:"GPU"},
+          runningMode:"VIDEO",numPoses:P.L.NUM_POSES,minPoseDetectionConfidence:.5,minTrackingConfidence:.4,outputSegmentationMasks:true});}
+      if(stream)stream.getTracks().forEach(t=>t.stop());
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:P.cfg.facing,width:{ideal:640},height:{ideal:480}},audio:false});
+      P.video.srcObject=stream;await new Promise(r=>{P.video.onloadedmetadata=r;});await P.video.play();P.setAsp(P.video.videoWidth/P.video.videoHeight||4/3);
+      this.ready=true;msg.textContent='Wings out and hold to claim ALFA.';}
+    catch(e){msg.textContent='Could not start: '+(e.message||e);}},
+  see(now){if(!pl||P.video.readyState<2||P.video.currentTime===lastVT)return null;lastVT=P.video.currentTime;const ts=Math.max(lastTs+1,Math.floor(now));lastTs=ts;
+    let r;try{r=pl.detectForVideo(P.video,ts);}catch(e){return null;}
+    return (r.landmarks||[]).map((lm,i)=>{let mask=null,mw=0,mh=0;if(masksOK&&r.segmentationMasks&&r.segmentationMasks[i]){try{const m=r.segmentationMasks[i];mw=m.width;mh=m.height;mask=m.getAsFloat32Array();}catch(e){masksOK=false;}}
+      return {lm:lm.map(p=>({x:P.cfg.mirror?1-p.x:p.x,y:p.y,visibility:p.visibility})),mask,mw,mh};});}
+};
+</script>
+</body>
+</html>
