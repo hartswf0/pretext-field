@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#efe9da">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="A smaller past, a brighter present. The last fifteen seconds of a room, kept as a shape you can point back into.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ambient Present">
+<meta property="og:description" content="A smaller past, a brighter present. The last fifteen seconds of a room, kept as a shape you can point back into. Nothing is saved unless you keep it.">
+<meta property="og:url" content="https://hartswf0.github.io/pretext-field/ambient-present.html">
+<meta property="og:image" content="https://hartswf0.github.io/pretext-field/ambient-present-og.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ambient Present">
+<meta name="twitter:description" content="A smaller past, a brighter present.">
+<meta name="twitter:image" content="https://hartswf0.github.io/pretext-field/ambient-present-og.png">
+<link rel="apple-touch-icon" href="ambient-present-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="ambient-present-icon.png">
+<meta name="apple-mobile-web-app-title" content="Present">
+<title>Ambient Present</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23efe9da'/%3E%3Cg fill='%232a2620'%3E%3Ccircle cx='32' cy='10' r='2.6'/%3E%3Ccircle cx='47.6' cy='16.4' r='2.6'/%3E%3Ccircle cx='54' cy='32' r='2.6'/%3E%3Ccircle cx='47.6' cy='47.6' r='2.6'/%3E%3Ccircle cx='32' cy='54' r='2.6'/%3E%3Ccircle cx='16.4' cy='47.6' r='2.6'/%3E%3Ccircle cx='10' cy='32' r='2.6'/%3E%3Ccircle cx='16.4' cy='16.4' r='2.6'/%3E%3C/g%3E%3Ccircle cx='44' cy='24' r='4' fill='%23c9843c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#efe9da; --ink:#2a2620; --dim:#9a9283;
+  --warm:#e0b35a; --ember:#c9843c; --rust:#a3512e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+#stage{position:fixed;inset:0;display:block}
+.hud{position:fixed;left:0;right:0;padding:0 22px;font-size:11px;letter-spacing:.2em;line-height:1.9;pointer-events:none}
+#top{top:max(18px,env(safe-area-inset-top));display:flex;justify-content:space-between}
+#top .r{text-align:right}
+#state{display:inline-flex;align-items:center;gap:10px}
+#dot{width:10px;height:10px;border-radius:50%;background:var(--ink);transition:background 1.2s,opacity 1.2s}
+#sub,#clock{color:var(--dim)}
+#bottom{bottom:max(28px,env(safe-area-inset-bottom));text-align:center}
+#hint{min-height:2.6em;white-space:pre-line;color:var(--ink);transition:opacity .8s}
+#saved{position:fixed;left:22px;right:22px;bottom:100px;display:flex;gap:12px;justify-content:center;pointer-events:auto}
+#saved button{appearance:none;border:0;background:transparent;width:36px;height:36px;padding:0;cursor:pointer}
+#saved canvas{width:36px;height:36px;display:block}
+#saved button:focus-visible{outline:1px solid var(--ink)}
+#side{position:fixed;right:22px;top:calc(max(18px,env(safe-area-inset-top)) + 84px);display:flex;flex-direction:column;gap:2px;pointer-events:auto;align-items:flex-end}
+#side button{appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;font-size:10px;letter-spacing:.2em;text-align:right;padding:6px 0;cursor:pointer;transition:color .6s}
+#side button[aria-pressed=true]{color:var(--ink)}
+#side .gap{height:10px}
+#side button:focus-visible{outline:1px solid var(--ink);outline-offset:2px}
+#read{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(72vw,360px);text-align:center;font-size:15px;letter-spacing:.08em;line-height:1.8;pointer-events:none;opacity:0;transition:opacity 1.4s;background:rgba(239,233,218,.78);padding:12px 14px}
+#read.on{opacity:1}
+#read small{display:block;margin-top:8px;font-size:10px;letter-spacing:.2em;color:var(--dim)}
+#read .acts{display:none;gap:14px;justify-content:center;margin-top:12px}
+#read.acts-on{pointer-events:auto} #read.acts-on .acts{display:flex}
+#read .acts button{appearance:none;border:1px solid var(--ink);background:transparent;color:var(--ink);font:inherit;font-size:10px;letter-spacing:.2em;padding:8px 10px;cursor:pointer}
+#read .acts button:focus-visible{outline:2px solid var(--ember)}
+
+/* permission: the one place the program speaks in sentences */
+#gate{position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(239,233,218,.55);backdrop-filter:none;pointer-events:auto;transition:opacity 1s}
+#gate.off{opacity:0;pointer-events:none}
+#gate .panel{width:100%;max-width:440px;margin:0 16px max(24px,env(safe-area-inset-bottom));background:var(--paper);border:1px solid var(--ink);padding:22px 22px 18px}
+#gate h1{font-size:11px;font-weight:500;letter-spacing:.24em;margin-bottom:14px}
+#gate p{font-size:13px;line-height:1.75;letter-spacing:.02em;margin-bottom:12px;max-width:34em}
+#gate p.small{font-size:11px;color:var(--dim);line-height:1.7}
+#gate .row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+#gate button{appearance:none;font:inherit;font-size:11px;letter-spacing:.2em;padding:13px 16px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;flex:1 1 auto}
+#gate button.quiet{background:transparent;color:var(--ink)}
+#gate button:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+#gate .err{display:none;border-left:2px solid var(--rust);padding-left:10px}
+#gate.error .err{display:block}
+@media (max-width:300px),(max-height:300px){
+  #top,#side,#bottom{display:none}
+  #saved{bottom:8px;gap:6px} #saved button,#saved canvas{width:22px;height:22px}
+  #read{font-size:11px;width:88vw;padding:6px;line-height:1.5}
+  #gate .panel{margin:0;padding:12px;border:0} #gate p{font-size:10px;margin-bottom:6px;line-height:1.5} #gate h1,#gate p.small{display:none} #gate button{padding:9px 8px;font-size:9px}
+}
+@media (prefers-reduced-motion:reduce){#read,#gate,#dot,#hint{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="the last fifteen seconds of this room, drawn as a sphere of marks"></canvas>
+
+<div class="hud" id="top">
+  <div>
+    <div>AMBIENT PRESENT</div>
+  </div>
+  <div class="r">
+    <div id="state"><span id="statename"></span><span id="dot"></span></div>
+    <div id="sub" hidden></div>
+  </div>
+</div>
+
+<div id="side">
+  <button data-r="hi" aria-pressed="true">PHONE</button>
+  <button data-r="64">64</button>
+  <button data-r="32">32</button>
+  <button data-r="16">16</button>
+  <button data-r="bit">1 BIT</button>
+  <div class="gap"></div>
+  <button id="soundbtn" aria-pressed="false">SOUND OFF</button>
+  <button id="hapticbtn" aria-pressed="true">TOUCH ON</button>
+</div>
+
+<div id="read"></div>
+<div id="saved"></div>
+
+<div class="hud" id="bottom">
+  <div id="hint"></div>
+</div>
+
+<div id="gate" role="dialog" aria-labelledby="gate-title" aria-describedby="gate-desc">
+  <div class="panel">
+    <h1 id="gate-title">AMBIENT PRESENT</h1>
+    <p id="gate-desc">Keeps the last fifteen seconds of the room as a shape you can point back into. Runs on this device. Nothing is stored unless you keep it.</p>
+    <p class="err" id="gate-err"></p>
+    <p class="small" id="gate-note">The browser asks once for the microphone.</p>
+    <div class="row">
+      <button id="allow">ALLOW LISTENING</button>
+      <button id="watch" class="quiet">WATCH ONLY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   AMBIENT PRESENT  v2
+   WORLD STATE -> TEMPORAL MODEL -> VISUAL SCORE -> DISPLAY ADAPTER
+                                  \-> SONIC SCORE  -> speakers (optional)
+                                  \-> HAPTIC SCORE -> vibration (optional)
+
+   Ontology:   PRESENT / TRACE (15 s, decaying) / MEMORY (kept)
+   Lifecycle:  WORLD -> TRACE -> { ERASE | MEMORY }
+   Deixis:     tap = SELECT(W_t); drag = move the held window; release = resolve
+   Branch:     swipe up = KEEP, swipe down = DISSOLVE, wait = DISSOLVE
+   Renderers:  one score, five instruments (phone / 64 / 32 / 16 / 1-bit)
+   Models:     optional on-device models (Desert Ant Labs) for masking and gist
+   ============================================================ */
+
+const T_WINDOW = 15, HZ = 20, N = T_WINDOW*HZ;
+const RINGS = 34, HOLD_W = 3.0*HZ, AUTO_DISSOLVE = 9000;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- TEMPORAL MODEL ---------- */
+const slices = Array.from({length:N}, () => ({energy:0, tokens:[], conf:0, voice:0}));
+let head = 0, sliceClock = 0, curPeak = 0, smoothE = 0;
+function slice(i){ return slices[(head - i + N*4) % N]; }
+function pushSlice(e){ const prev=slices[head].energy; head=(head+1)%N; const s=slices[head]; s.energy=prev*0.6+e*0.4; s.tokens=[]; s.conf=0; s.voice=e>0.12?1:0; }
+
+/* ---------- WORLD STATE ---------- */
+let taps=0, STATE='WAITING', audioOK=false, simulate=false, analyser=null, buf=null, audioCtx=null;
+let simPhase=0, simTalking=false, simTimer=0, simWordAt=0;
+const el = id => document.getElementById(id);
+const stateName=el('statename'), dot=el('dot'), hint=el('hint'), readEl=el('read'), subEl=el('sub');
+
+const HINTS = {
+  WAITING:  '',
+  REST:     '',
+  LISTENING:'',
+  RECALL:   'drag to move through the past\nlet go to read it',
+  WORKING:  '',
+  READING:  'swipe up to keep\nswipe down to let go',
+  SAVE:     'kept',
+  DELETE:   'let go',
+  FAULT:    'nothing there\nreturning to rest',
+  STOPPED:  'paused\nhold to listen again',
+};
+const DOTCOL = {WAITING:'#9a9283', REST:'#2a2620', LISTENING:'#c9843c', RECALL:'#e0b35a', WORKING:'#e0b35a', READING:'#e0b35a', SAVE:'#2a2620', DELETE:'#9a9283', FAULT:'#a3512e', STOPPED:'#9a9283'};
+
+function setState(s){
+  const prev = STATE; STATE = s;
+  stateName.textContent = (s==='STOPPED'||s==='FAULT')?s.toLowerCase():''; dot.style.background = DOTCOL[s];
+  hint.textContent = HINTS[s] || ''; if ((s==='LISTENING'||s==='REST') && taps<1) hint.textContent='tap to look back';
+  if (s!=='READING' && s!=='SAVE') readEl.classList.remove('on','acts-on');
+  Sonic.onState(s, prev); Haptic.onState(s, prev);
+  if (s==='RECALL') Cue.hold(); else if (s==='READING') Cue.read(); else if (s==='SAVE'&&prev!=='SAVE') Cue.keep(); else if (s==='DELETE') Cue.letgo(); else if (s==='FAULT') Cue.fault(); else if (s==='STOPPED') Cue.stop();
+}
+function setStateQuiet(s){ if (STATE!==s) setState(s); }
+
+/* ---------- PERMISSION GATE ----------
+   getUserMedia and AudioContext need a user gesture on iOS/Safari and most mobile
+   browsers, so the gate is the gesture. It also names the concrete failure. */
+const gate = el('gate'), gateErr = el('gate-err'), gateNote = el('gate-note');
+function gateFail(msg, note){ gate.classList.add('error'); gateErr.textContent = msg; if (note) gateNote.textContent = note; el('allow').textContent='TRY AGAIN'; }
+function closeGate(){ gate.classList.add('off'); setTimeout(()=>{ gate.style.display='none'; }, 1100); }
+
+el('allow').addEventListener('click', async () => {
+  if (!window.isSecureContext) { gateFail('The microphone needs a secure page (https or localhost). Open this file over https, or watch only.'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { gateFail('This browser has no microphone access. Try Safari, Chrome or Firefox, or watch only.'); return; }
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if (audioCtx.state==='suspended') await audioCtx.resume();
+    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0.6;
+    src.connect(analyser); buf = new Uint8Array(analyser.fftSize);
+    Tape.init(audioCtx, src);
+    audioOK = true; subEl.innerHTML = '15 SECONDS<br>ALWAYS ON';
+    Sonic.init(audioCtx); Cue.init(audioCtx); Cue.startup(); Haptic.pulse([10,60,10,60,18]);
+    startSpeech();
+    closeGate(); setState('LISTENING');
+  }catch(e){
+    const n = e && e.name;
+    if (n==='NotAllowedError' || n==='SecurityError') gateFail('Microphone access was declined. You can allow it in the browser\u2019s site settings (the lock or tune icon by the address), then try again.', 'On iPhone: Settings, then Safari, then Microphone. On Android Chrome: tap the lock icon, then Permissions.');
+    else if (n==='NotFoundError') gateFail('No microphone was found on this device.');
+    else if (n==='NotReadableError') gateFail('Another app is using the microphone. Close it and try again.');
+    else gateFail('Could not start listening (' + (n||'unknown') + ').');
+  }
+});
+el('watch').addEventListener('click', async () => {
+  simulate = true; subEl.innerHTML = '15 SECONDS<br>SIMULATED ROOM';
+  try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); if (audioCtx.state==='suspended') await audioCtx.resume(); Sonic.init(audioCtx); Cue.init(audioCtx); Cue.startup(); }catch(e){}
+  Haptic.pulse([10,60,10,60,18]); closeGate(); setState('LISTENING');
+});
+
+/* ---------- SPEECH: one token, one mark ----------
+   Browser speech recognition where present (Android Chrome, desktop Chrome/Edge).
+   Note: Desert Ant's Voz (speech recognition) and Align (word timestamps) are native-only
+   today (Swift/Kotlin). In a native shell they would replace this block and give real
+   per-word timestamps, so marks would sit on their own slices instead of being back-placed. */
+let rec=null, recActive=false, lastFinalAt=performance.now();
+function startSpeech(){
+  const SR = window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return;
+  rec = new SR(); rec.continuous=true; rec.interimResults=false; rec.lang = navigator.language||'en-US';
+  rec.onresult = ev => { for (let i=ev.resultIndex;i<ev.results.length;i++){ const r=ev.results[i]; if(!r.isFinal) continue;
+    placeTokens(r[0].transcript.trim().split(/\s+/).filter(Boolean), r[0].confidence||0.6, performance.now()-lastFinalAt); lastFinalAt=performance.now(); } };
+  rec.onend = () => { if (recActive && STATE!=='STOPPED') setTimeout(()=>{ try{rec.start();}catch(e){} }, 300); };
+  rec.onerror = () => {};
+  recActive=true; try{ rec.start(); }catch(e){}
+}
+function placeTokens(words, conf, spanMs){
+  const span = Math.min(N-1, Math.max(words.length*4, Math.round(spanMs/1000*HZ))), lag=Math.round(0.6*HZ);
+  const voiced=[]; for (let a=lag;a<lag+span && a<N;a++) if (slice(a).energy>0.08) voiced.push(a);
+  const pool = voiced.length ? voiced : Array.from({length:span},(_,k)=>k+lag);
+  words.forEach((w,k)=>{ const a = pool[Math.floor((words.length-1-k)/Math.max(1,words.length-1)*(pool.length-1))]; const s=slice(a); s.tokens.push(w); s.conf=Math.max(s.conf,conf); });
+}
+const SIM_WORDS = ['did','you','turn','off','the','oven','before','we','left','i','think','so','call','maria','at','555','0142','later','it','was','fine','she','said'];
+
+/* ---------- ON-DEVICE MODELS (optional) ----------
+   Desert Ant Labs ships browser packages (@desert-ant-labs/redact, /gist, /tongue, /clear ...)
+   as npm modules over LiteRT.js. A single file cannot bundle them, so this is a hook:
+   set window.AmbientModels = { redact: async text => text, gist: async text => [tags] }
+   before load (e.g. from a bundled script), or let the lazy loader try esm.sh.
+   Fallback is a local pattern masker so kept moments never hold obvious identifiers. */
+const Models = {
+  ready:false, redact:null, gist:null,
+  async load(){
+    if (window.AmbientModels){ this.redact = window.AmbientModels.redact; this.gist = window.AmbientModels.gist; this.ready=true; return; }
+    try{
+      const m = await import('https://esm.sh/@desert-ant-labs/redact');
+      const r = await m.Redact.load(); this.redact = async t => (await r.redaction(t)).redactedText; this.ready=true;
+    }catch(e){ /* stay on fallback; nothing leaves the device either way */ }
+  },
+  async mask(text){
+    if (this.redact){ try{ return await this.redact(text); }catch(e){} }
+    return text
+      .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,'[EMAIL]')
+      .replace(/\b(?:\d[ -]?){13,19}\b/g,'[CARD]')
+      .replace(/\b(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)\d{3}[ -]?\d{4}\b/g,'[PHONE]')
+      .replace(/\b\d{3}-\d{2}-\d{4}\b/g,'[ID]');
+  },
+  async tags(text){ if (this.gist){ try{ return await this.gist(text); }catch(e){} } return []; }
+};
+setTimeout(()=>Models.load(), 2500);
+
+/* ---------- TAPE: the trace as samples ----------
+   A 15 s ring of raw samples. Overwritten continuously; frozen while a moment is held;
+   only the held window is ever copied out, and only when the person keeps it. */
+const Tape = {
+  ctx:null, sr:48000, ring:null, pos:0, len:0, node:null,
+  init(ctx, src){
+    this.ctx=ctx; this.sr=ctx.sampleRate; this.len=this.sr*T_WINDOW; this.ring=new Float32Array(this.len);
+    const P = ctx.createScriptProcessor ? ctx.createScriptProcessor(4096,1,1) : null; if(!P) return;
+    P.onaudioprocess = ev => { if (frozen || STATE==='STOPPED') return; const inp=ev.inputBuffer.getChannelData(0);
+      for (let i=0;i<inp.length;i++){ this.ring[this.pos]=inp[i]; this.pos=(this.pos+1)%this.len; } };
+    const mute=ctx.createGain(); mute.gain.value=0; src.connect(P); P.connect(mute); mute.connect(ctx.destination); this.node=P;
+  },
+  cut(ageStartS, ageEndS){ // seconds back from now -> Float32Array in time order
+    if(!this.ring) return null; const n=Math.max(0,Math.round((ageEndS-ageStartS)*this.sr)); const out=new Float32Array(n);
+    let start=(this.pos - Math.round(ageEndS*this.sr) + this.len*2) % this.len;
+    for(let i=0;i<n;i++) out[i]=this.ring[(start+i)%this.len]; return out;
+  },
+  wav(samples){ const sr=this.sr, n=samples.length, b=new ArrayBuffer(44+n*2), v=new DataView(b);
+    const W=(o,str)=>{ for(let i=0;i<str.length;i++) v.setUint8(o+i,str.charCodeAt(i)); };
+    W(0,'RIFF'); v.setUint32(4,36+n*2,true); W(8,'WAVE'); W(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); W(36,'data'); v.setUint32(40,n*2,true);
+    for(let i=0;i<n;i++){ const x=Math.max(-1,Math.min(1,samples[i])); v.setInt16(44+i*2, x<0?x*0x8000:x*0x7fff, true); }
+    return new Blob([b],{type:'audio/wav'}); },
+  clear(){ if(this.ring) this.ring.fill(0); }
+};
+
+/* ---------- CUES: short sounds that report an action (separate from the ambience) ---------- */
+const Cue = {
+  on:true, ctx:null, out:null,
+  init(ctx){ if(this.out) return; this.ctx=ctx; this.out=ctx.createGain(); this.out.gain.value=0.5; const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=2600; this.out.connect(f); f.connect(ctx.destination); },
+  tone(f, t0, a, hold, rel, gain=0.12, type='sine'){ const o=this.ctx.createOscillator(), g=this.ctx.createGain(); o.type=type; o.frequency.value=f; g.gain.value=0;
+    o.connect(g); g.connect(this.out); o.start(t0); g.gain.linearRampToValueAtTime(gain,t0+a); g.gain.setValueAtTime(gain,t0+a+hold); g.gain.exponentialRampToValueAtTime(0.0005,t0+a+hold+rel); o.stop(t0+a+hold+rel+0.05); },
+  ready(){ return this.on && this.ctx && this.ctx.state==='running'; },
+  startup(){ if(!this.ready()) return; const t=this.ctx.currentTime; // three tones entering late and leaving slowly
+    this.tone(146.83,t,1.6,1.0,5.0,0.10); this.tone(220.0,t+1.1,1.8,1.0,5.5,0.08); this.tone(369.99,t+2.4,2.0,0.8,6.0,0.06); this.tone(587.33,t+3.6,2.2,0.4,6.5,0.035); },
+  tap(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(880,t,0.005,0.02,0.09,0.08); },
+  hold(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(330,t,0.02,0.05,0.5,0.07); },
+  tick(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(1320,t,0.003,0.01,0.05,0.04); },
+  read(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(440,t,0.01,0.05,0.6,0.07); this.tone(660,t+0.09,0.01,0.05,0.7,0.05); },
+  keep(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(293.66,t,0.02,0.1,1.6,0.09); this.tone(440,t+0.12,0.02,0.1,1.8,0.07); this.tone(587.33,t+0.26,0.03,0.2,2.6,0.06); },
+  letgo(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(392,t,0.01,0.05,0.9,0.06); this.tone(261.63,t+0.18,0.02,0.05,1.4,0.05); },
+  fault(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(196,t,0.02,0.1,0.8,0.05,'triangle'); },
+  stop(){ if(!this.ready()) return; const t=this.ctx.currentTime; this.tone(220,t,0.01,0.05,0.5,0.06); this.tone(146.83,t+0.15,0.02,0.1,1.2,0.05); }
+};
+
+/* ---------- SONIC SCORE (Eno: long loops of unequal length, gated by state) ----------
+   Five sustained tones, each on its own period so the combinations never repeat.
+   Nothing here decorates: the filter follows the room's energy, the drone level follows state,
+   a held moment adds a fifth, keeping resolves it, letting go closes the filter. */
+const Sonic = {
+  on:false, ctx:null, master:null, filter:null, voices:[], timers:[], held:null,
+  init(ctx){
+    if (this.ctx) return; this.ctx=ctx;
+    this.master = ctx.createGain(); this.master.gain.value = 0;
+    this.filter = ctx.createBiquadFilter(); this.filter.type='lowpass'; this.filter.frequency.value=520; this.filter.Q.value=0.4;
+    this.filter.connect(this.master); this.master.connect(ctx.destination);
+    // D pentatonic across two octaves; periods in seconds, chosen mutually incommensurate
+    const notes = [[146.83,23.3],[220.0,31.1],[329.63,37.7],[369.99,43.9],[493.88,53.1]];
+    notes.forEach(([f,p],i)=>{
+      const g=ctx.createGain(); g.gain.value=0; g.connect(this.filter);
+      const o1=ctx.createOscillator(); o1.type='sine'; o1.frequency.value=f;
+      const o2=ctx.createOscillator(); o2.type='triangle'; o2.frequency.value=f*1.002;
+      const g2=ctx.createGain(); g2.gain.value=0.18; o2.connect(g2); g2.connect(g); o1.connect(g);
+      o1.start(); o2.start();
+      this.voices.push({g,f,p,off:i*5.7});
+    });
+  },
+  swell(v){
+    if(!this.ctx) return; const t=this.ctx.currentTime;
+    v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(v.g.gain.value,t);
+    v.g.gain.linearRampToValueAtTime(0.16, t+6); v.g.gain.linearRampToValueAtTime(0, t+6+9);
+  },
+  schedule(){
+    this.timers.forEach(clearTimeout); this.timers=[];
+    this.voices.forEach(v=>{ const loop=()=>{ if(!this.on) return; this.swell(v); this.timers.push(setTimeout(loop, v.p*1000)); }; this.timers.push(setTimeout(loop, v.off*1000)); });
+  },
+  setOn(on){
+    this.on=on; if(!this.ctx) return; const t=this.ctx.currentTime;
+    if (this.ctx.state==='suspended') this.ctx.resume();
+    this.master.gain.cancelScheduledValues(t); this.master.gain.setValueAtTime(this.master.gain.value,t);
+    this.master.gain.linearRampToValueAtTime(on ? this.levelFor(STATE) : 0, t+3);
+    if (on) this.schedule(); else this.timers.forEach(clearTimeout);
+  },
+  levelFor(s){ return ({REST:0.05, LISTENING:0.08, RECALL:0.09, WORKING:0.09, READING:0.09, SAVE:0.08, DELETE:0.03, FAULT:0.02, STOPPED:0})[s] ?? 0.05; },
+  room(e){ // filter follows smoothed room energy: speech opens it a little, silence closes it
+    if(!this.ctx||!this.on) return; const t=this.ctx.currentTime;
+    this.filter.frequency.setTargetAtTime(420 + e*900, t, 1.5);
+  },
+  onState(s, prev){
+    if(!this.ctx||!this.on) return; const t=this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(this.levelFor(s), t, 2.0);
+    if (s==='RECALL'){ // a held fifth above the root, sustained while the window is held
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain(); o.type='sine'; o.frequency.value=220.0*1.5; g.gain.value=0;
+      o.connect(g); g.connect(this.filter); o.start(); g.gain.linearRampToValueAtTime(0.12, t+2.5); this.held={o,g};
+    }
+    if (prev==='RECALL' && this.held){ const h=this.held; this.held=null; h.g.gain.setTargetAtTime(0, t, 1.2); h.o.stop(t+6); }
+    if (s==='SAVE'){ const o=this.ctx.createOscillator(), g=this.ctx.createGain(); o.type='sine'; o.frequency.value=587.33; g.gain.value=0; o.connect(g); g.connect(this.filter); o.start(); g.gain.linearRampToValueAtTime(0.1,t+0.8); g.gain.linearRampToValueAtTime(0,t+7); o.stop(t+7.5); }
+    if (s==='DELETE'||s==='FAULT'){ this.filter.frequency.setTargetAtTime(180, t, 0.8); setTimeout(()=>{ if(this.ctx) this.filter.frequency.setTargetAtTime(520, this.ctx.currentTime, 3); }, 3000); }
+    if (s==='WORKING'){ this.filter.frequency.setTargetAtTime(1400, t, 0.6); }
+  }
+};
+const soundbtn = el('soundbtn');
+soundbtn.addEventListener('click', ev => { ev.stopPropagation(); const on = soundbtn.getAttribute('aria-pressed')!=='true';
+  if (!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); Sonic.init(audioCtx); Cue.init(audioCtx); }
+  soundbtn.setAttribute('aria-pressed', on); soundbtn.textContent = on?'SOUND ON':'SOUND OFF'; Sonic.setOn(on); });
+
+/* ---------- HAPTIC SCORE ----------
+   navigator.vibrate exists on Android browsers; iOS Safari has none, so TOUCH shows
+   as unavailable there. Patterns report state changes, not decoration. */
+const Haptic = {
+  on:true, can: !!navigator.vibrate,
+  pulse(p){ if(this.on&&this.can) try{ navigator.vibrate(p); }catch(e){} },
+  onState(s, prev){
+    if (s==='RECALL') this.pulse(14);
+    else if (s==='WORKING') this.pulse([8,60,8]);
+    else if (s==='READING') this.pulse(22);
+    else if (s==='SAVE') this.pulse([18,90,18]);
+    else if (s==='DELETE') this.pulse([6,40,4,60,2]);
+    else if (s==='FAULT') this.pulse([4,30,4]);
+    else if (s==='STOPPED') this.pulse(30);
+  },
+  tick(){ this.pulse(4); Cue.tick(); }   // crossing one second of the past while dragging
+};
+const hapticbtn = el('hapticbtn');
+if (!Haptic.can){ hapticbtn.textContent='TOUCH N/A'; hapticbtn.disabled=true; }
+if (Haptic.can) Haptic.on=true; else Haptic.on=false;
+hapticbtn.addEventListener('click', ev => { ev.stopPropagation(); Haptic.on = !Haptic.on; hapticbtn.setAttribute('aria-pressed', Haptic.on); hapticbtn.textContent = Haptic.on?'TOUCH ON':'TOUCH OFF'; Haptic.pulse(10); });
+
+/* ---------- selection / resolution ---------- */
+let sel={start:0, w:HOLD_W, held:false}, resolved=null, dissolveTimer=0, dissolveT=0, convergence=0, frozen=false;
+let dissolveField=null;   // per-mark deterministic drift so dissolution reads as settling, not scatter
+
+/* ---------- MEMORY ---------- */
+const kept=[]; const savedEl=el('saved');
+function keepMoment(m){
+  kept.push(m);
+  const b=document.createElement('button'); b.setAttribute('aria-label','kept moment'); const c=document.createElement('canvas'); c.width=72; c.height=72; b.appendChild(c);
+  const g=c.getContext('2d'); const n=26+Math.round(m.energy*34);
+  for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; g.fillStyle='#2a2620'; g.beginPath(); g.arc(36+Math.cos(a)*25,36+Math.sin(a)*25,1.6+m.energy*1.2,0,7); g.fill(); }
+  if (m.masked) { g.fillStyle='#c9843c'; g.beginPath(); g.arc(36,36,3,0,7); g.fill(); }
+  b.onclick = ev => { ev.stopPropagation(); Cue.tap(); Haptic.pulse(6); openMoment(m); };
+  savedEl.appendChild(b);
+}
+let player=null;
+function fname(m){ const d=m.at, z=n=>String(n).padStart(2,'0'); return `present-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`; }
+function openMoment(m){
+  showRead(m.text, m.tags); readEl.classList.add('acts-on'); setState('SAVE'); hint.textContent='';
+  const acts=document.createElement('div'); acts.className='acts';
+  const mk=(label,fn)=>{ const x=document.createElement('button'); x.textContent=label; x.onclick=ev=>{ ev.stopPropagation(); Cue.tap(); Haptic.pulse(6); fn(); }; acts.appendChild(x); return x; };
+  if (m.blob){
+    mk('PLAY', ()=>{ if(player){ player.pause(); player=null; return; } player=new Audio(URL.createObjectURL(m.blob)); player.onended=()=>{player=null;}; player.play(); });
+    mk('SAVE', ()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(m.blob); a.download=fname(m)+'.wav'; document.body.appendChild(a); a.click(); a.remove(); });
+    if (navigator.share) mk('SHARE', async ()=>{ const f=new File([m.blob], fname(m)+'.wav', {type:'audio/wav'}); const data={files:[f], title:'Ambient Present', text:m.text};
+      try{ if (navigator.canShare && navigator.canShare(data)) await navigator.share(data); else await navigator.share({title:'Ambient Present', text:m.text}); }catch(e){} });
+  } else if (navigator.share) mk('SHARE', async ()=>{ try{ await navigator.share({title:'Ambient Present', text:m.text}); }catch(e){} });
+  mk('CLOSE', ()=>{ if(player){player.pause();player=null;} readEl.classList.remove('on','acts-on'); setState(audioOK||simulate?'LISTENING':'REST'); });
+  readEl.appendChild(acts);
+  clearTimeout(dissolveTimer);
+}
+function showRead(text, tags){ readEl.innerHTML=''; readEl.append(document.createTextNode(text)); if (tags&&tags.length){ const s=document.createElement('small'); s.textContent=tags.join('  '); readEl.appendChild(s);} readEl.classList.add('on'); }
+
+/* ---------- VISUAL SCORE ---------- */
+const pts=[];
+for (let r=0;r<RINGS;r++){ const lat=-Math.PI/2+(r+0.5)/RINGS*Math.PI; const n=Math.max(6,Math.round(Math.cos(lat)*136)); for(let k=0;k<n;k++) pts.push({lat, lon0:k/n*Math.PI*2, ring:r, id:pts.length}); }
+function tokenRing(w){ let h=0; for(const c of w) h=(h*31+c.charCodeAt(0))>>>0; return 6+(h%(RINGS-12)); }
+const TILT=-0.35;
+function buildScore(){
+  const frac = sliceClock/(1000/HZ);
+  const drift = frozen ? 0 : frac/N*Math.PI*2;
+  const conv = reduceMotion ? 0 : convergence;
+  const marks=[];
+  for (const p of pts){
+    const ageSlices = p.lon0/(Math.PI*2)*N + (frozen?0:frac), a=Math.floor(ageSlices), s=slice(a), s2=slice(Math.min(N-1,a+1)), age=ageSlices/N;
+    const f=ageSlices-a, e=s.energy*(1-f)+s2.energy*f;
+    const lon = p.lon0 - drift;
+    const r = 1 + e*0.07*(1-age) - conv*0.3;
+    const cx=Math.cos(p.lat)*Math.cos(lon)*r, cy=Math.sin(p.lat)*r, cz=Math.cos(p.lat)*Math.sin(lon)*r;
+    const x=cx*Math.cos(TILT)-cz*Math.sin(TILT), z=cx*Math.sin(TILT)+cz*Math.cos(TILT);
+    const selected = sel.held && ageSlices>=sel.start && ageSlices<sel.start+sel.w;
+    let density = 0.18 + e*0.8; if (age>0.84) density *= (1-age)/0.16;
+    let token=null; if (s.tokens.length && p.ring===tokenRing(s.tokens[0]) && p.id%3===0) token=s.tokens[0];
+    marks.push({id:p.id, x, y:cy, z, age, density, selected, token});
+  }
+  return marks;
+}
+
+/* ---------- DISPLAY ADAPTERS ---------- */
+const cv=el('stage'), ctx=cv.getContext('2d'); let W=0,H=0,DPR=1;
+function resize(){ DPR=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight; cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(DPR,0,0,DPR,0,0); }
+addEventListener('resize',resize); resize();
+let renderer = Math.min(innerWidth,innerHeight)<300 ? '64' : 'hi';
+document.querySelectorAll('#side button[data-r]').forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); renderer=b.dataset.r; document.querySelectorAll('#side button[data-r]').forEach(x=>x.setAttribute('aria-pressed',x===b)); }));
+
+// hierarchy: position, occupancy, density, topology, motion, luminance, then color.
+// Warmth sits only at the limb of now and cools to ink within a few seconds. No pure red anywhere.
+function ageColor(age, e){
+  if (STATE==='FAULT') return 'rgb(163,81,46)';
+  if (STATE==='DELETE') return 'rgb(154,146,131)';
+  const heat = Math.max(0, 1 - age*3.5) * (0.35 + e*0.65);     // how much of the ember shows
+  const ink=[42,38,32], ember=[224,179,90], deep=[163,81,46];
+  const c = e>0.45 ? deep : ember;
+  return `rgb(${Math.round(ink[0]+(c[0]-ink[0])*heat)},${Math.round(ink[1]+(c[1]-ink[1])*heat)},${Math.round(ink[2]+(c[2]-ink[2])*heat)})`;
+}
+function drift(id, k){ // deterministic pseudo-random per mark, so dissolution is a settling, not a scatter
+  const x=Math.sin(id*12.9898+k*78.233)*43758.5453; return x-Math.floor(x);
+}
+function drawHi(marks, dissolve){
+  const R=Math.min(W,H)*0.36, cxp=W/2, cyp=H*0.47;
+  ctx.fillStyle='#efe9da'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#c9843c'; ctx.globalAlpha=STATE==='STOPPED'?0.12:0.4; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,cyp); ctx.lineTo(W,cyp); ctx.stroke(); ctx.globalAlpha=1;
+  marks.sort((a,b)=>a.z-b.z);
+  for (const m of marks){
+    const front=(m.z+1)/2; let alpha=0.22+front*0.7;
+    if (STATE==='STOPPED') alpha*=0.25;
+    if (sel.held && !m.selected) alpha*=0.5;
+    if (dissolve>0){ const gone = drift(m.id,1) < dissolve*1.1; if (gone) continue; alpha *= (1-dissolve*0.6); }
+    let size=(0.9+m.density*2.6)*(0.55+front*0.6)*(R/170); if (m.token) size*=1.8; if (m.selected) size*=1.2;
+    let ox=0, oy=0; if (dissolve>0){ oy = dissolve*dissolve*40*(0.5+drift(m.id,2)); ox=(drift(m.id,3)-0.5)*dissolve*18; }
+    ctx.globalAlpha=Math.min(1, alpha*Math.min(1,m.density*2+0.15));
+    ctx.fillStyle = m.token ? '#2a2620' : ageColor(m.age, m.density);
+    ctx.beginPath(); ctx.arc(cxp+m.x*R+ox, cyp-m.y*R+oy, size, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  if (sel.held){ ctx.strokeStyle='#2a2620'; ctx.lineWidth=1; ctx.setLineDash([2,5]); for (const a of [sel.start, sel.start+sel.w]) drawMeridian(a,cxp,cyp,R); ctx.setLineDash([]); }
+  if (STATE==='WORKING' && !reduceMotion){ ctx.strokeStyle='#2a2620'; ctx.lineWidth=1; ctx.globalAlpha=0.35; for(let k=1;k<7;k++){ ctx.beginPath(); ctx.arc(cxp,cyp,R*(1-convergence*0.7)*k/7,0,7); ctx.stroke(); } ctx.globalAlpha=1; }
+}
+function drawMeridian(ageSlices,cxp,cyp,R){
+  const d = frozen?0:(sliceClock/1000)*HZ/N*Math.PI*2, lon=ageSlices/N*Math.PI*2-d;
+  ctx.beginPath();
+  for(let k=0;k<=40;k++){ const lat=-Math.PI/2+k/40*Math.PI; const cx=Math.cos(lat)*Math.cos(lon), cz=Math.cos(lat)*Math.sin(lon);
+    const x=cx*Math.cos(TILT)-cz*Math.sin(TILT), z=cx*Math.sin(TILT)+cz*Math.cos(TILT);
+    if (z<0){ ctx.moveTo(cxp+x*R, cyp-Math.sin(lat)*R); continue; } ctx.lineTo(cxp+x*R, cyp-Math.sin(lat)*R); }
+  ctx.stroke();
+}
+function drawGrid(marks,res,onebit,dissolve){
+  ctx.fillStyle='#efe9da'; ctx.fillRect(0,0,W,H);
+  const S=Math.min(W,H)*0.78, cell=S/res, ox=(W-S)/2, oy=H*0.47-S/2;
+  const occ=new Float32Array(res*res), age=new Float32Array(res*res), selc=new Uint8Array(res*res), tok=new Uint8Array(res*res);
+  for (const m of marks){ if (m.z<-0.05) continue; if (dissolve>0 && drift(m.id,1)<dissolve*1.1) continue;
+    const gx=Math.floor((m.x*0.46+0.5)*res), gy=Math.floor((-m.y*0.46+0.5)*res); if(gx<0||gy<0||gx>=res||gy>=res) continue;
+    const i=gy*res+gx; occ[i]+=m.density*(0.4+m.z); age[i]=Math.max(age[i],1-m.age); if(m.selected) selc[i]=1; if(m.token) tok[i]=1; }
+  for (let i=0;i<res*res;i++){ const o=occ[i]; if(o<=0) continue; const gx=i%res, gy=(i/res)|0; let on,size;
+    if (onebit){ on = o>(res<=16?0.9:0.6)||tok[i]; size=cell*0.72; ctx.fillStyle='#2a2620'; }
+    else { on=o>0.15; size=cell*Math.min(0.95,0.3+o*0.4); ctx.fillStyle = tok[i]?'#2a2620':ageColor(1-age[i],Math.min(1,o)); }
+    if(!on) continue; ctx.globalAlpha = STATE==='STOPPED'?0.25:(sel.held&&!selc[i]?0.35:1);
+    ctx.fillRect(ox+gx*cell+(cell-size)/2, oy+gy*cell+(cell-size)/2, size, size); }
+  ctx.globalAlpha=1;
+  if (STATE==='WORKING'){ ctx.fillStyle='#2a2620'; const k=Math.max(1,Math.round((1-convergence)*res/3)); ctx.fillRect(ox+(res/2-k/2)*cell, oy+(res/2-k/2)*cell, k*cell, k*cell); }
+}
+
+/* ---------- LOOP ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(100, now-last); last=now;
+  let e=0;
+  if (audioOK && analyser && !simulate){ analyser.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; } e=Math.min(1,Math.sqrt(sum/buf.length)*5); }
+  else if (simulate){ simTimer-=dt; if(simTimer<=0){ simTalking=!simTalking; simTimer = simTalking?1800+Math.random()*3200:1500+Math.random()*5000; } simPhase+=dt*0.015; e = simTalking ? 0.2+0.45*Math.abs(Math.sin(simPhase))*(0.6+0.4*Math.random()) : 0.015*Math.random(); }
+  curPeak=Math.max(curPeak,e); smoothE += (e-smoothE)*(dt/900); Sonic.room(smoothE);
+
+  if (!frozen && STATE!=='STOPPED' && STATE!=='WAITING'){
+    sliceClock+=dt;
+    while(sliceClock>=1000/HZ){ sliceClock-=1000/HZ; pushSlice(curPeak); curPeak=0;
+      if (simulate&&simTalking&&Math.random()<0.5){ const s=slice(0); s.tokens.push(SIM_WORDS[simWordAt++%SIM_WORDS.length]); s.conf=0.7; } }
+  }
+  if (STATE==='REST'||STATE==='LISTENING'){ let r=0; for(let a=0;a<HZ*4;a++) r+=slice(a).energy; r/=HZ*4; if (STATE==='REST'&&r>0.07) setState('LISTENING'); else if (STATE==='LISTENING'&&r<0.025) setState('REST'); }
+  if (STATE==='WORKING'){ convergence=Math.min(1,convergence+dt/(reduceMotion?300:1100)); if(convergence>=1) finishWorking(); }
+  let dissolve=0;
+  if (STATE==='DELETE'||STATE==='FAULT'){ dissolveT+=dt; dissolve=Math.min(1,dissolveT/(reduceMotion?400:1800)); if(dissolve>=1) afterDissolve(); }
+
+  const marks=buildScore();
+  if (renderer==='hi') drawHi(marks,dissolve); else if (renderer==='bit') drawGrid(marks,32,true,dissolve); else drawGrid(marks,+renderer,false,dissolve);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- transitions ---------- */
+function select(){ frozen=true; sel.held=true; sel.start=0; setState('RECALL'); }
+let lastTickSec=0;
+function moveSelection(dxPx){ const R=Math.min(W,H)*0.36; sel.start=Math.max(0,Math.min(N-sel.w, sel.start+(-dxPx)/(R*2)*N*0.7)); const sec=Math.floor(sel.start/HZ); if(sec!==lastTickSec){ lastTickSec=sec; Haptic.tick(); } }
+function resolve(){
+  const ordered=[]; let e=0,n=0;
+  for (let a=Math.min(N-1,Math.ceil(sel.start+sel.w)); a>=Math.floor(sel.start); a--){ const s=slice(a); e+=s.energy; n++; ordered.push(...s.tokens); }
+  resolved={tokens:ordered, energy:n?e/n:0, age0:sel.start/N, age1:(sel.start+sel.w)/N, samples: Tape.cut(sel.start/HZ, (sel.start+sel.w)/HZ), at:new Date()};
+  convergence=0; setState('WORKING');
+}
+async function finishWorking(){
+  if (resolved.energy<0.04 && resolved.tokens.length===0){ dissolveT=0; setState('FAULT'); return; }
+  if (resolved.samples){ let pk=0; for (let i=0;i<resolved.samples.length;i+=16) pk=Math.max(pk,Math.abs(resolved.samples[i])); if (pk<0.01 && resolved.tokens.length===0){ dissolveT=0; setState('FAULT'); return; } }
+  const raw = resolved.tokens.join(' ');
+  const text = raw ? await Models.mask(raw) : 'speech held. no words resolved.';
+  resolved.text = text; resolved.masked = text!==raw;
+  if (STATE!=='WORKING') return;
+  setState('READING'); showRead(text, []);
+  clearTimeout(dissolveTimer); dissolveTimer=setTimeout(()=>{ if(STATE==='READING') dissolveMoment(); }, AUTO_DISSOLVE);
+}
+async function keep(){
+  clearTimeout(dissolveTimer); const m=resolved; m.tags = m.text ? await Models.tags(m.text) : []; if (m.samples&&m.samples.length){ m.blob=Tape.wav(m.samples); m.samples=null; } keepMoment(m); setState('SAVE'); showRead(m.text, m.tags);
+  setTimeout(()=>release(), 1600);
+}
+function dissolveMoment(){ clearTimeout(dissolveTimer); dissolveT=0; setState('DELETE'); }
+function afterDissolve(){ for(let a=Math.floor(sel.start);a<sel.start+sel.w&&a<N;a++){ const s=slice(a); s.energy=0; s.tokens=[]; s.conf=0; s.voice=0; } release(); }
+function release(){ frozen=false; sel.held=false; if(resolved) resolved.samples=null; resolved=null; readEl.classList.remove('on','acts-on'); setState(audioOK||simulate?'LISTENING':'REST'); }
+function toggleStop(){
+  if (STATE==='STOPPED'){ frozen=false; setState('LISTENING'); if(rec){ recActive=true; try{rec.start();}catch(e){} } }
+  else { release(); frozen=true; for(const s of slices){ s.energy=0; s.tokens=[]; s.conf=0; s.voice=0; } Tape.clear(); setState('STOPPED'); if(rec){ recActive=false; try{rec.stop();}catch(e){} } }
+}
+
+/* ---------- gestures ---------- */
+let p0=null,pLast=null,moved=false,holdTimer=0,longPressed=false;
+cv.addEventListener('pointerdown', ev=>{
+  if (STATE==='WAITING') return;
+  p0={x:ev.clientX,y:ev.clientY}; pLast={x:ev.clientX,y:ev.clientY}; moved=false; longPressed=false; cv.setPointerCapture(ev.pointerId);
+  clearTimeout(holdTimer); holdTimer=setTimeout(()=>{ if(!moved){ longPressed=true; toggleStop(); } }, 900);
+  Cue.tap(); Haptic.pulse(6);
+  if (STATE==='LISTENING'||STATE==='REST'){ lastTickSec=0; taps++; select(); }
+});
+cv.addEventListener('pointermove', ev=>{ if(!p0) return; const dx=ev.clientX-pLast.x; pLast={x:ev.clientX,y:ev.clientY}; if(Math.hypot(ev.clientX-p0.x,ev.clientY-p0.y)>8){ moved=true; clearTimeout(holdTimer);} if(STATE==='RECALL') moveSelection(dx); });
+cv.addEventListener('pointerup', ev=>{
+  clearTimeout(holdTimer); if(!p0||longPressed){ p0=null; return; }
+  const dy=ev.clientY-p0.y, dx=ev.clientX-p0.x;
+  if (STATE==='RECALL') resolve();
+  else if (STATE==='READING'){ if(dy<-50&&Math.abs(dy)>Math.abs(dx)) keep(); else if(dy>50&&Math.abs(dy)>Math.abs(dx)) dissolveMoment(); }
+  p0=null;
+});
+cv.addEventListener('pointercancel',()=>{ clearTimeout(holdTimer); p0=null; });
+addEventListener('keydown', ev=>{ if(STATE==='WAITING') return; if(ev.key===' '&&(STATE==='LISTENING'||STATE==='REST')) select(); else if(ev.key===' '&&STATE==='RECALL') resolve(); else if(ev.key==='ArrowLeft'&&STATE==='RECALL') moveSelection(-40); else if(ev.key==='ArrowRight'&&STATE==='RECALL') moveSelection(40); else if(ev.key==='ArrowUp'&&STATE==='READING') keep(); else if(ev.key==='ArrowDown'&&STATE==='READING') dissolveMoment(); });
+
+/* ---------- clock ---------- */
+
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden && Sonic.ctx && Sonic.on) Sonic.ctx.suspend(); else if (Sonic.ctx && Sonic.on) Sonic.ctx.resume(); });
+
+/* ---------- install: a runtime manifest so the page can be added to a home screen ---------- */
+(function manifest(){
+  try{
+    const icon=(n)=>{ const c=document.createElement('canvas'); c.width=c.height=n; const g=c.getContext('2d'); g.fillStyle='#efe9da'; g.fillRect(0,0,n,n);
+      g.fillStyle='#2a2620'; for(let i=0;i<8;i++){ const a=i/8*Math.PI*2-Math.PI/2; g.beginPath(); g.arc(n/2+Math.cos(a)*n*0.34, n/2+Math.sin(a)*n*0.34, n*0.04,0,7); g.fill(); }
+      g.fillStyle='#c9843c'; g.beginPath(); g.arc(n*0.69,n*0.375,n*0.062,0,7); g.fill(); return c.toDataURL('image/png'); };
+    const m={name:'Ambient Present', short_name:'Present', start_url:location.href.split('#')[0], display:'standalone', background_color:'#efe9da', theme_color:'#efe9da',
+      description:'A smaller past, a brighter present.', icons:[{src:icon(192),sizes:'192x192',type:'image/png'},{src:icon(512),sizes:'512x512',type:'image/png'}]};
+    const l=document.createElement('link'); l.rel='manifest'; l.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'})); document.head.appendChild(l);
+  }catch(e){}
+})();
+
+setState('WAITING');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
