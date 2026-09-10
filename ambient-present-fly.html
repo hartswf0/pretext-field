@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0f0e0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="Every dot is a direction in the room and holds what was seen there, when, and how loud it was.">
+<meta property="og:title" content="Ambient Present Fly">
+<meta property="og:description" content="Every dot is a direction in the room and holds what was seen there, when, and how loud it was.">
+<meta property="og:image" content="https://hartswf0.github.io/pretext-field/ambient-present-og.png">
+<title>Ambient Present Fly</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230f0e0c'/%3E%3Cg fill='%23ece7d8'%3E%3Ccircle cx='32' cy='10' r='2.6'/%3E%3Ccircle cx='47.6' cy='16.4' r='2.6'/%3E%3Ccircle cx='54' cy='32' r='2.6'/%3E%3Ccircle cx='47.6' cy='47.6' r='2.6'/%3E%3Ccircle cx='32' cy='54' r='2.6'/%3E%3Ccircle cx='16.4' cy='47.6' r='2.6'/%3E%3Ccircle cx='10' cy='32' r='2.6'/%3E%3Ccircle cx='16.4' cy='16.4' r='2.6'/%3E%3C/g%3E%3Ccircle cx='44' cy='24' r='4' fill='%23e0a24a'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="ambient-present-icon.png">
+<style>
+:root{--paper:#0f0e0c;--ink:#ece7d8;--dim:#6e675b;--line:#2a2620;--warm:#e0a24a;--rust:#c9673a}
+html.light{--paper:#efe9da;--ink:#2a2620;--dim:#9a9283;--line:#d9d2c1;--warm:#c9843c;--rust:#a3512e}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);font-family:ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+#stage{position:fixed;inset:0;display:block}
+button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}
+#top{position:fixed;left:20px;right:20px;top:max(16px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+#sys{display:flex;align-items:center;gap:8px}#dot{width:8px;height:8px;border-radius:50%;background:var(--dim);transition:background 1.2s}
+#below{position:fixed;left:20px;right:20px;top:42%;bottom:104px;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;overflow:hidden}
+#strip{width:min(100%,360px);height:44px;pointer-events:auto;touch-action:none}
+#line{text-align:center;pointer-events:auto;white-space:pre-line;min-height:1.6em;font-size:12px;letter-spacing:.12em;line-height:1.7}
+#line .err{color:var(--rust)}#line button{text-decoration:underline;text-underline-offset:4px}
+#panel{display:none;flex-direction:column;align-items:center;gap:6px;width:100%;pointer-events:auto}
+#panel.on{display:flex;animation:rise .4s ease-out}@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#panel .obs{display:flex;align-items:center;gap:8px;cursor:pointer}#panel .obs canvas{flex:0 0 28px}
+#panel .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}#panel .acts button,#panel .x{padding:7px 9px;border:1px solid var(--line)}
+#shelf{position:fixed;left:0;right:0;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 34px);display:flex;gap:12px;justify-content:center;overflow-x:auto;padding:4px 20px;pointer-events:auto;scrollbar-width:none}
+#shelf .k{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}#shelf .k img{width:64px;height:32px;display:block;image-rendering:pixelated;opacity:.9}
+#status{position:fixed;left:0;right:0;bottom:max(18px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:18px;pointer-events:auto}
+@media (max-width:339px),(max-height:339px){#top,#status,#below,#shelf{display:none!important}}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="the room as an orb of dots; every dot remembers what was seen there"></canvas>
+<div id="top"><div id="title"></div><div id="sys"><div id="sysword"></div><div id="dot"></div></div></div>
+<div id="below"><canvas id="strip" aria-label="the session's sound above the line and motion below it; drag to look back"></canvas><div id="panel"></div><div id="line"></div></div>
+<div id="shelf"></div>
+<div id="status"><button id="s-cam"></button><button id="s-ori"></button><button id="s-gps"></button><button id="s-now"></button><button id="s-theme"></button></div>
+<script>
+const GLY={
+A:"01110 10001 10001 11111 10001 10001 10001",B:"11110 10001 10001 11110 10001 10001 11110",C:"01110 10001 10000 10000 10000 10001 01110",D:"11110 10001 10001 10001 10001 10001 11110",E:"11111 10000 10000 11110 10000 10000 11111",F:"11111 10000 10000 11110 10000 10000 10000",G:"01110 10001 10000 10111 10001 10001 01111",H:"10001 10001 10001 11111 10001 10001 10001",I:"01110 00100 00100 00100 00100 00100 01110",J:"00111 00010 00010 00010 00010 10010 01100",K:"10001 10010 10100 11000 10100 10010 10001",L:"10000 10000 10000 10000 10000 10000 11111",M:"10001 11011 10101 10101 10001 10001 10001",N:"10001 10001 11001 10101 10011 10001 10001",O:"01110 10001 10001 10001 10001 10001 01110",P:"11110 10001 10001 11110 10000 10000 10000",Q:"01110 10001 10001 10001 10101 10010 01101",R:"11110 10001 10001 11110 10100 10010 10001",S:"01111 10000 10000 01110 00001 00001 11110",T:"11111 00100 00100 00100 00100 00100 00100",U:"10001 10001 10001 10001 10001 10001 01110",V:"10001 10001 10001 10001 10001 01010 00100",W:"10001 10001 10001 10101 10101 10101 01010",X:"10001 10001 01010 00100 01010 10001 10001",Y:"10001 10001 01010 00100 00100 00100 00100",Z:"11111 00001 00010 00100 01000 10000 11111",
+0:"01110 10001 10011 10101 11001 10001 01110",1:"00100 01100 00100 00100 00100 00100 01110",2:"01110 10001 00001 00010 00100 01000 11111",3:"11111 00010 00100 00010 00001 10001 01110",4:"00010 00110 01010 10010 11111 00010 00010",5:"11111 10000 11110 00001 00001 10001 01110",6:"00110 01000 10000 11110 10001 10001 01110",7:"11111 00001 00010 00100 01000 01000 01000",8:"01110 10001 10001 01110 10001 10001 01110",9:"01110 10001 10001 01111 00001 00010 01100",
+" ":"00000 00000 00000 00000 00000 00000 00000",":":"00000 00100 00100 00000 00100 00100 00000",".":"00000 00000 00000 00000 00000 00100 00100",",":"00000 00000 00000 00000 00100 00100 01000","-":"00000 00000 00000 11111 00000 00000 00000","'":"00100 00100 01000 00000 00000 00000 00000","/":"00001 00010 00010 00100 01000 01000 10000","?":"01110 10001 00001 00010 00100 00000 00100","(":"00010 00100 01000 01000 01000 00100 00010",")":"01000 00100 00010 00010 00010 00100 01000","[":"01110 01000 01000 01000 01000 01000 01110","]":"01110 00010 00010 00010 00010 00010 01110","\u00b7":"00000 00000 00000 00100 00000 00000 00000","\u2013":"00000 00000 00000 11111 00000 00000 00000",
+};
+function dotText(el, text, o={}){
+  let size=o.size||1.3, gap=o.gap||(size*0.75); const color=o.color||`rgb(${P.ink})`, align=o.align||'center';
+  const lines=String(text).toUpperCase().split('\n'); const cols=Math.max(1,...lines.map(l=>l.length));
+  const maxW=o.max||(el.clientWidth||el.parentElement&&el.parentElement.clientWidth||W)-4;
+  let cw=5*(size+gap)+size*2, need=cols*cw; if(need>maxW){ const k=maxW/need; size*=k; gap*=k; cw=5*(size+gap)+size*2; }
+  const ch=7*(size+gap)+size*2.5, w=Math.max(1,cols*cw), h=lines.length*ch;
+  let c=el.firstElementChild; if(!c||c.tagName!=='CANVAS'){ el.textContent=''; c=document.createElement('canvas'); el.appendChild(c); }
+  const d=Math.min(2,devicePixelRatio||1); c.width=Math.ceil(w*d); c.height=Math.ceil(h*d); c.style.width=w+'px'; c.style.height=h+'px'; c.style.display='block';
+  const g=c.getContext('2d'); g.setTransform(d,0,0,d,0,0); g.fillStyle=color; const rad=Math.max(0.55,size/2);
+  lines.forEach((ln,li)=>{ const ox = align==='left'?0 : (w-ln.length*cw)/2;
+    for(let ci=0;ci<ln.length;ci++){ const gl=GLY[ln[ci]]||GLY['?']; const rows=gl.split(' ');
+      for(let r=0;r<7;r++) for(let k=0;k<5;k++) if(rows[r][k]==='1'){ g.beginPath(); g.arc(ox+ci*cw+k*(size+gap)+size, li*ch+r*(size+gap)+size, rad, 0, 7); g.fill(); } } });
+  el.dataset.text=text; return c;
+}
+function dotWrap(t,n){ const out=[]; for(const para of String(t).split('\n')){ let l=''; for(const w of para.split(' ')){ if((l+' '+w).trim().length>n){ out.push(l.trim()); l=w; } else l+=' '+w; } out.push(l.trim()); } return out.join('\n'); }
+/* ============================================================
+   AMBIENT PRESENT DEEP
+   One orb. Every dot is a direction in the room. Every dot holds a stack of what was
+   observed there: when it was seen, what colour it was, how loud the room was then,
+   how much it moved. Space is where the dot is. Time is a cursor you can pull back.
+   Sound is a halo. Depth is the stack under the dot, which you can open.
+   The camera is always legible: the frame paints where the phone points, at full
+   halftone, and its frustum is drawn so you know which part of the orb is live.
+   ============================================================ */
+'use strict';
+const $=id=>document.getElementById(id);
+const TW=256, TH=128, TN=TW*TH, OBS=8, PW=6, PH=4;                           // observations per facet; each is a 6x4 patch
+const HZ=10, SESSION=180, SN=SESSION*HZ;            // the time ring: three minutes at ten a second
+const FW=192, FH=108, RINGS=26;
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const PAL={dark:{paper:'#0f0e0c',ink:[236,231,216],dim:'#6e675b',line:'#2a2620',ember:[224,162,74],rust:[201,103,58],warm:'#e0a24a'},light:{paper:'#efe9da',ink:[42,38,32],dim:'#9a9283',line:'#d9d2c1',ember:[224,179,90],rust:[163,81,46],warm:'#c9843c'}};
+let theme=localStorage.getItem('ap.theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'), P=PAL[theme];
+function applyTheme(){ P=PAL[theme]; document.documentElement.classList.toggle('light',theme==='light'); try{ localStorage.setItem('ap.theme',theme); }catch(e){} }
+applyTheme();
+const hms=d=>[d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+/* ---------- the fly's eye: facets, each a stack of small pictures ----------
+   The orb is a compound eye. Each facet looks at one direction and keeps the last OBS
+   things it saw there as 6x4 patches, with the time, the loudness and the motion of
+   that moment. A facet is a picture; a stack is a film; the orb is a room of films. */
+const pts=[]; for(let r=0;r<RINGS;r++){ const lat=-Math.PI/2+(r+0.5)/RINGS*Math.PI; const n=Math.max(6,Math.round(Math.cos(lat)*RINGS*3.4)); for(let k=0;k<n;k++){ const lon=k/n*Math.PI*2-Math.PI; const c=Math.cos(lat); pts.push({id:pts.length,lat,lon,d:[c*Math.sin(lon),Math.sin(lat),c*Math.cos(lon)]}); } }
+const FN=pts.length;
+const TDIR=new Float32Array(TN*3); for(let y=0;y<TH;y++)for(let x=0;x<TW;x++){ const lam=(x+0.5)/TW*Math.PI*2-Math.PI, phi=Math.PI/2-(y+0.5)/TH*Math.PI; const c=Math.cos(phi), i=(y*TW+x)*3; TDIR[i]=c*Math.sin(lam); TDIR[i+1]=Math.sin(phi); TDIR[i+2]=c*Math.cos(lam); }
+const Facet={ px:new Uint8ClampedArray(FN*OBS*PW*PH*3), t:new Float32Array(FN*OBS), au:new Uint8Array(FN*OBS), mo:new Uint8Array(FN*OBS), n:new Uint8Array(FN), head:new Uint8Array(FN),
+  put(i,patch,t,audio,motion){ const k=this.head[i]; const o=i*OBS+k; this.px.set(patch,o*PW*PH*3); this.t[o]=t; this.au[o]=audio*255; this.mo[o]=motion*255; this.head[i]=(k+1)%OBS; if(this.n[i]<OBS) this.n[i]++; },
+  latest(i,before){ const n=this.n[i]; if(!n) return null; let best=-1,bt=-Infinity; for(let k=0;k<n;k++){ const o=i*OBS+k, t=this.t[o]; if(t<=before&&t>bt){ bt=t; best=o; } } if(best<0) return null; return this.obs(best); },
+  obs(o){ const b=o*PW*PH*3; let r=0,g=0,bb=0; for(let q=0;q<PW*PH;q++){ r+=this.px[b+q*3]; g+=this.px[b+q*3+1]; bb+=this.px[b+q*3+2]; } const m=PW*PH; return {o,t:this.t[o],au:this.au[o]/255,mo:this.mo[o]/255,r:r/m,g:g/m,b:bb/m}; },
+  pix(o,q){ const b=(o*PW*PH+q)*3; return [this.px[b],this.px[b+1],this.px[b+2]]; },
+  stack(i){ const out=[]; for(let k=0;k<this.n[i];k++) out.push(this.obs(i*OBS+k)); return out.sort((a,b)=>a.t-b.t); },
+  seen(){ let c=0; for(let i=0;i<FN;i++) if(this.n[i]) c++; return c/FN; } };
+const Cell={ seen(){ return Facet.seen(); } };
+/* ---------- the time ring: sound and motion and aim, ten a second, three minutes ---------- */
+const Ring={ au:new Float32Array(SN), mo:new Float32Array(SN), t:new Float64Array(SN), head:0, count:0,
+  push(a,m,t){ this.au[this.head]=a; this.mo[this.head]=m; this.t[this.head]=t; this.head=(this.head+1)%SN; if(this.count<SN) this.count++; },
+  at(ago){ const i=(this.head-1-ago+SN*2)%SN; return {au:this.au[i],mo:this.mo[i],t:this.t[i]}; } };
+let now=0;                                   // seconds on the performance clock, updated each frame
+let cursor=null;                              // null = live; else a time on the performance clock
+
+/* ---------- senses ---------- */
+let stream=null, video=null, facing='environment', analyser=null, abuf=null, audioCtx=null, hearing=false, sim=false;
+let fwd=[0,0,1], up=[0,1,0], gotOri=false, oriWhy='', fixes=[], gpsWhy='';
+const Frames={c:null,g:null,prev:null,last:null,
+  init(){ if(this.c) return; this.c=document.createElement('canvas'); this.c.width=FW; this.c.height=FH; this.g=this.c.getContext('2d',{willReadFrequently:true}); },
+  grab(){ const g=this.g; if(video&&video.readyState>=2){ if(facing==='user'){ g.save(); g.translate(FW,0); g.scale(-1,1); g.drawImage(video,0,0,FW,FH); g.restore(); } else g.drawImage(video,0,0,FW,FH); }
+    else if(sim){ simT+=0.05; g.fillStyle='#1c1a17'; g.fillRect(0,0,FW,FH); for(let i=0;i<4;i++){ g.fillStyle=['#e0a24a','#c9673a','#ece7d8','#6e675b'][i]; g.beginPath(); g.arc(FW/2+Math.sin(simT*(0.6+i*0.3))*FW*0.4, FH/2+Math.cos(simT*0.5+i)*FH*0.35, 10+i*3,0,7); g.fill(); } }
+    else return null;
+    const d=g.getImageData(0,0,FW,FH), a=d.data, n=FW*FH, cur=new Float32Array(n); let diff=0; for(let i=0;i<n;i++){ const y=a[i*4]*0.299+a[i*4+1]*0.587+a[i*4+2]*0.114; cur[i]=y; if(this.prev) diff+=Math.abs(y-this.prev[i]); }
+    const mo=this.prev?Math.min(1,(diff/n)/28):0; this.prev=cur; this.last=d; return {img:d,mo}; } };
+let simT=0;
+function onOri(ev){ if(ev.alpha==null) return; const D=Math.PI/180, a=ev.alpha*D,b=ev.beta*D,g=ev.gamma*D; const cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  const R=[[cA*cG-sA*sB*sG,-cB*sA,cA*sG+cG*sA*sB],[cG*sA+cA*sB*sG,cA*cB,sA*sG-cA*cG*sB],[-cB*sG,sB,cB*cG]]; const zc=facing==='user'?1:-1;
+  const f=[R[0][2]*zc,R[1][2]*zc,R[2][2]*zc], u=[R[0][1],R[1][1],R[2][1]]; fwd=[f[0],f[2],f[1]]; up=[u[0],u[2],u[1]]; gotOri=true; }
+async function sensors(){
+  try{ if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'){ const r=await DeviceOrientationEvent.requestPermission(); if(r!=='granted') oriWhy='motion declined. the frame paints at the front'; } }catch(e){}
+  if(window.DeviceOrientationEvent&&!oriWhy){ addEventListener('deviceorientation',onOri,true); setTimeout(()=>{ if(!gotOri){ oriWhy='no motion sensor. the frame paints at the front; drag to aim'; status(); } },2500); } else if(!oriWhy) oriWhy='no motion sensor. drag to aim';
+  if(navigator.geolocation) navigator.geolocation.watchPosition(p=>{ fixes.push({t:Date.now(),lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy}); if(fixes.length>600) fixes.shift(); gpsWhy=''; status(); },e=>{ gpsWhy=e.code===1?'location declined':'no position yet'; status(); },{enableHighAccuracy:true,maximumAge:2000,timeout:15000}); else gpsWhy='no location here';
+  status(); }
+async function ensureCtx(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') await audioCtx.resume(); return audioCtx; }
+const Tape={sr:48000,ring:null,pos:0,len:0,node:null, init(ctx,src){ if(this.node){ try{this.node.disconnect();}catch(e){} } if(!this.ring){ this.sr=ctx.sampleRate; this.len=this.sr*SESSION; this.ring=new Float32Array(this.len); } const Pn=ctx.createScriptProcessor(4096,1,1); Pn.onaudioprocess=ev=>{ const inp=ev.inputBuffer.getChannelData(0); for(let i=0;i<inp.length;i++){ this.ring[this.pos]=inp[i]; this.pos=(this.pos+1)%this.len; } }; const mute=ctx.createGain(); mute.gain.value=0; src.connect(Pn); Pn.connect(mute); mute.connect(ctx.destination); this.node=Pn; },
+  cut(agoS0,agoS1){ if(!this.ring) return null; const n=Math.max(0,Math.round((agoS1-agoS0)*this.sr)), out=new Float32Array(n); let st=(this.pos-Math.round(agoS1*this.sr)+this.len*2)%this.len; for(let i=0;i<n;i++) out[i]=this.ring[(st+i)%this.len]; return out; },
+  wav(x){ const sr=this.sr,n=x.length,b=new ArrayBuffer(44+n*2),v=new DataView(b),W=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));}; W(0,'RIFF');v.setUint32(4,36+n*2,true);W(8,'WAVE');W(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);W(36,'data');v.setUint32(40,n*2,true); for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,x[i]));v.setInt16(44+i*2,s<0?s*0x8000:s*0x7fff,true);} return new Blob([b],{type:'audio/wav'}); } };
+async function start(){
+  say('asking for the camera and microphone');
+  if(!window.isSecureContext){ fault('needs an https page','<button data-act="sim">watch a made-up room</button>'); return; }
+  try{ const ctx=await ensureCtx(); if(stream) stream.getTracks().forEach(t=>t.stop()); let mic=true;
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); }catch(e1){ mic=false; stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false}); }
+    if(!video){ video=document.createElement('video'); video.muted=true; video.playsInline=true; video.setAttribute('playsinline',''); } video.srcObject=new MediaStream(stream.getVideoTracks()); await video.play(); Frames.init();
+    if(mic&&stream.getAudioTracks().length){ const src=ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())); analyser=ctx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0.6; src.connect(analyser); abuf=new Uint8Array(analyser.fftSize); Tape.init(ctx,src); micOK=true; } else { micOK=false; micWhy='microphone declined or absent'; }
+    stream.getVideoTracks()[0].onended=()=>{ hearing=false; fault('camera stopped','tap the orb to reconnect'); };
+    const first=!hearing; hearing=true; sim=false; if(first) sensors(); Haptic([10,60,10,60,18]); setState('LIVE');
+  }catch(e){ const n=e&&e.name; fault(n==='NotAllowedError'?'camera declined':n==='NotFoundError'?'no camera':'could not start ('+(n||'unknown')+')', 'allow it by the lock icon, then tap the orb\nor <button data-act="sim">watch a made-up room</button>'); } }
+let micOK=false, micWhy='';
+function startSim(){ sim=true; hearing=false; Frames.init(); micWhy='made-up'; setState('LIVE'); say('a made-up room. drag to aim'); }
+
+/* ---------- state and the one line ---------- */
+let STATE='INTRO', firstTaps=+(localStorage.getItem('ap.taps')||0);
+const line=$('line'), panel=$('panel');
+function say(html){ if(line.dataset.last===html) return; line.dataset.last=html; if(/<[a-z]/i.test(html)){ line.innerHTML=html; delete line.dataset.text; } else dotText(line,dotWrap(html,34),{size:1.1}); }
+function sysWord(t){ dotText($('sysword'),t,{size:0.9,color:P.dim,max:160}); }
+function setState(s){ STATE=s; $('dot').style.background=({INTRO:P.dim,ASK:P.dim,LIVE:P.warm,PAST:`rgb(${P.ink})`,READING:P.warm,FAULT:`rgb(${P.rust})`})[s]||P.dim;
+  if(s==='ASK') say('tap the orb\nso it can see and hear the room'); if(s==='LIVE') say(firstTaps<1?'turn the phone. each facet keeps what it saw\ntap a facet to open its film. drag the strip to go back':''); if(s==='PAST') say('the orb as it was then. tap now to return'); }
+function fault(what,fix){ setState('FAULT'); line.innerHTML='<span class="err">'+what+'</span>\n'+(fix||''); delete line.dataset.last; }
+line.addEventListener('click',ev=>{ const b=ev.target.closest('button'); if(b&&b.dataset.act==='sim'){ ev.stopPropagation(); startSim(); } });
+const Haptic=p=>{ if(navigator.vibrate) try{ navigator.vibrate(p); }catch(e){} };
+function status(){ const D=(el,t,on,bad)=>{ dotText(el,t,{size:1.0,color:on?`rgb(${P.ink})`:(bad?`rgb(${P.rust})`:P.dim)}); };
+  D($('s-cam'),hearing?(micOK?'CAM+MIC':'CAM'):(sim?'MADE-UP':'OFF'),hearing||sim,hearing&&!micOK); D($('s-ori'),'AIM',gotOri,!!oriWhy&&!gotOri); D($('s-gps'),'GPS',fixes.length>0,!!gpsWhy); D($('s-now'),cursor==null?'NOW':'BACK',cursor!=null); D($('s-theme'),theme==='dark'?'DARK':'LIGHT',false); }
+
+/* ---------- painting the field: the frame lands where the phone points; each cell remembers ---------- */
+let curAudio=0, curMotion=0, lastPaintAt=0;
+function paintFrame(img,mo){
+  const t=now; let f=fwd, u=up; if(!gotOri){ f=aimFwd; u=[0,1,0]; }
+  const dp=f[0]*u[0]+f[1]*u[1]+f[2]*u[2]; u=[u[0]-f[0]*dp,u[1]-f[1]*dp,u[2]-f[2]*dp]; const lu=Math.hypot(u[0],u[1],u[2])||1; u=[u[0]/lu,u[1]/lu,u[2]/lu]; const r=[u[1]*f[2]-u[2]*f[1],u[2]*f[0]-u[0]*f[2],u[0]*f[1]-u[1]*f[0]];
+  const tx=Math.tan(FOV/2), ty=tx*FH/FW, a=img.data, cosLim=Math.cos(FOV*0.7); const facetPx=FW*(Math.PI/RINGS)/FOV; const patch=new Uint8ClampedArray(PW*PH*3);
+  for(const p of pts){ const d=p.d; const z=d[0]*f[0]+d[1]*f[1]+d[2]*f[2]; if(z<cosLim) continue; const px=(d[0]*r[0]+d[1]*r[1]+d[2]*r[2])/z/tx, py=(d[0]*u[0]+d[1]*u[1]+d[2]*u[2])/z/ty; if(px<-1||px>1||py<-1||py>1) continue;
+    const cx=(px+1)/2*FW, cy=(1-py)/2*FH; let q=0;
+    for(let yy=0;yy<PH;yy++) for(let xx=0;xx<PW;xx++){ const sx=Math.max(0,Math.min(FW-1,Math.round(cx+(xx-(PW-1)/2)*facetPx/PW))), sy=Math.max(0,Math.min(FH-1,Math.round(cy+(yy-(PH-1)/2)*facetPx/PW))); const j=(sy*FW+sx)*4; patch[q*3]=a[j]; patch[q*3+1]=a[j+1]; patch[q*3+2]=a[j+2]; q++; }
+    Facet.put(p.id,patch,t,curAudio,mo); }
+  lastPaintAt=t; }
+const FOV=65*Math.PI/180; let aimFwd=[0,0,1];
+
+/* ---------- the orb: one dot per direction; colour, size, halo, age, all from the stack ---------- */
+const cv=$('stage'), ctx=cv.getContext('2d'); let W=0,H=0, rot=0, tilt=0.18;
+function resize(){ const d=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight; cv.width=W*d; cv.height=H*d; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(d,0,0,d,0,0); } addEventListener('resize',resize); resize();
+const tiny=()=>Math.min(W,H)<340; const orbR=()=>tiny()?Math.min(W,H)*0.36:Math.min(W*0.34,H*0.19,260); const orbY=()=>tiny()?H/2:H*0.42-orbR()-8;
+function proj(lat,lon){ const x=Math.cos(lat)*Math.cos(lon-rot), y=Math.sin(lat), z=Math.cos(lat)*Math.sin(lon-rot); const y2=y*Math.cos(tilt)-z*Math.sin(tilt), z2=y*Math.sin(tilt)+z*Math.cos(tilt); return [x,y2,z2]; }
+let zoom=null;                                   // a facet id: the orb becomes that facet's film
+function drawOrb(){
+  const R=orbR(), cxp=W/2, cyp=orbY(), at=cursor==null?now:cursor; ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
+  if(zoom!=null){ drawZoom(R,cxp,cyp,at); return; }
+  const dark=theme==='dark', base=R/170; const pulse=1+curAudio*0.04;   // the whole eye breathes with the room's sound
+  const marks=[]; for(const p of pts){ const [x,y,z]=proj(p.lat,p.lon); if(z<-0.1) continue; marks.push({p,x,y,z}); } marks.sort((a,b)=>a.z-b.z);
+  const S0=R*Math.PI/RINGS*0.5*pulse;             // a facet's half-size on screen at the front
+  for(const m of marks){ const front=(m.z+1)/2, sx=cxp+m.x*R*pulse, sy=cyp-m.y*R*pulse; const o=Facet.latest(m.p.id,at);
+    if(!o){ ctx.globalAlpha=0.14+front*0.2; ctx.fillStyle=P.dim; ctx.fillRect(sx-0.6*base,sy-0.6*base,1.2*base,1.2*base); ctx.globalAlpha=1; continue; }
+    const age=Math.min(1,(at-o.t)/120); const S=S0*(0.35+m.z*0.65); const cw=S*2/PW; const fade=1-age*0.6;
+    // the facet: its own 6x4 picture as dots
+    for(let q=0;q<PW*PH;q++){ const [r,g,b]=Facet.pix(o.o,q); const lum=(r*0.299+g*0.587+b*0.114)/255, bright=dark?lum:1-lum; const rad=cw*(0.12+0.44*bright); if(rad<0.35) continue; const xx=q%PW, yy=(q/PW)|0; ctx.globalAlpha=(0.35+front*0.65)*fade; ctx.fillStyle=`rgb(${r},${g},${b})`; const dx=sx+(xx-(PW-1)/2)*cw, dy=sy+(yy-(PH-1)/2)*cw; if(rad<1.2) ctx.fillRect(dx-rad,dy-rad,rad*2,rad*2); else { ctx.beginPath(); ctx.arc(dx,dy,rad,0,7); ctx.fill(); } }
+    // the halo: how loud the room was when this facet last saw
+    if(o.au>0.1&&front>0.45){ ctx.strokeStyle=P.warm; ctx.lineWidth=Math.max(0.6,0.7*base); ctx.globalAlpha=Math.min(1,o.au*1.5)*fade*front; ctx.beginPath(); ctx.arc(sx,sy,S*1.15+o.au*S*0.6,0,7); ctx.stroke(); }
+    // the fractal: older observations of this facet as a ring of small dots inside it, one per time
+    const n=Facet.n[m.p.id]; if(n>1&&S>9&&front>0.8){ const st=Facet.stack(m.p.id); ctx.globalAlpha=0.9*front; st.forEach((ob,k)=>{ if(ob.o===o.o||ob.t>at) return; const a=k/st.length*Math.PI*2; ctx.fillStyle=`rgb(${ob.r|0},${ob.g|0},${ob.b|0})`; ctx.beginPath(); ctx.arc(sx+Math.cos(a)*S*0.55,sy+Math.sin(a)*S*0.55,Math.max(0.6,S*0.09),0,7); ctx.fill(); }); }
+    ctx.globalAlpha=1; }
+  if(cursor==null&&(hearing||sim)){ const f=gotOri?fwd:aimFwd; const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); const [x,y,z]=proj(phi,lam); if(z>-0.2){ ctx.strokeStyle=P.warm; ctx.lineWidth=1.2; ctx.globalAlpha=0.8; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.ellipse(cxp+x*R,cyp-y*R,R*0.30*Math.max(0.2,z),R*0.17*Math.max(0.2,z),0,0,7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; } }
+  if(picked!=null) drawPick(cxp,cyp,R);
+  if(STATE==='READING'){ const upA=Math.max(0,Math.min(1,-dragY/60)), dn=Math.max(0,Math.min(1,dragY/60)); chevron(cxp,cyp-R-22,-1,Math.max(0.4,upA),tiny()?'':'KEEP'); chevron(cxp,cyp+R+22,1,Math.max(0.4,dn),tiny()?'':'LET GO'); }
+}
+/* one facet, opened: the orb becomes that direction's film. Each observation is a band of
+   longitude, newest at the right limb like the time sphere; its 6x4 patch is spread over the
+   band; its sound is the band's halo. The parent eye stays faint behind. */
+function drawZoom(R,cxp,cyp,at){
+  const st=Facet.stack(zoom).filter(o=>o.t<=at); const dark=theme==='dark', base=R/170;
+  ctx.globalAlpha=0.12; for(const p of pts){ const [x,y,z]=proj(p.lat,p.lon); if(z<0) continue; ctx.fillStyle=P.dim; ctx.fillRect(cxp+x*R*1.25-0.5,cyp-y*R*1.25-0.5,1,1); } ctx.globalAlpha=1;
+  const L=st.length||1; const marks=[];
+  for(let r=0;r<34;r++){ const lat=-Math.PI/2+(r+0.5)/34*Math.PI; const n=Math.max(6,Math.round(Math.cos(lat)*140)); for(let k=0;k<n;k++){ const lon=k/n*Math.PI*2; const band=Math.min(L-1,Math.floor((1-lon/(Math.PI*2))*L)); const ob=st[band]; if(!ob) continue; const within=((1-lon/(Math.PI*2))*L)-band; const xx=Math.min(PW-1,Math.floor(within*PW)), yy=Math.min(PH-1,Math.floor((lat+Math.PI/2)/Math.PI*PH)); const [rr,gg,bb]=Facet.pix(ob.o,(PH-1-yy)*PW+xx);
+    const cx=Math.cos(lat)*Math.cos(lon-rot), y=Math.sin(lat), cz=Math.cos(lat)*Math.sin(lon-rot); const y2=y*Math.cos(tilt)-cz*Math.sin(tilt), z2=y*Math.sin(tilt)+cz*Math.cos(tilt); if(z2<-0.1) continue; marks.push({x:cx,y:y2,z:z2,rr,gg,bb,au:ob.au,age:Math.min(1,(at-ob.t)/120),edge:within<0.06}); } }
+  marks.sort((a,b)=>a.z-b.z);
+  for(const m of marks){ const front=(m.z+1)/2; const lum=(m.rr*0.299+m.gg*0.587+m.bb*0.114)/255, bright=dark?lum:1-lum; const sz=(0.5+bright*3.0)*(0.5+front*0.6)*base; ctx.globalAlpha=(0.3+front*0.7)*(1-m.age*0.5); ctx.fillStyle=m.edge?P.warm:`rgb(${m.rr},${m.gg},${m.bb})`; ctx.beginPath(); ctx.arc(cxp+m.x*R,cyp-m.y*R,m.edge?Math.max(0.6,base*0.7):sz,0,7); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // the halos: one ring per observation at its band's longitude on the equator
+  st.forEach((ob,k)=>{ const lon=(1-(k+0.5)/L)*Math.PI*2; const cx=Math.cos(lon-rot), cz=Math.sin(lon-rot); const z2=cz*Math.cos(tilt); if(z2<0||ob.au<0.1) return; ctx.strokeStyle=P.warm; ctx.lineWidth=1; ctx.globalAlpha=Math.min(1,ob.au*1.5); ctx.beginPath(); ctx.arc(cxp+cx*R,cyp+cz*Math.sin(tilt)*R,3*base+ob.au*10*base,0,7); ctx.stroke(); }); ctx.globalAlpha=1;
+  const tmp=document.createElement('div'); const p=pts[zoom]; const c=dotText(tmp,`FACET ${Math.round(p.lon*180/Math.PI)} ${Math.round(p.lat*180/Math.PI)}  ${st.length} SEEN  TAP OUTSIDE TO CLOSE`,{size:0.85,color:P.dim,max:W-40}); const d=Math.min(2,devicePixelRatio||1); ctx.drawImage(c,(W-c.width/d)/2,cyp+R+30,c.width/d,c.height/d);
+}
+function chevron(cxp,y,dir,alpha,label){ ctx.globalAlpha=alpha; ctx.fillStyle=`rgb(${P.ink})`; for(let i=-4;i<=4;i++){ ctx.beginPath(); ctx.arc(cxp+i*6,y-Math.abs(i)*4*dir,1.4,0,7); ctx.fill(); } if(label){ const tmp=document.createElement('div'); const c=dotText(tmp,label,{size:0.9,max:200}); const d=Math.min(2,devicePixelRatio||1); ctx.drawImage(c,cxp-c.width/d/2,dir<0?y-22-c.height/d:y+24,c.width/d,c.height/d); } ctx.globalAlpha=1; }
+
+/* ---------- the strip: the session's sound and motion, and the cursor ---------- */
+const strip=$('strip'), sg=strip.getContext('2d');
+function drawStrip(){ const w=strip.clientWidth, h=strip.clientHeight; if(!w) return; const d=Math.min(2,devicePixelRatio||1); if(strip.width!==Math.round(w*d)){ strip.width=Math.round(w*d); strip.height=Math.round(h*d); } sg.setTransform(d,0,0,d,0,0); sg.clearRect(0,0,w,h);
+  const span=Math.min(Ring.count,SN); if(!span) return; const step=Math.max(1,Math.round(span/(w/3.6)));
+  for(let i=0;i<span;i+=step){ let a=0,m=0; for(let k=i;k<Math.min(span,i+step);k++){ const s=Ring.at(span-1-k); a=Math.max(a,s.au); m=Math.max(m,s.mo); } const x=(i+step/2)/span*w; const rows=Math.max(1,Math.round(a*(h/2/4))); sg.fillStyle=`rgba(${P.ink},0.85)`; for(let q=0;q<rows;q++){ sg.beginPath(); sg.arc(x,h/2-2-q*4,1.2,0,7); sg.fill(); } const rows2=Math.max(0,Math.round(m*(h/2/4))); sg.fillStyle=`rgb(${P.ember})`; for(let q=0;q<rows2;q++){ sg.beginPath(); sg.arc(x,h/2+2+q*4,1.2,0,7); sg.fill(); } }
+  const at=cursor==null?now:cursor; const t0=Ring.at(span-1).t, t1=Ring.at(0).t; const u=t1>t0?Math.max(0,Math.min(1,(at-t0)/(t1-t0))):1; sg.fillStyle=P.warm; for(let y=2;y<h;y+=4){ sg.beginPath(); sg.arc(u*w,y,1.3,0,7); sg.fill(); }
+  const tmp=document.createElement('div'); const lab=dotText(tmp,(cursor==null?'NOW':'-'+Math.round(now-cursor)+'S')+'  '+Math.round(Math.min(SESSION,span/HZ))+'S HELD',{size:0.75,color:P.dim,max:200}); sg.drawImage(lab,w-lab.width/d-2,h-lab.height/d-1,lab.width/d,lab.height/d); }
+let stripDrag=false; strip.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); stripDrag=true; strip.setPointerCapture(ev.pointerId); stripTo(ev); }); strip.addEventListener('pointermove',ev=>{ if(stripDrag) stripTo(ev); }); strip.addEventListener('pointerup',()=>{ stripDrag=false; }); strip.addEventListener('pointercancel',()=>{ stripDrag=false; });
+function stripTo(ev){ const r=strip.getBoundingClientRect(); const u=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)); const span=Math.min(Ring.count,SN); if(!span) return; const t0=Ring.at(span-1).t, t1=Ring.at(0).t; const t=t0+(t1-t0)*u; if(u>0.985){ cursor=null; if(STATE==='PAST') setState('LIVE'); } else { cursor=t; if(STATE==='LIVE') setState('PAST'); } status(); }
+
+/* ---------- deep: open the stack under a dot ---------- */
+let picked=null;
+function pick(px,py){ const R=orbR(), cxp=W/2, cyp=orbY(); let best=null,bd=R*Math.PI/RINGS*0.6; for(const p of pts){ const [x,y,z]=proj(p.lat,p.lon); if(z<0) continue; const d=Math.hypot(cxp+x*R-px,cyp-y*R-py); if(d<bd){ bd=d; best=p; } } return best; }
+function drawPick(cxp,cyp,R){ const [x,y]=proj(picked.lat,picked.lon); ctx.strokeStyle=P.warm; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(cxp+x*R,cyp-y*R,7,0,7); ctx.stroke(); }
+function openPick(p){ picked=p; zoom=p.id; const st=Facet.stack(p.id); panel.innerHTML=''; panel.classList.add('on');
+  const head=document.createElement('div'); dotText(head,`${Math.round(p.lon*180/Math.PI)}  ${Math.round(p.lat*180/Math.PI)}  ${st.length?st.length+' TIMES SEEN':'NEVER SEEN'}`,{size:0.95,color:P.dim,max:W-44}); panel.appendChild(head);
+  for(const o of st){ const row=document.createElement('div'); row.className='obs'; const sw=document.createElement('canvas'); sw.width=36; sw.height=24; const g=sw.getContext('2d'); for(let q=0;q<PW*PH;q++){ const [r,gg,b]=Facet.pix(o.o,q); const lum=(r*0.299+gg*0.587+b*0.114)/255; g.fillStyle=`rgb(${r},${gg},${b})`; g.beginPath(); g.arc(3+(q%PW)*6,3+((q/PW)|0)*6,1+ (theme==='dark'?lum:1-lum)*2.2,0,7); g.fill(); }
+    const txt=document.createElement('div'); dotText(txt,`${hms(new Date(Date.now()-(now-o.t)*1000))}  ${Math.round(now-o.t)}S AGO  SOUND ${Math.round(o.au*100)}  MOTION ${Math.round(o.mo*100)}`,{size:0.8,max:W-100}); row.append(sw,txt); row.onclick=ev=>{ ev.stopPropagation(); cursor=o.t; setState('PAST'); status(); }; panel.appendChild(row); }
+  const x=document.createElement('button'); x.className='x'; dotText(x,'X',{size:1.0}); x.onclick=ev=>{ ev.stopPropagation(); closePick(); }; panel.appendChild(x); say(st.length?'each line is one time this direction was seen. tap one to go there':''); }
+function closePick(){ picked=null; zoom=null; panel.classList.remove('on'); panel.innerHTML=''; }
+
+/* ---------- keep: the whole field with its stacks, the ring, the tape, the fixes ---------- */
+const kept=[];
+function keepField(){ if(!Cell.seen()){ say('nothing seen yet'); return; } const at=cursor==null?now:cursor; const c=document.createElement('canvas'); c.width=TW; c.height=TH; const g=c.getContext('2d'); const id=g.createImageData(TW,TH); const age=new Float32Array(TN), au=new Float32Array(TN); let seen=0;
+  for(const p of pts){ const o=Facet.latest(p.id,at); if(!o) continue; seen++; const x=Math.floor((p.lon+Math.PI)/(Math.PI*2)*TW)%TW, y=Math.max(0,Math.min(TH-1,Math.floor((Math.PI/2-p.lat)/Math.PI*TH))); for(let dy=-2;dy<=2;dy++) for(let dx=-3;dx<=3;dx++){ const xx=((x+dx)%TW+TW)%TW, yy=Math.max(0,Math.min(TH-1,y+dy)); const i=yy*TW+xx; id.data[i*4]=o.r; id.data[i*4+1]=o.g; id.data[i*4+2]=o.b; id.data[i*4+3]=255; age[i]=at-o.t; au[i]=o.au; } } g.putImageData(id,0,0);
+  const spanS=Math.min(SESSION,Ring.count/HZ); const wav=(Tape.ring&&micOK)?Tape.wav(Tape.cut(Math.max(0,now-at),Math.max(0,now-at)+Math.min(spanS,60))):null;
+  const m={id:String(Date.now()),name:'eye '+hms(new Date()),at:Date.now(),pic:c.toDataURL('image/jpeg',0.85),seen:seen/FN,age:Array.from(age,v=>+v.toFixed(1)),au:Array.from(au,v=>+v.toFixed(2)),ring:{hz:HZ,au:Array.from({length:Math.min(Ring.count,SN)},(_,k)=>+Ring.at(Math.min(Ring.count,SN)-1-k).au.toFixed(3)),mo:Array.from({length:Math.min(Ring.count,SN)},(_,k)=>+Ring.at(Math.min(Ring.count,SN)-1-k).mo.toFixed(3))},fixes:fixes.slice(-300),wav};
+  kept.push(m); Haptic([18,90,18]); say('kept the field. '+Math.round(m.seen*100)+'% of the room, '+Math.round(spanS)+'s of sound');
+  const row=document.createElement('div'); row.className='k'; const im=new Image(); im.src=m.pic; row.appendChild(im); const lab=document.createElement('div'); dotText(lab,hms(new Date(m.at)),{size:0.8,color:P.dim,max:80}); row.appendChild(lab); row.onclick=ev=>{ ev.stopPropagation(); exportMenu(m); }; $('shelf').appendChild(row); }
+function exportMenu(m){ panel.innerHTML=''; panel.classList.add('on'); const h=document.createElement('div'); dotText(h,`${m.name}  ${Math.round(m.seen*100)}% SEEN`,{size:0.95,max:W-44}); panel.appendChild(h); const acts=document.createElement('div'); acts.className='acts';
+  const mk=(l,fn)=>{ const b=document.createElement('button'); dotText(b,l,{size:1.0}); b.onclick=ev=>{ ev.stopPropagation(); fn(b); }; acts.appendChild(b); };
+  mk('360 PLATE',()=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement('canvas'); c.width=2048; c.height=1024; const g=c.getContext('2d'); g.fillStyle=P.paper; g.fillRect(0,0,2048,1024); const t=document.createElement('canvas'); t.width=TW; t.height=TH; const tg=t.getContext('2d',{willReadFrequently:true}); tg.drawImage(im,0,0); const d=tg.getImageData(0,0,TW,TH).data; const cw=2048/TW; for(let y=0;y<TH;y++) for(let x=0;x<TW;x++){ const i=y*TW+x; if(m.age[i]==null||(!d[i*4]&&!d[i*4+1]&&!d[i*4+2]&&!m.au[i])) continue; const lum=(d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)/255; g.fillStyle=`rgb(${d[i*4]},${d[i*4+1]},${d[i*4+2]})`; g.beginPath(); g.arc((x+0.5)*cw,(y+0.5)*cw,cw*(0.12+0.4*(theme==='dark'?lum:1-lum)),0,7); g.fill(); if(m.au[i]>0.12){ g.strokeStyle=P.warm; g.lineWidth=1; g.beginPath(); g.arc((x+0.5)*cw,(y+0.5)*cw,cw*0.55+m.au[i]*3,0,7); g.stroke(); } } c.toBlob(b=>deliver(new File([b],'present-fly-'+m.id+'.png',{type:'image/png'}),m),'image/png'); }; im.src=m.pic; });
+  mk('PLY',()=>{ const im=new Image(); im.onload=()=>{ const t=document.createElement('canvas'); t.width=TW; t.height=TH; const tg=t.getContext('2d',{willReadFrequently:true}); tg.drawImage(im,0,0); const d=tg.getImageData(0,0,TW,TH).data; const rows=[]; for(let i=0;i<TN;i++){ if(!d[i*4]&&!d[i*4+1]&&!d[i*4+2]&&!m.au[i]) continue; const r=1-Math.min(1,m.age[i]/120)*0.45; rows.push(`${(TDIR[i*3]*r).toFixed(4)} ${(TDIR[i*3+1]*r).toFixed(4)} ${(TDIR[i*3+2]*r).toFixed(4)} ${d[i*4]} ${d[i*4+1]} ${d[i*4+2]} ${m.age[i]} ${m.au[i]}`); } const ply='ply\nformat ascii 1.0\ncomment ambient present deep. radius = 1 - 0.45*min(1,age/120)\nelement vertex '+rows.length+'\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty float age_s\nproperty float sound\nend_header\n'+rows.join('\n')+'\n'; deliver(new File([ply],'present-fly-'+m.id+'.ply',{type:'text/plain'}),m); }; im.src=m.pic; });
+  mk('DATA',()=>deliver(new File([JSON.stringify({name:m.name,at:new Date(m.at).toISOString(),seen:m.seen,cells:[TW,TH],age_s:m.age,sound:m.au,ring:m.ring,fixes:m.fixes})],'present-fly-'+m.id+'.json',{type:'application/json'}),m));
+  if(m.wav) mk('SOUND',()=>deliver(new File([m.wav],'present-fly-'+m.id+'.wav',{type:'audio/wav'}),m));
+  mk('X',()=>{ panel.classList.remove('on'); panel.innerHTML=''; }); panel.appendChild(acts); }
+async function deliver(file,m){ const data={files:[file],title:m.name}; if(navigator.share&&navigator.canShare&&navigator.canShare(data)){ try{ await navigator.share(data); return; }catch(e){ if(e.name==='AbortError') return; } } say('saved to your downloads: '+file.name); const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },2000); }
+
+/* ---------- the loop ---------- */
+let last=performance.now(), sliceClock=0, dragY=0, intro=0;
+function frame(ts){ try{ const dt=Math.min(100,ts-last); last=ts; now=ts/1000;
+  let ae=0; if(analyser&&abuf){ analyser.getByteTimeDomainData(abuf); let s=0; for(let i=0;i<abuf.length;i++){ const v=(abuf[i]-128)/128; s+=v*v; } ae=Math.min(1,Math.sqrt(s/abuf.length)*5); } else if(sim) ae=0.1+0.5*Math.abs(Math.sin(now*1.3))*Math.random(); curAudio=Math.max(curAudio*0.85,ae);
+  if((hearing||sim)&&STATE!=='READING'){ sliceClock+=dt; while(sliceClock>=1000/HZ){ sliceClock-=1000/HZ; const f=Frames.grab(); if(f){ curMotion=f.mo; paintFrame(f.img,f.mo); } Ring.push(curAudio,curMotion,now); } }
+  if(STATE==='READING'&&!p0) dragY*=Math.pow(0.001,dt/400);
+  if(intro<1&&!reduceMotion){ intro+=dt/2400; rot=(1-intro)*Math.PI*2*0.6; } drawOrb(); if(!tiny()) drawStrip();
+  if(STATE==='LIVE'||STATE==='PAST') sysWord((cursor==null?'LIVE ':'BACK ')+Math.round(Cell.seen()*100)+'%');
+ }catch(e){ say('<span class="err">drawing broke</span>\nit is still recording'); } requestAnimationFrame(frame); }
+
+/* ---------- gestures: drag turns (or aims), tap a dot opens its stack, swipe up keeps ---------- */
+let p0=null,pLast=null,moved=false;
+cv.addEventListener('pointerdown',ev=>{ ensureCtx().catch(()=>{}); if(STATE==='INTRO'){ intro=1; setState('ASK'); return; } if(STATE==='ASK'||STATE==='FAULT'){ start(); return; } p0={x:ev.clientX,y:ev.clientY}; pLast={x:ev.clientX,y:ev.clientY}; moved=false; cv.setPointerCapture(ev.pointerId); });
+cv.addEventListener('pointermove',ev=>{ if(!p0) return; const dx=ev.clientX-pLast.x, dy=ev.clientY-pLast.y; pLast={x:ev.clientX,y:ev.clientY}; if(Math.hypot(ev.clientX-p0.x,ev.clientY-p0.y)>8) moved=true; if(STATE==='READING'){ dragY=ev.clientY-p0.y; return; } if(!moved) return;
+  if(!gotOri&&(hearing||sim)&&Math.abs(dx)+Math.abs(dy)>0&&ev.shiftKey===false&&aimMode){ const lam=Math.atan2(aimFwd[0],aimFwd[2])+dx*0.005, phi=Math.max(-1.4,Math.min(1.4,Math.asin(aimFwd[1])-dy*0.005)); aimFwd=[Math.cos(phi)*Math.sin(lam),Math.sin(phi),Math.cos(phi)*Math.cos(lam)]; } else { rot-=dx/orbR(); tilt=Math.max(-1.2,Math.min(1.2,tilt+dy/orbR())); } });
+let aimMode=false;
+cv.addEventListener('pointerup',ev=>{ if(!p0) return; const dy=ev.clientY-p0.y, dx=ev.clientX-p0.x;
+  if(STATE==='READING'){ if(dy<-60&&Math.abs(dy)>Math.abs(dx)){ keepField(); setState(cursor==null?'LIVE':'PAST'); } else if(dy>60&&Math.abs(dy)>Math.abs(dx)){ setState(cursor==null?'LIVE':'PAST'); say('let go'); } p0=null; return; }
+  if(!moved){ if(zoom!=null){ closePick(); p0=null; return; } const p=pick(ev.clientX,ev.clientY); if(p){ Haptic(6); openPick(p); } else if(Math.hypot(ev.clientX-W/2,ev.clientY-orbY())<orbR()*1.15){ /* a tap on the orb, off any dot */ } else if((hearing||sim)&&!panel.classList.contains('on')){ setState('READING'); firstTaps++; try{localStorage.setItem('ap.taps',firstTaps);}catch(e){} say('drag the orb up to keep the field\nor down to let it be'); } }
+  p0=null; });
+cv.addEventListener('pointercancel',()=>{ p0=null; });
+$('s-cam').addEventListener('click',ev=>{ ev.stopPropagation(); if(hearing){ facing=facing==='user'?'environment':'user'; Frames.prev=null; start(); } else start(); });
+$('s-ori').addEventListener('click',ev=>{ ev.stopPropagation(); if(gotOri) say('the frame paints where the phone points'); else { aimMode=!aimMode; say(aimMode?'drag on the orb moves the aim':(oriWhy||'asking for motion')); if(!oriWhy) sensors(); } });
+$('s-gps').addEventListener('click',ev=>{ ev.stopPropagation(); say(fixes.length?('position '+fixes[fixes.length-1].lat.toFixed(5)+' '+fixes[fixes.length-1].lon.toFixed(5)+'  '+fixes.length+' fixes'):(gpsWhy||'asking')); });
+$('s-now').addEventListener('click',ev=>{ ev.stopPropagation(); cursor=null; if(STATE==='PAST') setState('LIVE'); status(); });
+$('s-theme').addEventListener('click',ev=>{ ev.stopPropagation(); theme=theme==='dark'?'light':'dark'; applyTheme(); status(); dotText($('title'),'AMBIENT PRESENT FLY',{size:1.2,align:'left'}); });
+addEventListener('keydown',ev=>{ if(ev.key==='ArrowLeft'){ cursor=(cursor==null?now:cursor)-1; setState('PAST'); status(); } if(ev.key==='ArrowRight'){ cursor=Math.min(now,(cursor==null?now:cursor)+1); if(cursor>=now-0.05){ cursor=null; setState('LIVE'); } status(); } if(ev.key==='Escape'){ closePick(); } if(ev.key==='ArrowUp'&&STATE==='READING') { keepField(); setState('LIVE'); } });
+(function title(){ const s='AMBIENT PRESENT FLY', t=$('title'); let i=0; if(reduceMotion){ dotText(t,s,{size:1.2,align:'left'}); return; } const iv=setInterval(()=>{ dotText(t,s.slice(0,++i),{size:1.2,align:'left'}); if(i>=s.length) clearInterval(iv); },80); })();
+status(); setState('INTRO'); setTimeout(()=>{ if(STATE==='INTRO') setState('ASK'); },2600); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
