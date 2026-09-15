@@ -72,7 +72,7 @@ button:focus-visible{outline:2px solid var(--warm);outline-offset:3px}
 #surface-head{display:flex;justify-content:space-between;align-items:center;max-width:100%;min-height:24px;font-size:9px;letter-spacing:.08em;color:var(--dim);pointer-events:auto}
 #surface-head>span:last-child{display:flex;align-items:center;gap:10px}#atlas-toggle{width:44px;height:30px;font-size:18px}#atlas-toggle[aria-pressed="true"]{color:var(--warm)}#atlas-face{color:var(--warm);text-decoration:none}#atlas-face[hidden]{display:none}
 #plate{opacity:1;max-width:100%}#shelf{justify-content:flex-start;touch-action:pan-x;overscroll-behavior-x:contain;scroll-padding:20px}#shelf .k{flex:0 0 auto}#shelf .k:first-child{margin-left:auto}#shelf .k:last-child{margin-right:auto}
-#below{touch-action:pan-y}#trim{width:min(100%,420px)}
+#below{touch-action:pan-y}#keys:empty,#line:empty,#bf-note:empty{display:none}#line{font-size:10px;line-height:1.4;max-width:420px}#trim{width:min(100%,420px)}
 </style>
 </head>
 <body>
@@ -353,7 +353,7 @@ async function start(){
     if(mic&&stream.getAudioTracks().length){ const src=ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())); analyser=ctx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0.6; src.connect(analyser); abuf=new Uint8Array(analyser.fftSize); S.micOK=Tape.init(ctx,src); } else S.micOK=false;
     const tr=stream.getVideoTracks()[0]; tr.onended=()=>{ S.hearing=false; fault('camera stopped','tap the orb to reconnect'); };
     const first=!S.hearing; S.hearing=true; S.sim=false; if(first){ sensors(); if(ROOM&&!Net.role) askName('join'); Solarium.ground(); } haptic([10,60,10,60,18]); setMode('LIVE'); wake();
-  }catch(e){ const n=e&&e.name; fault(n==='NotAllowedError'?'camera declined':n==='NotFoundError'?'no camera':'could not start ('+(n||'unknown')+')','allow it by the lock icon, then tap the orb\nor <button data-act="sim">watch a made-up room</button>'); } }
+  }catch(e){ const n=e&&e.name; fault(n==='NotAllowedError'?'camera declined':n==='NotFoundError'?'no camera':'could not start ('+(n||'unknown')+')',(n==='NotFoundError'?'No camera is available here.':'Check camera permission and try again.')+' <button data-act="sim">watch a made-up room</button>'); } }
 let wakeLock=null; async function wake(){ try{ if(navigator.wakeLock&&!wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{ wakeLock=null; }); } }catch(e){ /* not granted: the screen may sleep */ } }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&S.hearing) wake(); });
 function startSim(){ S.sim=true; S.hearing=false; Cam.init(); setMode('LIVE'); if(ROOM&&!Net.role) askName('join'); say('a made-up room. the orb turns on its own'); }
@@ -370,7 +370,8 @@ function paintEye(img){
 const cv=$('stage'), CTX=cv.getContext('2d'); let W=0,H=0; const WW=()=>W, HH=()=>H; const ctx=CTX;
 function resize(){ const d=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight; cv.width=W*d; cv.height=H*d; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(d,0,0,d,0,0); } addEventListener('resize',resize); resize();
 const tiny=()=>Math.min(W,H)<340, orbR=()=>Math.min(W*.30,H*.16,220), orbY=()=>52+orbR();
-function layout(){const top=orbY()+orbR()*1.12+36,bottom=124,space=H-bottom-top;const below=$('below');below.style.top=top+'px';below.style.bottom=bottom+'px';const pw=Math.min(W-40,720,Math.max(80,(space-148)*2));$('plate').style.width=pw+'px';$('surface-head').style.width=pw+'px';}
+function layout(){const below=$('below'),top=orbY()+orbR()*1.12+36,bottom=124;below.style.top=top+'px';below.style.bottom=bottom+'px';let occupied=0,count=0;for(const e of below.children){if(e.id==='plate'||getComputedStyle(e).display==='none')continue;occupied+=e.getBoundingClientRect().height;count++;}const pw=Math.min(W-40,720,Math.max(60,(H-bottom-top-occupied-count*6-4)*2));$('plate').style.width=pw+'px';$('surface-head').style.width=Math.max(pw,Math.min(W-40,280))+'px';}
+
 
 
 function proj(lat,lon){ const x=Math.cos(lat)*Math.sin(lon-S.rot), y=Math.sin(lat), z=Math.cos(lat)*Math.cos(lon-S.rot); return [x,y*Math.cos(S.tilt)-z*Math.sin(S.tilt),y*Math.sin(S.tilt)+z*Math.cos(S.tilt)]; }
