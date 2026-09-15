@@ -221,6 +221,15 @@ body.inxr #topbar{background:linear-gradient(rgba(16,21,20,.85) 68%,rgba(16,21,2
   60%{transform:translateY(-26px) rotate(-14deg);opacity:.35}
   100%{transform:translateY(0);opacity:.85}}
 @media (prefers-reduced-motion:reduce){ #cap{transition:none} }
+
+#sunroom{position:fixed;right:12px;top:68px;width:min(360px,calc(100vw - 24px));height:min(640px,calc(100dvh - 84px));z-index:35;background:#0f0e0c;color:#ece7d8;border:1px solid #b6a88b;display:flex;flex-direction:column;visibility:hidden}
+#sunroom.open{visibility:visible}
+#sunroom header{padding:12px;display:flex;gap:8px;align-items:center;font:12px ui-monospace,monospace}
+#sunroom header span{flex:1}
+#sunroom button{font:inherit;padding:9px;background:#25221c;color:#ece7d8;border:1px solid #6e675b;cursor:pointer}
+#sunroom iframe{width:100%;flex:1;min-height:0;border:0}
+#sunhint{padding:10px 12px;font:12px/1.5 ui-monospace,monospace;margin:0}
+#sunstate{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:12;font:11px/1.4 ui-monospace,monospace;background:#0f0e0ce8;color:#ece7d8;padding:8px 10px;pointer-events:none;max-width:calc(100vw - 24px)}
 </style>
 </head>
 <body>
@@ -251,6 +260,7 @@ body.inxr #topbar{background:linear-gradient(rgba(16,21,20,.85) 68%,rgba(16,21,2
     </svg>
   </button>
   <button id="linkbtn" aria-label="link devices">LINK</button>
+  <button id="sunbtn" aria-label="open sun capture" aria-expanded="false">SUN</button>
   <button id="posebtn" aria-label="fly with your body">BODY</button>
   <button id="morebtn" aria-label="more">
     <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/>
@@ -259,6 +269,10 @@ body.inxr #topbar{background:linear-gradient(rgba(16,21,20,.85) 68%,rgba(16,21,2
   <button id="arbtn">AR</button>
 </div>
 <div id="poseeye"><canvas id="poseeyecv"></canvas></div>
+<section id="sunroom" aria-label="Sun capture">
+<header><span>ROOM → SKY</span><button id="sunstop">STOP</button><button id="sunhide">FLY</button></header>
+<p id="sunhint">Tap the orb to open the camera. Switch to the front camera for BODY flight. Without motion sensing, drag the aiming patch to place the camera view. Unseen areas are generated.</p>
+</section><output id="sunstate" hidden></output>
 <video id="posecam" playsinline muted autoplay></video>
 <div id="nogl">
   <div class="t">NO PICTURE SYSTEM</div>
@@ -6251,6 +6265,7 @@ function frame(now){
   }
   if (GL_OK){
     updateCamera(dt);
+    sunTick(now);
     renderer.render(scene, camera);
   } else paintFlatNet();
 }
@@ -8051,6 +8066,7 @@ const pzEye = document.getElementById('poseeye'), pzCv = document.getElementById
 const pzVideo = document.getElementById('posecam');
 const pzDot = document.createElement('canvas'), pzDg = pzDot.getContext('2d', { willReadFrequently: true });
 let pzAsp = 3/4, pzPl = null, pzStream = null, pzLastTs = 0, pzLastVT = -1, pzMasksOK = true;
+let pzOpening=false, pzGeneration=0;
 function pzDrawEye(now){
   const r = pzCv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);
   if (pzCv.width !== (r.width*d | 0)){ pzCv.width = r.width*d; pzCv.height = r.height*d; }
@@ -8118,6 +8134,10 @@ function pzDrawEye(now){
 
 /* ---- the eye itself ---- */
 async function pzOpen(){
+  if(pzOpening) return;
+  if(pzOn) pzClose();
+  pzOpening=true;
+  const generation=++pzGeneration;
   userTouched = true; initAudio();
   pzEye.classList.add('on'); pzBtn.classList.add('live');
   if (!pzPhone) hudEl.textContent = 'LOADING THE EYE';
@@ -8130,21 +8150,29 @@ async function pzOpen(){
         runningMode: 'VIDEO', numPoses: PZ.NUM_POSES, minPoseDetectionConfidence: 0.5, minTrackingConfidence: 0.4, outputSegmentationMasks: true });
     }
     if (pzStream) pzStream.getTracks().forEach(function(tr){ tr.stop(); });
-    pzStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: pzFacing, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    if(generation!==pzGeneration) return;
+    const shared=sunSource()?.stream;
+    if(sunEnabled && !shared) throw new Error('open the SUN camera before BODY');
+    pzStream = shared ? new MediaStream(shared.getVideoTracks().map(t=>t.clone())) : await navigator.mediaDevices.getUserMedia({ video: { facingMode: pzFacing, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    if(shared) pzMirror=sunSource().facing==='user';
+    if(generation!==pzGeneration){pzStream.getTracks().forEach(t=>t.stop());pzStream=null;return;}
+    const metadata=new Promise(function(res){ pzVideo.onloadedmetadata = res; });
     pzVideo.srcObject = pzStream;
-    await new Promise(function(res){ pzVideo.onloadedmetadata = res; });
+    await metadata;
     await pzVideo.play();
+    if(generation!==pzGeneration) return;
     pzAsp = pzVideo.videoWidth/pzVideo.videoHeight || 4/3;
     pzReady = true; pzOn = true;
     if (!pzPhone){ boardLine('EYE OPEN \u00b7 STAND IN FRAME TO FLY'); caption('stand where the card can see you head to toe \u00b7 in two seconds you are flying', false, 6); }
-    pzLoop();
+    pzLoop(generation);
   } catch (e){
     const why = 'eye: ' + String(e.message || e).slice(0, 40);
     if (pzPhone){ const st = document.getElementById('cstate'); if (st) st.textContent = why.toUpperCase(); } else refuse(why);
-    pzEye.classList.remove('on'); pzBtn.classList.remove('live');
-  }
+    pzClose();
+  } finally { pzOpening=false; }
 }
 function pzClose(){
+  pzGeneration++;
   pzOn = false; pzReady = false;
   for (const t of pzTracks.values()) if (t.slot >= 0) pzRelease(t);
   pzTracks.clear();
@@ -8169,13 +8197,13 @@ function pzSee(now){
     return { lm: lm.map(function(p){ return { x: pzMirror ? 1 - p.x : p.x, y: p.y, visibility: p.visibility }; }), mask: mask, mw: mw, mh: mh };
   });
 }
-function pzLoop(){
-  if (!pzOn) return;
+function pzLoop(generation){
+  if (!pzOn || generation!==pzGeneration) return;
   const now = performance.now();
   const dets = pzSee(now);
   if (dets){ pzMatch(dets, now); for (const t of pzTracks.values()) pzStep(t, now); }
   pzDrawEye(now);
-  requestAnimationFrame(pzLoop);
+  requestAnimationFrame(()=>pzLoop(generation));
 }
 /* the button lives in the top bar on the wall and in the control bar on a phone */
 let pzBtn = document.getElementById('posebtn');
@@ -8185,13 +8213,74 @@ if (pzPhone){
   const ctrl = document.getElementById('ctrl'); if (ctrl){ ctrl.appendChild(pzEye); pzEye.style.top = '48px'; pzEye.style.left = 'auto'; pzEye.style.right = '10px'; pzEye.style.zIndex = '40'; }
   pzFacing = 'environment'; pzMirror = false;          // a phone points at people
 }
-pzBtn.addEventListener('click', function(){ if (pzOn) pzClose(); else pzOpen(); });
+pzBtn.addEventListener('click', function(){ if (pzOn || pzOpening) pzClose(); else pzOpen(); });
 pzEye.addEventListener('click', function(){
   if (!pzOn) return;
+  if(sunEnabled){ sunPanel(true); return; }
   pzFacing = pzFacing === 'user' ? 'environment' : 'user'; pzMirror = pzFacing === 'user';
   pzOpen();
 });
 if (new URLSearchParams(location.search).has('body')) setTimeout(function(){ pzBtn.click(); }, 400);
+
+/* Sun Sphere supplies one equirectangular sky and the camera for body flight. */
+let sunEnabled=false, sunFrame=null, sunTexture=null, sunLast=0, sunStream=null;
+const sunRoom=document.getElementById('sunroom'), sunState=document.getElementById('sunstate');
+function sunSource(){ return sunFrame?.contentWindow?.SunBridge || null; }
+function sunPanel(open){
+  sunRoom.classList.toggle('open',open);
+  sunRoom.inert=!open;
+  document.getElementById('sunbtn').setAttribute('aria-expanded',String(open));
+}
+sunPanel(false);
+function sunOpen(){
+  sunEnabled=true;
+  if(!sunFrame){
+    sunFrame=document.createElement('iframe');
+    sunFrame.title='Sun Sphere camera and panorama';
+    sunFrame.allow='camera; microphone; accelerometer; gyroscope';
+    const local=location.pathname.endsWith('.html');
+    sunFrame.src=new URL(local?'sun-sphere.html?terminus=1':'../sun-sphere/?terminus=1',location.href).href;
+    sunRoom.appendChild(sunFrame);
+  }
+  sunState.hidden=false;sunState.textContent='SUN · open the camera or choose the made-up room';
+  sunPanel(true);
+}
+function sunTick(now){
+  if(!sunEnabled || now-sunLast<100) return;
+  sunLast=now;
+  const source=sunSource(); if(!source)return;
+  source.update();
+  if(!sunTexture){
+    sunTexture=new THREE.CanvasTexture(source.panorama);
+    sunTexture.mapping=THREE.EquirectangularReflectionMapping;
+    sunTexture.colorSpace=THREE.SRGBColorSpace;
+    sunTexture.generateMipmaps=false;
+    sunTexture.minFilter=THREE.LinearFilter;
+  }
+  sunTexture.needsUpdate=true;scene.background=sunTexture;
+  const status=source.status;
+  const stream=source.stream;
+  if(sunStream!==stream){
+    sunStream=stream;
+    if(pzOn){ pzClose(); if(stream) pzOpen(); }
+  }
+  sunState.textContent=status.simulated?'SUN · MADE-UP ROOM':status.live?
+    `SUN · ${Math.round(status.seen*100)}% CAMERA · REST GENERATED · ${status.oriented?'SENSOR AIM':'MANUAL AIM'}`:
+    'SUN · CAMERA OFF · LAST PANORAMA';
+}
+function sunStop(){
+  pzClose();
+  sunSource()?.stop();
+  sunEnabled=false;sunStream=null;scene.background=null;
+  if(sunTexture){sunTexture.dispose();sunTexture=null;}
+  sunState.hidden=true;sunPanel(false);
+}
+document.getElementById('sunbtn').onclick=()=>sunOpen();
+document.getElementById('sunhide').onclick=()=>{sunPanel(false);document.getElementById('posebtn').focus();};
+document.getElementById('sunstop').onclick=sunStop;
+addEventListener('pagehide',sunStop);
+if(new URLSearchParams(location.search).has('sun'))sunOpen();
+
 window.PZ_TEST = { PZ: PZ, PZLM: PZLM, pzTilt: pzTilt, pzBank: pzBank, pzDihedral: pzDihedral, PzHand: PzHand, pzFrame: pzFrame,
   pzMatch: pzMatch, pzStep: pzStep, pzTracks: pzTracks, conns: conns, state: state, planes: planes, pzHandOf: pzHandOf, pzApply: pzApply, pzDropReal: pzDropReal };
 
