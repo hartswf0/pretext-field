@@ -334,7 +334,7 @@ const Cam={ c:null,g:null,prev:null,last:null,simT:0,
     const mo=this.prev?Math.min(1,(diff/n)/28):0; this.prev=cur; this.last=d; return {img:d,mo}; } };
 function onOri(ev){ if(ev.alpha==null||ev.beta==null||ev.gamma==null) return; const D=Math.PI/180, a=ev.alpha*D,b=ev.beta*D,g=ev.gamma*D; const cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
   const R=[[cA*cG-sA*sB*sG,-cB*sA,cA*sG+cG*sA*sB],[cG*sA+cA*sB*sG,cA*cB,sA*sG-cA*cG*sB],[-cB*sG,sB,cB*cG]]; const zc=facing==='user'?1:-1;
-  S.fwd=[R[0][2]*zc,R[2][2]*zc,R[1][2]*zc]; S.up=[R[0][1],R[2][1],R[1][1]]; S.gotOri=true; }
+  S.fwd=[R[0][2]*zc,R[2][2]*zc,R[1][2]*zc]; S.up=[R[0][1],R[2][1],R[1][1]]; S.gotOri=true;AimControl.sample('tilt',Math.atan2(S.fwd[0],S.fwd[2]),Math.asin(Math.max(-1,Math.min(1,S.fwd[1]))),performance.now()); }
 async function sensors(){
   try{ if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'){ const r=await DeviceOrientationEvent.requestPermission(); if(r!=='granted') S.oriWhy='motion declined. the orb turns on its own'; } }catch(e){ S.oriWhy='motion unavailable. the orb turns on its own'; }
   if(window.DeviceOrientationEvent&&!S.oriWhy){ addEventListener('deviceorientation',onOri,true); setTimeout(()=>{ if(!S.gotOri){ S.oriWhy='no motion sensor. the orb turns on its own'; status(); } },2500); }
@@ -384,10 +384,10 @@ function sampleTex(T,lat,lon){ const x=((Math.floor((lon+Math.PI)/(Math.PI*2)*TW
 function roomLight(T){ let r=0,g=0,b=0,n=0; for(let i=0;i<TN;i+=97){ if(T.has[i]!==1) continue; r+=T.rgb[i*3]; g+=T.rgb[i*3+1]; b+=T.rgb[i*3+2]; n++; } return n?[r/n|0,g/n|0,b/n|0]:null; }
 function drawOrb(target){
   const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const direct=!RT&&!VIEW&&!World.on&&!Play.m&&!Inspect.m; const R=RT?RT.R:orbR()*(direct?Grip.r:1), cxp=W/2+(direct?Grip.x:0), cyp=RT?H/2:orbY()+(direct?Grip.y:0); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
-  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:(direct&&SunCargo.current()?SunCargo.current().tex:Tex))), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03;
+  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:(direct&&SunCargo.current()?SunCargo.current().tex:Tex))), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03+(direct?Grip.warmth*.025:0);
   const setting=S.setting?Math.max(0,1-(S.now-S.setting)/3):0; if(setting){ ctx.globalAlpha=1; }
-  { const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5)); const a=(dark?0.38:0.12)*(0.7+0.3*mist)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
-  Exposure.build(T); const gain=Exposure.gain*S.bright*(direct?1+Grip.hug*.45:1), marks=[]; const rotv=RT?RT.rot:S.rot;
+  { const heat=direct?Grip.warmth:0;const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5+heat*.65)); const a=(dark?0.38:0.12)*(0.7+0.3*mist+heat*.45)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
+  Exposure.build(T); const gain=Exposure.gain*S.bright*(direct?1+Grip.warmth*.25:1), marks=[]; const rotv=RT?RT.rot:S.rot;
   for(let k=0;k<pts.length;k++){ const p=pts[k]; const [x,y,z]=proj(p.lat,p.lon); if(z<-0.05) continue; marks.push({x,y,z,i:sampleTex(T,p.lat,p.lon+rotv)}); } marks.sort((a,b)=>a.z-b.z);
   const fire=P.rust, gold=[255,214,110];
   for(const m of marks){ const front=(m.z+1)/2, sx=cxp+m.x*R*breath, sy=cyp-m.y*R*breath; const has=T.has[m.i];
@@ -460,11 +460,11 @@ function drawPlate(){ if((++plateFrame&1)&&!Play.m) return; const w=plateC.clien
   if(!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ S.throughPlate=null; const f=Hand.aim(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); plg.strokeStyle=P.warm; plg.setLineDash([2,3]); plg.lineWidth=1; const rx=(lam+Math.PI)/(Math.PI*2)*w, ry=(Math.PI/2-phi)/Math.PI*h; plg.strokeRect(rx-w*0.09,ry-h*0.1,w*0.18,h*0.2); plg.setLineDash([]); const pr=plateC.getBoundingClientRect?plateC.getBoundingClientRect():{left:0,top:0}; S.throughPlate=[pr.left+rx,pr.top+ry]; }
   plg.strokeStyle=P.warm; plg.globalAlpha=0.35; plg.beginPath(); plg.moveTo(0,h/2); plg.lineTo(w,h/2); plg.stroke(); if(S.grid){ plg.globalAlpha=0.3; for(let k=1;k<12;k++){ plg.beginPath(); plg.moveTo(k/12*w,0); plg.lineTo(k/12*w,h); plg.stroke(); } for(let k=1;k<6;k++){ plg.beginPath(); plg.moveTo(0,k/6*h); plg.lineTo(w,k/6*h); plg.stroke(); } } plg.globalAlpha=1;Atlas.draw(plg,true,w,h); }
 let pd2=null;
-function plateAim(ev){ const r=plateC.getBoundingClientRect(); const u=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), v=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height)); Hand.set(dirFromLatLon(Math.PI/2-v*Math.PI,u*Math.PI*2-Math.PI)); }
+function plateAim(ev){ const r=plateC.getBoundingClientRect(); const u=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), v=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height)); AimControl.point(u*Math.PI*2-Math.PI,Math.PI/2-v*Math.PI,performance.now()); }
 plateC.style.touchAction='none';
-plateC.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); pd2=true; plateC.setPointerCapture(ev.pointerId); plateAim(ev); });
+plateC.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); pd2=true;Grip.release(false);AimControl.begin(performance.now()); plateC.setPointerCapture(ev.pointerId); plateAim(ev); });
 plateC.addEventListener('pointermove',ev=>{ if(pd2) plateAim(ev); });
-plateC.addEventListener('pointerup',()=>{ pd2=null; }); plateC.addEventListener('pointercancel',()=>{ pd2=null; });
+function endPlate(){pd2=null;AimControl.end(performance.now());}plateC.addEventListener('pointerup',endPlate);plateC.addEventListener('pointercancel',endPlate);plateC.addEventListener('lostpointercapture',endPlate);
 /* ---------- the strip: the fifteen seconds of sound (above) and motion (below), dots ---------- */
 const strip=$('strip'), sg=strip.getContext('2d');
 function drawStrip(){ const w=strip.clientWidth, h=strip.clientHeight; if(!w) return; const d=Math.min(2,devicePixelRatio||1); if(strip.width!==Math.round(w*d)){ strip.width=Math.round(w*d); strip.height=Math.round(h*d); } sg.setTransform(d,0,0,d,0,0); sg.clearRect(0,0,w,h);
@@ -722,16 +722,16 @@ function stateWord(){ const [sn,dr]=seenSplit(); if(S.mode==='LIVE'){ dotText($(
 /* ---------- the loop: bounded work per frame; the frame is the only clock ---------- */
 let last=performance.now(), frames=0;
 function frame(ts){ try{ const dt=Math.min(100,ts-last); last=ts; S.now=ts/1000; if(document.hidden){ requestAnimationFrame(frame); return; }
-  if(!VIEW)BodyFlight.step(dt,ts);
+  if(!VIEW){BodyFlight.step(dt,ts);AimControl.step(dt,ts);}
   if(!VIEW){ sense(dt); if(!S.held&&!Play.m&&(S.hearing||S.sim)){ slice(dt); dream(); } }
-  if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(VIEW&&S.now-S.touched>20) S.rot+=dt/1000*0.035; if(!S.gotOri){ const lam=S.now*0.15; S.aim=[Math.sin(lam)*0.95,0.15*Math.sin(S.now*0.4),Math.cos(lam)*0.95]; } }
+  if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(VIEW&&S.now-S.touched>20) S.rot+=dt/1000*0.035;  }
 
   Celestial.tick(); if(!VIEW){ Mesh.tick(); Net.tick(); } drawOrb(); if(!VIEW)BodyFlight.draw(); if(S.mode==='LIVE'){ const m=Inspect.m; const when=Viewer.pay?new Date(Viewer.pay.a):(m?new Date(m.at):null); const where=Viewer.pay?(Viewer.pay.p?{lat:Viewer.pay.p[0],lon:Viewer.pay.p[1]}:null):(m?m.place:null); Ray.draw(CTX,20,orbY()+orbR()+10,W-40,when,where,0.78); if(!VIEW&&(frames&3)===0) drawTrim(); } if((frames&15)===0&&!tiny()) drawDays(); if(S.setting){ const k=Math.min(1,(S.now-S.setting)/3); const g=CTX; g.fillStyle=theme==='dark'?`rgba(0,0,0,${Math.sin(k*Math.PI)*0.85})`:`rgba(239,233,218,${Math.sin(k*Math.PI)*0.85})`; g.fillRect(0,0,W,H); if(k>=1) S.setting=0; } { layout(); drawPlate(); } if((++frames&7)===0) stateWord();
  }catch(e){ say('<span class="err">drawing broke</span>\nit is still recording'); } requestAnimationFrame(frame); }
 function sense(dt){ let ae=0; if(analyser&&abuf){ analyser.getByteTimeDomainData(abuf); let s=0; for(let i=0;i<abuf.length;i++){ const v=(abuf[i]-128)/128; s+=v*v; } ae=Math.min(1,Math.sqrt(s/abuf.length)*5); } else if(S.sim) ae=0.1+0.5*Math.abs(Math.sin(S.now*1.3))*Math.random(); S.audio=Math.max(S.audio*0.85,ae); }
 const SW=32, SH=18; const smallC=document.createElement('canvas'); smallC.width=SW; smallC.height=SH; const smallG=smallC.getContext('2d',{willReadFrequently:true});
 function shrink(img){ const t=halftone.t||(halftone.t=document.createElement('canvas')); t.width=FW; t.height=FH; t.getContext('2d').putImageData(img,0,0); smallG.drawImage(t,0,0,SW,SH); try{ return smallG.getImageData(0,0,SW,SH).data.slice(); }catch(e){ return null; } }
-function slice(dt){ S.sliceClock+=dt; let guard=0; while(S.sliceClock>=1000/HZ&&guard++<4){ S.sliceClock-=1000/HZ; const f=Cam.grab(); if(f){ S.motion=f.mo; } const bf=Brush.m?Brush.frame():(f?f.img:null); if(bf) paintTex(bf); Trace.push(S.audio,S.motion,S.now,f?f.img:null,Hand.aim(),f?shrink(f.img):null); if(Hand.locked&&S.motion>0.35&&!Brush.m&&!Grip.bodyAim) Hand.clear(); } }
+function slice(dt){ S.sliceClock+=dt; let guard=0; while(S.sliceClock>=1000/HZ&&guard++<4){ S.sliceClock-=1000/HZ; const f=Cam.grab(); if(f){ S.motion=f.mo; } const bf=Brush.m?Brush.frame():(f?f.img:null); if(bf) paintTex(bf); Trace.push(S.audio,S.motion,S.now,f?f.img:null,Hand.aim(),f?shrink(f.img):null);  } }
 
 /* ---------- gestures: tap holds · drag turns (or aims) · picture scrubs · up keeps · down lets go ---------- */
 let p0=null, pLast=null, moved=false;
@@ -797,30 +797,45 @@ const SunCargo={
  }
 };
 /* Direct contact: pose and pointer input share one held object and one release law. */
-const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:false,hug:0,
+/* One writer for view and capture direction. Sensor samples never write the view. */
+const AimControl={owner:'rest',manual:false,until:0,body:null,tilt:null,base:null,target:null,
+ wrap(a){return Math.atan2(Math.sin(a),Math.cos(a))},
+ begin(t){this.manual=true;this.until=t+500;this.owner='manual';this.base=null;this.target={lon:S.rot,lat:S.tilt};S.intro=1;S.spin=0;},
+ end(t){this.manual=false;this.until=t+500;this.base=null;},
+ point(lon,lat,t){if(!this.manual)this.begin(t);this.target={lon,lat:Math.max(-1.2,Math.min(1.2,lat))};},
+ delta(dx,dy,t){if(!this.manual)this.begin(t);this.point(this.target.lon-dx/Math.max(80,orbR()),this.target.lat+dy/Math.max(80,orbR()),t);},
+ sample(kind,lon,lat,t){this[kind]={lon,lat,t};},
+ step(dt,t){if(Grip.paused||!Grip.available()){this.base=null;this.target=null;this.manual=false;return;}
+  const kind=this.manual||t<this.until?'manual':this.body&&t-this.body.t<300?'body':this.tilt&&t-this.tilt.t<600?'tilt':'rest';
+  if(kind!==this.owner){this.owner=kind;this.base=null;this.target={lon:S.rot,lat:S.tilt};}
+  if(kind==='body'||kind==='tilt'){const p=this[kind];if(!this.base)this.base={lon:p.lon,lat:p.lat,rot:S.rot,tilt:S.tilt};this.target={lon:this.base.rot+this.wrap(p.lon-this.base.lon),lat:Math.max(-1.2,Math.min(1.2,this.base.tilt+p.lat-this.base.lat))};}
+  if(this.target){const k=1-Math.exp(-Math.min(dt,100)/1000*(kind==='manual'?30:12));S.rot+=this.wrap(this.target.lon-S.rot)*k;S.tilt+=(this.target.lat-S.tilt)*k;}
+  Hand.set(dirFromLatLon(S.tilt,S.rot));S.spin=0;
+ }
+};
+
+const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:false,hug:0,warmth:0,
  cargo:null,hands:[],points:new Map(),lastInput:0,lastPose:0,opening:false,plane:null,trail:[],inputs:[],
  clamp(v,a,b){return Math.max(a,Math.min(b,v));},
  note(t){if($('bf-note').textContent!==t){$('bf-note').textContent=t;this.noteAt=performance.now();}},
  available(){return !VIEW&&!World.on&&!Play.m&&!Inspect.m&&!$('prev').classList.contains('on')&&!S.filming},
- take(owner,t){if(this.cargo&&this.cargo.landed)this.cargo=null;if(!this.cargo)this.cargo=this.plane?this.plane.cargo:SunCargo.capture();this.held=true;this.owner=owner;this.lastInput=t;this.tx=this.x;this.ty=this.y;this.tr=this.r;this.vx=this.vy=0;this.note(owner==='body'?'IN YOUR HANDS':'HELD');keysFor();},
- move(x,y,r,t){const dt=Math.max(.016,Math.min(.1,(t-this.lastInput)/1000));const limX=orbR()*.08,limY=orbR()*.06;
+ take(owner,t){this.rawX=this.x;this.rawY=this.y;if(owner==='touch'||owner==='keyboard')AimControl.begin(t);if(this.cargo&&this.cargo.landed)this.cargo=null;if(!this.cargo)this.cargo=this.plane?this.plane.cargo:SunCargo.capture();this.held=true;this.owner=owner;this.lastInput=t;this.tx=this.x;this.ty=this.y;this.tr=this.r;this.vx=this.vy=0;this.note(owner==='body'?'IN YOUR HANDS':'HELD');keysFor();},
+ move(x,y,r,t){if(this.owner==='touch'||this.owner==='keyboard'){AimControl.delta(x-this.rawX,y-this.rawY,t);this.rawX=x;this.rawY=y;}const dt=Math.max(.016,Math.min(.1,(t-this.lastInput)/1000));const limX=orbR()*.08,limY=orbR()*.06;
   x=this.clamp(x,-limX,limX);y=this.clamp(y,-limY,limY);this.vx+=(this.clamp((x-this.tx)/dt,-950,950)-this.vx)*.4;this.vy+=(this.clamp((y-this.ty)/dt,-950,950)-this.vy)*.4;this.tx=x;this.ty=y;this.tr=this.clamp(r,.45,1.2);this.lastInput=t;},
- release(throwIt=true){if(!this.held)return;this.held=false;this.owner=null;this.hands=[];
+ release(throwIt=true){if(!this.held)return;if(this.owner==='touch'||this.owner==='keyboard')AimControl.end(performance.now());this.held=false;this.owner=null;this.hands=[];
   if(throwIt&&this.cargo&&!this.cargo.landed&&Math.hypot(this.vx,this.vy)>40){this.plane={cargo:this.cargo,lon:S.rot,lat:S.tilt,heading:Math.atan2(this.vx,-this.vy),speed:this.clamp(Math.hypot(this.vx,this.vy)/650,.12,1.2),alt:0,x:W/2+this.x,y:orbY()+this.y,vx:this.vx,vy:this.vy,age:0};this.cargo=null;this.trail=[];this.note('Your moment is flying. Gather it back.');}
   else{this.vx=this.vy=0;this.note(this.cargo?'MOMENT HELD · GATHER TO RELEASE':'OPEN CAMERA TO GATHER A MOMENT');}keysFor();
  },
- pose(p,t){this.lastPose=t;if(this.paused||!this.available()||this.points.size)return;
+ pose(p,t){this.lastPose=t;if(this.paused||!this.available()||this.points.size||AimControl.manual||t<AimControl.until)return;
   const visible=i=>p&&p[i]&&(p[i].visibility==null||p[i].visibility>.45);
   if(visible(11)&&visible(12)){
    const l=p[11],r=p[12],mirror=facing==='user'?-1:1;
    const cx=(l.x+r.x)/2,cy=(l.y+r.y)/2,span=Math.max(.08,Math.hypot(l.x-r.x,l.y-r.y));
-   if(!this.bodyRest)this.bodyRest={cx,cy,span,rot:S.rot,tilt:S.tilt};
-   const rest=this.bodyRest,lean=mirror*(cx-rest.cx)/span,roll=mirror*(r.y-l.y)/span,reach=((p[15]?.z||0)+(p[16]?.z||0))/2;
-   const lon=rest.rot+lean*1.3+roll*.5,lat=this.clamp(rest.tilt-(cy-rest.cy)/span,-1.2,1.2);
-   Hand.set(dirFromLatLon(lat,lon));this.bodyAim=true;
-   S.rot+=(lon-S.rot)*.22;S.tilt+=(lat-S.tilt)*.22;
+   const lean=mirror*(cx-.5),roll=mirror*(r.y-l.y)/span,reach=((p[15]?.z||0)+(p[16]?.z||0))/2;
+   const lon=lean*2+roll*.5,lat=-(cy-.45)*2;
+   AimControl.sample('body',lon,lat,t);this.bodyAim=true;
    this.inputs.push({t:S.now,lon,lat,lean,roll,reach});if(this.inputs.length>150)this.inputs.shift();
-  }else if(this.bodyAim){Hand.clear();this.bodyAim=false;}
+  }else if(this.bodyAim){AimControl.body=null;this.bodyAim=false;}
 
   if(!visible(15)||!visible(16)){if(this.owner==='body')this.release(false);this.opening=false;this.note('Let both hands enter the frame.');return;}
   const map=a=>({x:(facing==='user'?1-a.x:a.x)*W,y:(.12+(a.y-.2)*.9)*H});const a=map(p[15]),b=map(p[16]);
@@ -832,14 +847,15 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
   if(this.owner==='tool')this.owner='body';if(this.owner!=='body')return;this.hands=[a,b];this.move((a.x+b.x)/2-W/2,(a.y+b.y)/2-orbY(),gap/(orbR()*2),t);
  },
  step(dt,t){const d=Math.min(.05,Math.max(0,dt/1000));if(this.paused||!this.available())return;
-  if(this.owner==='body'&&t-this.lastPose>350){this.release(false);if(this.bodyAim){Hand.clear();this.bodyAim=false;}}
+  if(this.owner==='body'&&t-this.lastPose>350){this.release(false);if(this.bodyAim){AimControl.body=null;this.bodyAim=false;}}
   if(this.held){if(!this.cargo&&Trace.count){this.cargo=SunCargo.capture();keysFor();}if(t-this.lastInput>90){this.vx*=Math.exp(-d*18);this.vy*=Math.exp(-d*18);}const k=1-Math.exp(-d*25),px=this.x,py=this.y;this.x+=(this.tx-this.x)*k;this.y+=(this.ty-this.y)*k;this.r+=(this.tr-this.r)*k;
-   S.rot+=(this.x-px)/Math.max(80,orbR())*.3;S.tilt=this.clamp(S.tilt+(this.y-py)/Math.max(80,orbR())*.15,-1,1);
+
   }else{const damp=Math.exp(-d*4);this.vx*=damp;this.vy*=damp;this.x*=Math.exp(-d*8);this.y*=Math.exp(-d*8);this.r+=(1-this.r)*(1-Math.exp(-d*3));}
   this.hug+=(this.clamp((1-this.r)/.55,0,1)-this.hug)*(1-Math.exp(-d*8));
+  const heat=this.held?this.hug:0;this.warmth+=(heat-this.warmth)*(1-Math.exp(-d/(heat>this.warmth?1.6:6)));
   if(this.plane){const p=this.plane;p.age+=d;
    if(this.held){p.heading+=this.clamp(this.vx/500,-1,1)*d*1.4;p.lat=this.clamp(p.lat-this.vy/900*d,-1.4,1.4);}
-   const a=p.speed*d*(1-this.hug*.96),la=p.lat,hd=p.heading;
+   const a=p.speed*d*(1-this.hug*.96)*(1-this.warmth*.35),la=p.lat,hd=p.heading;
    p.lat=Math.asin(this.clamp(Math.sin(la)*Math.cos(a)+Math.cos(la)*Math.sin(a)*Math.cos(hd),-1,1));
    p.lon+=Math.atan2(Math.sin(hd)*Math.sin(a)*Math.cos(la),Math.cos(a)-Math.sin(la)*Math.sin(p.lat));
    if(a>1e-9)p.heading=Math.atan2(Math.sin(hd)*Math.cos(la),Math.cos(la)*Math.cos(a)*Math.cos(hd)-Math.sin(la)*Math.sin(a));
@@ -861,7 +877,7 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
   g.translate(p.x,p.y);g.rotate(Math.atan2(p.vy,p.vx));g.beginPath();g.moveTo(19,0);g.lineTo(-13,-10);g.lineTo(-7,0);g.lineTo(-13,10);g.closePath();g.fillStyle='#fff0c6';g.fill();const cargo=this.plane?this.plane.cargo:this.cargo;if(cargo&&cargo.card){g.save();g.clip();g.drawImage(cargo.card,-13,-10,32,20);g.restore();}g.lineWidth=1;g.stroke();g.beginPath();g.moveTo(19,0);g.lineTo(-7,0);g.stroke();g.restore();
  },
  receive(){if(!this.plane)return;const p=this.plane;this.cargo=p.cargo;this.plane=null;this.trail=[];SunCargo.land(p.cargo,p.lat,p.lon);this.note('This moment is home.');keysFor();},
- reset(){this.release(false);this.cargo=null;this.x=this.y=this.tx=this.ty=this.vx=this.vy=0;this.r=this.tr=1;this.hug=0;this.plane=null;this.trail=[];this.bodyRest=null;this.note('TOUCH THE SUN · MOVE · RELEASE');keysFor();}
+ reset(){this.release(false);this.cargo=null;this.x=this.y=this.tx=this.ty=this.vx=this.vy=0;this.r=this.tr=1;this.hug=0;this.plane=null;this.trail=[];this.bodyRest=null;AimControl.base=null;AimControl.target=null;this.note('TOUCH THE SUN · MOVE · RELEASE');keysFor();}
 };
 const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVideo:-1,inputs:Grip.inputs,
  label:t=>Grip.note(t),
@@ -873,7 +889,7 @@ const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVide
    if(ticket!==this.token){model.close();return}this.model=model;this.on=true;this.loading=false;this.lastVideo=-1;S.intro=1;Grip.paused=false;$('bf-pause').textContent='PAUSE';$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','true');Grip.note('Bring your hands closer. The sun gathers with you.');
   }catch(e){if(ticket===this.token){this.close();Grip.note('BODY UNAVAILABLE · TOUCH WORKS');console.warn('[sun-hug] body start:',e.name||'error')}}
  },
- close(){if(Grip.bodyAim){Hand.clear();Grip.bodyAim=false;}Grip.bodyRest=null;this.token++;this.loading=false;this.on=false;if(this.model)this.model.close();this.model=null;if(Grip.owner==='body')Grip.release(false);$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','false');},
+ close(){AimControl.body=null;AimControl.base=null;if(Grip.bodyAim){AimControl.body=null;Grip.bodyAim=false;}Grip.bodyRest=null;this.token++;this.loading=false;this.on=false;if(this.model)this.model.close();this.model=null;if(Grip.owner==='body')Grip.release(false);$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','false');},
  step(dt,t){if(Grip.noteAt&&t-Grip.noteAt>8000&&!this.loading)$('bf-note').textContent='';$('onboard').hidden=S.hearing||S.sim||!!SunCargo.current();$('bf-pause').hidden=!(this.on||Grip.plane||Grip.held||Grip.paused);$('bf-camera').hidden=!S.hearing;if(this.on){if(!S.hearing||!video||!stream||!stream.getVideoTracks().some(tr=>tr.readyState==='live')){this.close();return}
    if(t-this.lastInfer>65&&video.readyState>=2&&video.currentTime!==this.lastVideo){this.lastInfer=t;this.lastVideo=video.currentTime;try{const r=this.model.detectForVideo(video,t);Grip.pose(r.landmarks[0]||null,t)}catch(e){this.close();Grip.note('TRACKING STOPPED · TOUCH WORKS')}}}Grip.step(dt,t);},
  draw(){Grip.draw();}
@@ -891,7 +907,7 @@ cv.addEventListener('pointerdown',e=>{if(!Grip.available()||Grip.paused)return;
  if(!S.hearing&&!S.sim&&!SunCargo.current()){ $('begin').click();return;}
  if(planeHit){Grip.receive();}
  Grip.points.set(e.pointerId,pointerPosition(e));if(!Grip.held||Grip.owner!=='touch')Grip.take('touch',t);
- Grip.pointerBase={x:e.clientX,y:e.clientY,sx:Grip.x,sy:Grip.y};Grip.pinchBase=null;
+ Grip.pointerBase={x:e.clientX,y:e.clientY,sx:Grip.x,sy:Grip.y};Grip.pinchBase=null;Grip.rawX=Grip.x;Grip.rawY=Grip.y;
  if(S.mode==='INTRO'||S.mode==='ASK'){S.intro=1;setMode('LIVE');}
 },true);
 cv.addEventListener('pointermove',e=>{if(!Grip.points.has(e.pointerId))return;e.stopImmediatePropagation();Grip.points.set(e.pointerId,pointerPosition(e));const p=[...Grip.points.values()];
@@ -899,12 +915,12 @@ cv.addEventListener('pointermove',e=>{if(!Grip.points.has(e.pointerId))return;e.
  else{const b=Grip.pointerBase;Grip.move(b.sx+e.clientX-b.x,b.sy+e.clientY-b.y,Grip.r,performance.now());}
 },true);
 function endGrip(e,cancel){if(!Grip.points.has(e.pointerId))return;e.stopImmediatePropagation();Grip.points.delete(e.pointerId);Grip.pinchBase=null;
- if(!Grip.points.size)Grip.release(!cancel);else{const p=[...Grip.points.values()][0];Grip.pointerBase={x:p.x,y:p.y,sx:Grip.x,sy:Grip.y};}}
+ if(!Grip.points.size)Grip.release(!cancel);else{const p=[...Grip.points.values()][0];Grip.pointerBase={x:p.x,y:p.y,sx:Grip.x,sy:Grip.y};Grip.rawX=Grip.x;Grip.rawY=Grip.y;}}
 cv.addEventListener('pointerup',e=>endGrip(e,false),true);cv.addEventListener('pointercancel',e=>endGrip(e,true),true);cv.addEventListener('lostpointercapture',e=>endGrip(e,true),true);
 cv.tabIndex=0;cv.setAttribute('aria-label','Sun: drag to move, pinch to hug. Arrow keys move; hold space to squeeze; Escape pauses.');
 cv.addEventListener('keydown',e=>{if(!Grip.available())return;if(e.key==='Escape'){Grip.paused=true;Grip.release(false);$('bf-pause').textContent='RESUME';return}if(Grip.paused)return;if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key))return;e.preventDefault();e.stopImmediatePropagation();if(!Grip.held)Grip.take('keyboard',performance.now());Grip.move(Grip.tx+(e.key==='ArrowRight'?20:e.key==='ArrowLeft'?-20:0),Grip.ty+(e.key==='ArrowDown'?20:e.key==='ArrowUp'?-20:0),e.key===' '?.5:Grip.tr,performance.now());});
 cv.addEventListener('keyup',e=>{if(Grip.owner==='keyboard'){e.preventDefault();Grip.release(true);}});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){BodyFlight.close();Grip.points.clear();Grip.release(false);Grip.paused=true;$('bf-pause').textContent='RESUME';$('bf-pause').hidden=false;}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){BodyFlight.close();Grip.points.clear();AimControl.end(performance.now());Grip.release(false);Grip.paused=true;$('bf-pause').textContent='RESUME';$('bf-pause').hidden=false;}});
 Grip.note('');
 if(VIEW)$('onboard').hidden=true;
 
