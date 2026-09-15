@@ -53,6 +53,10 @@ body.view #below,body.view #shelf,body.view #status,body.view #keys,body.view #t
 #shelf .k{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}#shelf .k img{width:64px;height:36px;display:block;image-rendering:pixelated;opacity:.9}
 #status{position:fixed;left:0;right:0;bottom:max(18px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:18px;pointer-events:auto}
 @media (max-width:339px),(max-height:339px){#top,#status,#below,#shelf{display:none!important}}
+
+#body-flight{position:fixed;z-index:5;right:12px;top:42px;display:flex;flex-direction:column;align-items:flex-end;gap:5px;max-width:180px}#bf-controls{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;width:176px}#body-flight button{min-height:44px;background:var(--paper,#100f0a);color:#d4b47a;border:1px solid #7e684c;border-radius:5px;font:11px monospace;padding:7px}#bf-note{color:#b99c6e;font:9px/1.4 monospace;text-align:right;max-width:170px}#bf-eye{width:112px;height:84px;image-rendering:pixelated}#body-flight [hidden]{display:none!important}
+@media(max-width:600px){#body-flight{top:8px;right:8px;max-width:150px}#bf-controls{width:150px}#bf-eye{width:84px;height:63px}#bf-note{max-width:150px;font-size:8px}#body-flight button{font-size:10px;padding:5px}body:has(#bf-eye:not([hidden])) #top{max-width:calc(100% - 160px)}}
+
 </style>
 </head>
 <body>
@@ -67,6 +71,7 @@ body.view #below,body.view #shelf,body.view #status,body.view #keys,body.view #t
 <div id="namebox"><div id="nblabel"></div><input id="nbname" maxlength="16" placeholder="YOUR NAME"><input id="nbcode" maxlength="6" placeholder="SUN CODE"><div style="display:flex;gap:8px"><button id="nbgo"></button><button id="nbcancel"></button></div></div>
 <div id="prev"><div id="prevbody"></div><div class="bar"><b id="prevbar"></b></div><div class="row" id="prevrow"></div></div>
 <div id="status"><button id="s-cam"></button><button id="s-aim"></button><button id="s-gps"></button><button id="s-together"></button><button id="s-theme"></button></div>
+<div id="body-flight" aria-label="Body flight"><div id="bf-controls"><button id="bf-body">BODY</button><button id="bf-fly" aria-pressed="false">FLY</button><button id="bf-pause" hidden>PAUSE</button><button id="bf-hug" hidden aria-label="Hold to hug the sun">HUG</button><button id="bf-recenter" hidden>CENTER</button></div><canvas id="bf-eye" hidden aria-label="Live camera pixels and tracked body"></canvas><span id="bf-note" role="status"></span></div>
 <script>
 const GLY={
 A:"01110 10001 10001 11111 10001 10001 10001",B:"11110 10001 10001 11110 10001 10001 11110",C:"01110 10001 10000 10000 10000 10001 01110",D:"11110 10001 10001 10001 10001 10001 11110",E:"11111 10000 10000 11110 10000 10000 11111",F:"11111 10000 10000 11110 10000 10000 10000",G:"01110 10001 10000 10111 10001 10001 01111",H:"10001 10001 10001 11111 10001 10001 10001",I:"01110 00100 00100 00100 00100 00100 01110",J:"00111 00010 00010 00010 00010 10010 01100",K:"10001 10010 10100 11000 10100 10010 10001",L:"10000 10000 10000 10000 10000 10000 11111",M:"10001 11011 10101 10101 10001 10001 10001",N:"10001 10001 11001 10101 10011 10001 10001",O:"01110 10001 10001 10001 10001 10001 01110",P:"11110 10001 10001 11110 10000 10000 10000",Q:"01110 10001 10001 10001 10101 10010 01101",R:"11110 10001 10001 11110 10100 10010 10001",S:"01111 10000 10000 01110 00001 00001 11110",T:"11111 00100 00100 00100 00100 00100 00100",U:"10001 10001 10001 10001 10001 10001 01110",V:"10001 10001 10001 10001 10001 01010 00100",W:"10001 10001 10001 10101 10101 10101 01010",X:"10001 10001 01010 00100 01010 10001 10001",Y:"10001 10001 01010 00100 00100 00100 00100",Z:"11111 00001 00010 00100 01000 10000 11111",
@@ -158,7 +163,7 @@ const Solarium={ suns:[], MAX:3650,
   autoName(at,pl){ return ymd(new Date(at))+' '+hms(new Date(at)).slice(0,5)+(pl?'  '+Math.abs(pl.lat).toFixed(3)+(pl.lat>=0?'N':'S')+' '+Math.abs(pl.lon).toFixed(3)+(pl.lon>=0?'E':'W'):''); },
   lastKeep:0,
   async keep(why){ const now=Date.now(); const [sn]=seenSplit(); if(why==='AUTO'&&(sn<0.05||now-this.lastKeep<5*60*1000)) return null; if(why==='FILM'&&!Math.min(Trace.count,N)) return null; this.lastKeep=now; const pl=this.place(); const frames=Trace.cut(); const span=Math.min(Trace.count,N); const gaze=[]; for(let a=span-1;a>=0;a--){ if(Trace.at(a).img) gaze.push(Trace.at(a).g.map(v=>+v.toFixed(3))); } const au=[]; for(let a=span-1;a>=0;a--){ if(Trace.at(a).img) au.push(+Trace.at(a).au.toFixed(2)); }
-    const m={id:String(now),at:now,place:pl,celestial:Object.assign({},Celestial.data),ticket:Celestial.ticket(),name:this.autoName(now,pl),code:Net.code||null,start:now-frames.length*1000/HZ,end:now,eyeT:S.now,pics:encode(frames),gaze,au,wav:(Tape.ring&&S.micOK&&frames.length)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,who:[Net.name||'ME',...[...Net.who.values()].map(w=>w.name)],seen:+sn.toFixed(2),plate:this.plateOf(Tex)}; this.suns.push(m); while(this.suns.length>this.MAX) this.suns.shift(); try{ await DB.put(m); }catch(e){ say('kept for now. this browser refused storage'); } shelfAdd(m,true); return m; },
+    const m={id:String(now),at:now,place:pl,celestial:Object.assign({},Celestial.data),ticket:Celestial.ticket(),name:this.autoName(now,pl),code:Net.code||null,start:now-frames.length*1000/HZ,end:now,eyeT:S.now,pics:encode(frames),gaze,au,bodyFlight:BodyFlight.inputs.map(v=>({...v})),wav:(Tape.ring&&S.micOK&&frames.length)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,who:[Net.name||'ME',...[...Net.who.values()].map(w=>w.name)],seen:+sn.toFixed(2),plate:this.plateOf(Tex)}; this.suns.push(m); while(this.suns.length>this.MAX) this.suns.shift(); try{ await DB.put(m); }catch(e){ say('kept for now. this browser refused storage'); } shelfAdd(m,true); return m; },
   async fromPicture(file,name){ const url=await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); const im=await new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=url; }); if(!im){ say('that picture could not be read'); return; }
     const c=document.createElement('canvas'); c.width=TW; c.height=TH; const g=c.getContext('2d'); g.drawImage(im,0,0,TW,TH); const meta=parseSunFile(file.name)||{at:Date.now(),place:null}; const m={id:String(meta.at)+Math.random().toString(36).slice(2,5),at:meta.at,place:meta.place,name:this.autoName(meta.at,meta.place),code:null,who:['GIVEN'],seen:1,plate:c.toDataURL('image/jpeg',0.85)}; this.suns.push(m); try{ await DB.put(m); }catch(e){} shelfAdd(m,true); keysFor(); },
   tex(m){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const t=document.createElement('canvas'); t.width=TW; t.height=TH; const g=t.getContext('2d',{willReadFrequently:true}); g.drawImage(im,0,0,TW,TH); let d; try{ d=g.getImageData(0,0,TW,TH).data; }catch(e){ return res(null); } const T={rgb:new Uint8ClampedArray(TN*3),at:new Float32Array(TN),au:new Float32Array(TN),has:new Uint8Array(TN)}; for(let i=0;i<TN;i++){ const k=i*4; if(d[k]+d[k+1]+d[k+2]<18) continue; T.rgb[i*3]=d[k]; T.rgb[i*3+1]=d[k+1]; T.rgb[i*3+2]=d[k+2]; T.has[i]=1; T.at[i]=S.now-120; } res(T); }; im.onerror=()=>res(null); im.src=m.plate; }); },
@@ -361,7 +366,7 @@ function sampleTex(T,lat,lon){ const x=((Math.floor((lon+Math.PI)/(Math.PI*2)*TW
 function roomLight(T){ let r=0,g=0,b=0,n=0; for(let i=0;i<TN;i+=97){ if(T.has[i]!==1) continue; r+=T.rgb[i*3]; g+=T.rgb[i*3+1]; b+=T.rgb[i*3+2]; n++; } return n?[r/n|0,g/n|0,b/n|0]:null; }
 function drawOrb(target){
   const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const R=RT?RT.R:orbR(), cxp=W/2, cyp=RT?H/2:orbY(); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
-  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex)), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03;
+  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex)), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=(1+S.audio*0.03)*(RT?1:1+BodyFlight.hug*.2);
   const setting=S.setting?Math.max(0,1-(S.now-S.setting)/3):0; if(setting){ ctx.globalAlpha=1; }
   { const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5)); const a=(dark?0.38:0.12)*(0.7+0.3*mist)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
   Exposure.build(T); const gain=Exposure.gain*S.bright, marks=[]; const rotv=RT?RT.rot:S.rot;
@@ -701,7 +706,7 @@ function frame(ts){ try{ const dt=Math.min(100,ts-last); last=ts; S.now=ts/1000;
   if(!VIEW){ sense(dt); if(!S.held&&!Play.m&&(S.hearing||S.sim)){ slice(dt); dream(); } }
   if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(S.now-S.touched>20) S.rot+=dt/1000*0.035; if(!S.gotOri){ const lam=S.now*0.15; S.aim=[Math.sin(lam)*0.95,0.15*Math.sin(S.now*0.4),Math.cos(lam)*0.95]; } }
 
-  Celestial.tick(); if(!VIEW){ Mesh.tick(); Net.tick(); } drawOrb(); if(!tiny()&&S.mode==='LIVE'){ const m=Inspect.m; const when=Viewer.pay?new Date(Viewer.pay.a):(m?new Date(m.at):null); const where=Viewer.pay?(Viewer.pay.p?{lat:Viewer.pay.p[0],lon:Viewer.pay.p[1]}:null):(m?m.place:null); Ray.draw(CTX,20,orbY()+orbR()+10,W-40,when,where,0.78); if(!VIEW&&(frames&3)===0) drawTrim(); } if((frames&15)===0&&!tiny()) drawDays(); if(S.setting){ const k=Math.min(1,(S.now-S.setting)/3); const g=CTX; g.fillStyle=theme==='dark'?`rgba(0,0,0,${Math.sin(k*Math.PI)*0.85})`:`rgba(239,233,218,${Math.sin(k*Math.PI)*0.85})`; g.fillRect(0,0,W,H); if(k>=1) S.setting=0; } if(!tiny()){ layout(); drawPlate(); } if((++frames&7)===0) stateWord();
+  if(!VIEW)BodyFlight.step(dt,ts); Celestial.tick(); if(!VIEW){ Mesh.tick(); Net.tick(); } drawOrb(); if(!VIEW)BodyFlight.draw(); if(!tiny()&&S.mode==='LIVE'){ const m=Inspect.m; const when=Viewer.pay?new Date(Viewer.pay.a):(m?new Date(m.at):null); const where=Viewer.pay?(Viewer.pay.p?{lat:Viewer.pay.p[0],lon:Viewer.pay.p[1]}:null):(m?m.place:null); Ray.draw(CTX,20,orbY()+orbR()+10,W-40,when,where,0.78); if(!VIEW&&(frames&3)===0) drawTrim(); } if((frames&15)===0&&!tiny()) drawDays(); if(S.setting){ const k=Math.min(1,(S.now-S.setting)/3); const g=CTX; g.fillStyle=theme==='dark'?`rgba(0,0,0,${Math.sin(k*Math.PI)*0.85})`:`rgba(239,233,218,${Math.sin(k*Math.PI)*0.85})`; g.fillRect(0,0,W,H); if(k>=1) S.setting=0; } if(!tiny()){ layout(); drawPlate(); } if((++frames&7)===0) stateWord();
  }catch(e){ say('<span class="err">drawing broke</span>\nit is still recording'); } requestAnimationFrame(frame); }
 function sense(dt){ let ae=0; if(analyser&&abuf){ analyser.getByteTimeDomainData(abuf); let s=0; for(let i=0;i<abuf.length;i++){ const v=(abuf[i]-128)/128; s+=v*v; } ae=Math.min(1,Math.sqrt(s/abuf.length)*5); } else if(S.sim) ae=0.1+0.5*Math.abs(Math.sin(S.now*1.3))*Math.random(); S.audio=Math.max(S.audio*0.85,ae); }
 const SW=32, SH=18; const smallC=document.createElement('canvas'); smallC.width=SW; smallC.height=SH; const smallG=smallC.getContext('2d',{willReadFrequently:true});
@@ -733,6 +738,120 @@ $('s-together').addEventListener('click',ev=>{ ev.stopPropagation(); S.together=
 $('s-theme').addEventListener('click',ev=>{ ev.stopPropagation(); theme=theme==='dark'?'light':'dark'; applyTheme(); status(); dotText($('title'),(VIEW?'A SUN':'SUN SPHERE'),{size:1.1,align:'left'}); });
 addEventListener('keydown',ev=>{ if(ev.key===' '&&!Play.m&&!S.held) hold(); else if(ev.key==='Enter'&&S.held) keep(); else if(ev.key==='Escape'){ if(Play.m) closeMoment(); else if(S.held) letGo(); } });
 
+/* Terminus body grammar on Sun Sphere's existing camera and living texture.
+   One camera owner: start()/stream/video. No prompt or generated texture required. */
+const BodyFlight={
+ on:false,loading:false,model:null,token:0,lastVideo:-1,lastInfer:0,lastSeen:0,
+ flying:false,paused:false,bank:0,lift:0,hug:0,targetHug:0,armed:false,
+ neutral:null,cal:[],lm:null,heading:0,lat:0,lon:0,alt:.2,oriNeutral:null,trail:[],inputs:[],touch:null,
+ clamp(v,a,b){return Math.max(a,Math.min(b,v));},
+ dead(v,d=.06){return Math.abs(v)<d?0:(v-Math.sign(v)*d)/(1-d);},
+ label(t){const el=$('bf-note');if(el.textContent!==t)el.textContent=t;},
+ features(p){
+  const visible=i=>p[i]&&(p[i].visibility==null||p[i].visibility>=.55);
+  if(![11,12,23,24].every(visible))return null;
+  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2}),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const a=p[11],b=p[12],sh=mid(a,b),hip=mid(p[23],p[24]),sw=dist(a,b);
+  if(sw<.07||sw>.6)return null;
+  const wrists=visible(15)&&visible(16),wm=wrists?mid(p[15],p[16]):sh;
+  return {lean:(sh.x-hip.x)/sw,tilt:(a.x>b.x?a.y-b.y:b.y-a.y)/sw,
+   lift:wrists?(sh.y-wm.y)/sw:0,wrists,
+   open:wrists&&dist(p[15],p[16])>sw*1.8,
+   closed:wrists&&dist(p[15],b)<sw*.95&&dist(p[16],a)<sw*.95};
+ },
+ ingest(p,t){
+  const f=p&&this.features(p);this.lm=f?p:null;
+  if(!f){this.bank=0;this.lift=0;this.targetHug=0;this.armed=false;this.cal=[];this.label('NO BODY · FLIGHT PAUSED');return false;}
+  this.lastSeen=t;
+  if(!this.neutral){this.cal.push(f);this.label('STAND COMFORTABLY · CALIBRATING');if(this.cal.length<12)return true;
+   const mean=k=>this.cal.reduce((s,v)=>s+v[k],0)/this.cal.length;this.neutral={lean:mean('lean'),tilt:mean('tilt'),lift:mean('lift')};this.cal=[];}
+  // Same shoulder-relative lean / tilt / dihedral grammar as Terminus, mirrored to the user.
+  const bank=this.clamp(this.dead(-(f.lean-this.neutral.lean)*2+(f.tilt-this.neutral.tilt)*3),-1,1);
+  const lift=this.clamp(this.dead((f.lift-this.neutral.lift)*.7),-1,1);
+  this.bank+=(bank-this.bank)*.28;this.lift+=(lift-this.lift)*.2;
+  if(f.open)this.armed=true;
+  this.targetHug=this.armed&&f.closed?1:0;
+  this.label(this.targetHug?'HOLDING THE SUN':!f.wrists?'SHOW BOTH HANDS':this.paused?'PAUSED':this.flying?'LEAN TO BANK · ARMS TO CLIMB':'BODY READY');
+  return true;
+ },
+ async open(){
+  if(this.on||this.loading){this.close();return}
+  const ticket=++this.token;this.loading=true;$('bf-body').textContent='CANCEL BODY';$('bf-eye').hidden=false;this.label('OPENING CAMERA');
+  try{
+   if(!S.hearing||!video||facing!=='user'){facing='user';await start();}
+   if(ticket!==this.token)return;
+   if(!S.hearing||!video||video.readyState<2)throw Error('camera unavailable');
+   this.label('LOADING BODY TRACKING');
+   const mp=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+   const fs=await mp.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+   if(ticket!==this.token)return;
+   const options={baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.55,minTrackingConfidence:.55};
+   let model;try{model=await mp.PoseLandmarker.createFromOptions(fs,options)}catch{options.baseOptions.delegate='CPU';model=await mp.PoseLandmarker.createFromOptions(fs,options)}
+   if(ticket!==this.token){model.close();return}
+   this.model=model;this.loading=false;this.on=true;this.neutral=null;this.cal=[];this.lastVideo=-1;this.lastSeen=0;this.flying=true;this.paused=false;S.intro=1;
+   this.lon=S.rot;this.lat=S.tilt;this.trail=[];$('bf-body').textContent='BODY OFF';$('bf-recenter').hidden=false;this.ui();
+  }catch(e){if(ticket===this.token){this.close();this.label('BODY UNAVAILABLE · TOUCH FLY STILL WORKS');}}
+ },
+ close(){this.token++;this.loading=false;this.on=false;if(this.model)this.model.close();this.model=null;this.lm=null;this.bank=0;this.lift=0;this.hug=0;this.targetHug=0;this.armed=false;this.paused=true;this.touch=null;
+  $('bf-body').textContent='BODY';$('bf-eye').hidden=true;$('bf-recenter').hidden=true;this.label('BODY OFF · CAMERA UNCHANGED');this.ui();},
+ ui(){ $('bf-fly').textContent=this.flying?'FLY OFF':'FLY';$('bf-pause').hidden=!this.flying;$('bf-hug').hidden=!this.flying;$('bf-pause').textContent=this.paused?'RESUME':'PAUSE';$('bf-fly').setAttribute('aria-pressed',String(this.flying)); },
+ step(dt,t){
+  if(this.on&&(!S.hearing||!video||!stream||!stream.getVideoTracks().some(tr=>tr.readyState==='live'))){this.close();this.label('CAMERA STOPPED · FLIGHT PAUSED');}
+  if(this.on&&video.readyState>=2&&t-this.lastInfer>=85&&video.currentTime!==this.lastVideo){
+   this.lastInfer=t;this.lastVideo=video.currentTime;
+   try{const result=this.model.detectForVideo(video,t);this.ingest(result.landmarks[0]||null,t)}catch{this.close();this.label('TRACKING STOPPED · TOUCH IS AVAILABLE');}
+  }
+  if(!this.flying||this.paused||Play.m||World.on||Inspect.m||S.held){this.hug=0;return}
+  const dtS=Math.min(.05,dt/1000),active=!!this.touch||!this.on||(!!this.neutral&&t-this.lastSeen<350&&!!this.lm);
+  if(!active){this.hug=0;this.targetHug=0;return}
+  const target=this.touch?.hug?1:this.on?this.targetHug:0;
+  this.hug+=(target-this.hug)*(1-Math.exp(-dtS*5));
+  let bank=this.touch?this.touch.x:this.on?this.bank:0,lift=this.touch?this.touch.y:this.on?this.lift:0;
+  if(!this.touch&&!this.on&&S.gotOri){const yaw=Math.atan2(S.fwd[0],S.fwd[2]),pitch=Math.asin(this.clamp(S.fwd[1],-1,1));if(!this.oriNeutral)this.oriNeutral={yaw,pitch};const diff=Math.atan2(Math.sin(yaw-this.oriNeutral.yaw),Math.cos(yaw-this.oriNeutral.yaw));bank=this.clamp(this.dead(diff*2),-1,1);lift=this.clamp(this.dead((pitch-this.oriNeutral.pitch)*2),-1,1);}
+  const speed=.20*(1-this.hug*.97);
+  this.heading+=bank*1.5*dtS;this.alt=this.clamp(this.alt+lift*.25*dtS,.06,.7);
+  // Advance along a great circle; retain tangent heading when crossing a pole.
+  const a=speed*dtS,la=this.lat,lo=this.lon,hd=this.heading;
+  this.lat=Math.asin(this.clamp(Math.sin(la)*Math.cos(a)+Math.cos(la)*Math.sin(a)*Math.cos(hd),-1,1));
+  this.lon=lo+Math.atan2(Math.sin(hd)*Math.sin(a)*Math.cos(la),Math.cos(a)-Math.sin(la)*Math.sin(this.lat));
+  if(a>1e-9)this.heading=Math.atan2(Math.sin(hd)*Math.cos(la),Math.cos(la)*Math.cos(a)*Math.cos(hd)-Math.sin(la)*Math.sin(a));
+  S.rot=this.lon;S.tilt=this.clamp(this.lat,-1.2,1.2);S.spin=0;S.touched=S.now;
+  if(!S.gotOri)S.aim=dirFromLatLon(this.lat,this.lon);
+  if(!this.trail.length||t-this.trail[this.trail.length-1].t>100){this.trail.push({lat:this.lat,lon:this.lon,t});if(this.trail.length>100)this.trail.shift();
+   this.inputs.push({t,bank,lift,hug:this.hug,lat:this.lat,lon:this.lon});if(this.inputs.length>300)this.inputs.shift();}
+ },
+ draw(){
+  if(this.on||this.loading)this.eye();
+  if(!this.flying||Play.m||World.on||Inspect.m)return;
+  const g=CTX,R=orbR(),cx=W/2,cy=orbY(),scale=1+this.hug*.2;
+  g.save();g.strokeStyle=P.warm;g.lineWidth=1;g.setLineDash([2,5]);g.beginPath();let pen=false;
+  for(const p of this.trail){const [x,y,z]=proj(p.lat,p.lon);if(z<0){pen=false;continue}const xx=cx+x*R*scale,yy=cy-y*R*scale;if(pen)g.lineTo(xx,yy);else g.moveTo(xx,yy);pen=true}g.globalAlpha=.5;g.stroke();g.setLineDash([]);g.globalAlpha=1;
+  const [x,y,z]=proj(this.lat,this.lon);if(z>=0){const py=cy-y*R*scale-R*this.alt*(1-this.hug),px=cx+x*R*scale;
+   g.translate(px,py);g.rotate(this.heading+this.bank*.25);g.beginPath();g.moveTo(0,-16);g.lineTo(11,11);g.lineTo(0,5);g.lineTo(-11,11);g.closePath();g.fillStyle='#fff0c4';g.fill();g.strokeStyle='#a47b3c';g.stroke();g.beginPath();g.moveTo(0,-16);g.lineTo(0,5);g.stroke();}
+  g.restore();
+ },
+ eye(){
+  const c=$('bf-eye'),g=c.getContext('2d');c.width=112;c.height=84;g.fillStyle='#f0eddf';g.fillRect(0,0,112,84);
+  if(video&&video.readyState>=2){const mini=this.mini||(this.mini=Object.assign(document.createElement('canvas'),{width:56,height:42})),m=mini.getContext('2d',{willReadFrequently:true});m.drawImage(video,0,0,56,42);const p=m.getImageData(0,0,56,42).data;
+   g.fillStyle='#24241c';for(let y=0;y<42;y++)for(let x=0;x<56;x++){const i=(y*56+x)*4,lum=(p[i]+p[i+1]+p[i+2])/765;g.globalAlpha=1-lum;g.fillRect((facing==='user'?55-x:x)*2,y*2,1.5,1.5)}g.globalAlpha=1;}
+  if(this.lm){g.strokeStyle='#cf702c';g.lineWidth=1;for(const [i,j] of [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]]){const a=this.lm[i],b=this.lm[j];if((a.visibility||0)<.55||(b.visibility||0)<.55)continue;g.beginPath();g.moveTo((facing==='user'?1-a.x:a.x)*112,a.y*84);g.lineTo((facing==='user'?1-b.x:b.x)*112,b.y*84);g.stroke()}}
+ }
+};
+$('bf-body').onclick=()=>BodyFlight.open();
+$('bf-recenter').onclick=()=>{BodyFlight.oriNeutral=null;BodyFlight.neutral=null;BodyFlight.cal=[];BodyFlight.bank=0;BodyFlight.lift=0;BodyFlight.armed=false;};
+$('bf-fly').onclick=()=>{BodyFlight.flying=!BodyFlight.flying;BodyFlight.oriNeutral=null;S.intro=1;BodyFlight.paused=false;BodyFlight.hug=0;BodyFlight.targetHug=0;BodyFlight.armed=false;BodyFlight.lon=S.rot;BodyFlight.lat=S.tilt;BodyFlight.trail=[];BodyFlight.ui();BodyFlight.label(BodyFlight.flying?'DRAG SUN TO STEER · HOLD HUG TO APPROACH':'');};
+$('bf-pause').onclick=()=>{BodyFlight.paused=!BodyFlight.paused;BodyFlight.ui();};
+const hugButton=$('bf-hug');
+hugButton.onpointerdown=e=>{hugButton.setPointerCapture(e.pointerId);BodyFlight.touch={x:0,y:0,hug:true}};
+hugButton.onpointerup=hugButton.onpointercancel=hugButton.onlostpointercapture=()=>{BodyFlight.touch=null};
+hugButton.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();BodyFlight.touch={x:0,y:0,hug:true}}};hugButton.onkeyup=()=>{BodyFlight.touch=null};hugButton.onblur=()=>{BodyFlight.touch=null};
+cv.addEventListener('pointerdown',e=>{if(!BodyFlight.flying)return;e.stopImmediatePropagation();cv.setPointerCapture(e.pointerId);BodyFlight.touch={x:0,y:0,px:e.clientX,py:e.clientY,id:e.pointerId}},true);
+cv.addEventListener('pointermove',e=>{const t=BodyFlight.touch;if(!t||t.id!==e.pointerId)return;e.stopImmediatePropagation();t.x=BodyFlight.clamp((e.clientX-t.px)/90,-1,1);t.y=BodyFlight.clamp((t.py-e.clientY)/90,-1,1)},true);
+for(const name of ['pointerup','pointercancel','lostpointercapture'])cv.addEventListener(name,e=>{if(BodyFlight.touch?.id===e.pointerId){e.stopImmediatePropagation();BodyFlight.touch=null}},true);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&BodyFlight.flying){BodyFlight.paused=true;BodyFlight.touch=null;BodyFlight.ui()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){BodyFlight.close();}});
+BodyFlight.ui();if(VIEW)$('body-flight').hidden=true;
+
 /* ---------- boot ---------- */
 (function title(){ const s=(VIEW?'A SUN':'SUN SPHERE'), t=$('title'); let i=0; if(reduceMotion){ dotText(t,s,{size:1.1,align:'left'}); return; } const iv=setInterval(()=>{ dotText(t,s.slice(0,++i),{size:1.1,align:'left'}); if(i>=s.length) clearInterval(iv); },70); })();
 $('importfile').addEventListener('change',ev=>{ const fs=[...(ev.target.files||[])].slice(0,20); ev.target.value=''; fs.forEach(async f=>{ if(/json$/i.test(f.name)||f.type==='application/json'){ if(await receivePackage(f)) return; } Solarium.fromPicture(f); }); });
@@ -741,3 +860,4 @@ if(VIEW){ Viewer.start(); requestAnimationFrame(frame); } else { Solarium.load()
 </script>
 </body>
 </html>
+
