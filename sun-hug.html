@@ -73,13 +73,14 @@ button:focus-visible{outline:2px solid var(--warm);outline-offset:3px}
 #surface-head>span:last-child{display:flex;align-items:center;gap:10px}#atlas-toggle{width:44px;height:30px;font-size:18px}#atlas-toggle[aria-pressed="true"]{color:var(--warm)}#atlas-face{color:var(--warm);text-decoration:none}#atlas-face[hidden]{display:none}
 #plate{opacity:1;max-width:100%}#shelf{justify-content:flex-start;touch-action:pan-x;overscroll-behavior-x:contain;scroll-padding:20px}#shelf .k{flex:0 0 auto}#shelf .k:first-child{margin-left:auto}#shelf .k:last-child{margin-right:auto}
 #below{touch-action:pan-y}#keys:empty,#line:empty,#bf-note:empty{display:none}#line{font-size:10px;line-height:1.4;max-width:420px}#trim{width:min(100%,420px)}
+#touch-start{min-height:44px;font-size:10px;color:var(--dim)}#atlas-face{min-height:44px;font-size:10px}#shelf .k[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="the room as a sphere of pictures; tap to hold the last fifteen seconds"></canvas>
 <div id="top"><div id="title"></div><div id="sys"><div id="sysword"></div><div id="dot"></div></div></div>
 <div id="topkeys"></div>
-<div id="below"><canvas id="ticket" aria-label="the solar ticket: zodiac, sky, cycles"></canvas><canvas id="trim" aria-label="the trim tab: drag through your suns"></canvas><div id="surface-head"><span id="surface-label">CAMERA SURFACE</span><span><a id="atlas-face" hidden target="_blank" rel="noopener" href="https://hartswf0.github.io/unsettled-atlas/icosa-syntegrity.html#F14">F14 · reference ↗</a><button id="atlas-toggle" aria-label="Show ICOSA triangle reference" aria-pressed="false">△</button></span></div><canvas id="plate" aria-label="the room as a mosaic of everything the eye has seen, oldest fading"></canvas><canvas id="pic" hidden></canvas><canvas id="strip" aria-label="the fifteen seconds; drag to scrub"></canvas><div id="keys" aria-label="Capture this sun"></div><div id="onboard"><button id="begin">OPEN THE SUN</button><span>Your camera becomes its surface.</span></div><span id="bf-note" role="status"></span><div id="panel"></div><div id="line"></div></div>
+<div id="below"><canvas id="ticket" aria-label="the solar ticket: zodiac, sky, cycles"></canvas><canvas id="trim" aria-label="the trim tab: drag through your suns"></canvas><div id="surface-head"><span id="surface-label">CAMERA SURFACE</span><span><button id="atlas-face" aria-pressed="false" title="Show saved moments in the selected triangle">ALL SUNS</button><button id="atlas-toggle" aria-label="Show ICOSA places" aria-pressed="true">△</button></span></div><canvas id="plate" aria-label="the room as a mosaic of everything the eye has seen, oldest fading"></canvas><canvas id="pic" hidden></canvas><canvas id="strip" aria-label="the fifteen seconds; drag to scrub"></canvas><div id="keys" aria-label="Capture this sun"></div><div id="onboard"><button id="begin">STEP INTO THE SUN</button><span>Camera on. Open your arms, then gather them.</span><button id="touch-start">Use camera + touch instead</button></div><span id="bf-note" role="status"></span><div id="panel"></div><div id="line"></div></div>
 <div id="shelf"></div>
 <input id="importfile" type="file" accept="image/*,application/json,.json" multiple hidden>
 <div id="days"></div>
@@ -178,7 +179,7 @@ const Solarium={ suns:[], MAX:3650,
   autoName(at,pl){ return ymd(new Date(at))+' '+hms(new Date(at)).slice(0,5)+(pl?'  '+Math.abs(pl.lat).toFixed(3)+(pl.lat>=0?'N':'S')+' '+Math.abs(pl.lon).toFixed(3)+(pl.lon>=0?'E':'W'):''); },
   lastKeep:0,
   async keep(why){ const active=SunCargo.current(); if(active) return SunCargo.save(active); const now=Date.now(); const [sn]=seenSplit(); if(why==='AUTO'&&(sn<0.05||now-this.lastKeep<5*60*1000)) return null; if(why==='FILM'&&!Math.min(Trace.count,N)) return null; this.lastKeep=now; const pl=this.place(); const frames=Trace.cut(); const span=Math.min(Trace.count,N); const gaze=[]; for(let a=span-1;a>=0;a--){ if(Trace.at(a).img) gaze.push(Trace.at(a).g.map(v=>+v.toFixed(3))); } const au=[]; for(let a=span-1;a>=0;a--){ if(Trace.at(a).img) au.push(+Trace.at(a).au.toFixed(2)); }
-    const m={id:String(now),at:now,place:pl,celestial:Object.assign({},Celestial.data),ticket:Celestial.ticket(),name:this.autoName(now,pl),code:Net.code||null,start:now-frames.length*1000/HZ,end:now,eyeT:S.now,pics:encode(frames),gaze,au,bodyFlight:BodyFlight.inputs.map(v=>({...v})),wav:(Tape.ring&&S.micOK&&frames.length)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,who:[Net.name||'ME',...[...Net.who.values()].map(w=>w.name)],seen:+sn.toFixed(2),plate:this.plateOf(Tex)}; this.suns.push(m); while(this.suns.length>this.MAX) this.suns.shift(); try{ await DB.put(m); }catch(e){ say('kept for now. this browser refused storage'); } shelfAdd(m,true); return m; },
+    const m={atlas:Atlas.stamp(),id:String(now),at:now,place:pl,celestial:Object.assign({},Celestial.data),ticket:Celestial.ticket(),name:this.autoName(now,pl),code:Net.code||null,start:now-frames.length*1000/HZ,end:now,eyeT:S.now,pics:encode(frames),gaze,au,bodyFlight:BodyFlight.inputs.map(v=>({...v})),wav:(Tape.ring&&S.micOK&&frames.length)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,who:[Net.name||'ME',...[...Net.who.values()].map(w=>w.name)],seen:+sn.toFixed(2),plate:this.plateOf(Tex)}; this.suns.push(m); while(this.suns.length>this.MAX) this.suns.shift(); try{ await DB.put(m); }catch(e){ say('kept for now. this browser refused storage'); } shelfAdd(m,true); return m; },
   async fromPicture(file,name){ const url=await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); const im=await new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=url; }); if(!im){ say('that picture could not be read'); return; }
     const c=document.createElement('canvas'); c.width=TW; c.height=TH; const g=c.getContext('2d'); g.drawImage(im,0,0,TW,TH); const meta=parseSunFile(file.name)||{at:Date.now(),place:null}; const m={id:String(meta.at)+Math.random().toString(36).slice(2,5),at:meta.at,place:meta.place,name:this.autoName(meta.at,meta.place),code:null,who:['GIVEN'],seen:1,plate:c.toDataURL('image/jpeg',0.85)}; this.suns.push(m); try{ await DB.put(m); }catch(e){} shelfAdd(m,true); keysFor(); },
   tex(m){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const t=document.createElement('canvas'); t.width=TW; t.height=TH; const g=t.getContext('2d',{willReadFrequently:true}); g.drawImage(im,0,0,TW,TH); let d; try{ d=g.getImageData(0,0,TW,TH).data; }catch(e){ return res(null); } const T={rgb:new Uint8ClampedArray(TN*3),at:new Float32Array(TN),au:new Float32Array(TN),has:new Uint8Array(TN)}; for(let i=0;i<TN;i++){ const k=i*4; if(d[k]+d[k+1]+d[k+2]<18) continue; T.rgb[i*3]=d[k]; T.rgb[i*3+1]=d[k+1]; T.rgb[i*3+2]=d[k+2]; T.has[i]=1; T.at[i]=S.now-120; } res(T); }; im.onerror=()=>res(null); im.src=m.plate; }); },
@@ -384,7 +385,7 @@ function sampleTex(T,lat,lon){ const x=((Math.floor((lon+Math.PI)/(Math.PI*2)*TW
 function roomLight(T){ let r=0,g=0,b=0,n=0; for(let i=0;i<TN;i+=97){ if(T.has[i]!==1) continue; r+=T.rgb[i*3]; g+=T.rgb[i*3+1]; b+=T.rgb[i*3+2]; n++; } return n?[r/n|0,g/n|0,b/n|0]:null; }
 function worldTexture(){return Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex);}
 function drawOrb(target){
-  const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const direct=!RT&&!VIEW&&!World.on&&!Play.m&&!Inspect.m; const R=RT?RT.R:orbR()*(direct?Grip.r:1), cxp=W/2+(direct?Grip.x:0), cyp=RT?H/2:orbY()+(direct?Grip.y:0); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
+  const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const direct=!RT&&!VIEW&&!World.on&&!Play.m&&!Inspect.m; const R=RT?RT.R:orbR()*(direct?Grip.scale():1), cxp=W/2+(direct?Grip.x:0), cyp=RT?H/2:orbY()+(direct?Grip.y:0); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
   const T=RT?RT.T:worldTexture(), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03+(direct?Grip.warmth*.025:0);
   const setting=S.setting?Math.max(0,1-(S.now-S.setting)/3):0; if(setting){ ctx.globalAlpha=1; }
   { const heat=direct?Grip.warmth:0;const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5+heat*.65)); const a=(dark?0.38:0.12)*(0.7+0.3*mist+heat*.45)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
@@ -626,7 +627,7 @@ function keep(){ if(SunCargo.current()){void SunCargo.save(SunCargo.current());r
   kept.push(m); while(kept.length>KEPT_MAX){ const old=kept.shift(); const row=$('shelf').firstElementChild; if(row) row.remove(); say('oldest moment dropped: '+old.name); }
   shelfAdd(m); haptic([18,90,18]); say('kept 15 seconds'); letGo(); }
 function encode(frames){ const c=document.createElement('canvas'); c.width=FW; c.height=FH; const g=c.getContext('2d'); const out=[]; for(let i=0;i<frames.length;i++){ g.putImageData(frames[i],0,0); out.push(c.toDataURL('image/jpeg',0.7)); } return out; }
-function shelfAdd(m,select){ Solarium.tex(m).then(T=>{ if(!T) return; const c=document.createElement('canvas'); const px=112; c.width=c.height=px; drawOrb({g:c.getContext('2d'),W:px,H:px,R:px*0.42,T,at:S.now,rot:0}); row.insertBefore(c,row.firstChild); }).catch(()=>{}); const row=document.createElement('div'); row.className='k'; row.dataset.id=m.id; const lab=document.createElement('div'); dotText(lab,ymd(new Date(m.at)).slice(5)+' '+hms(new Date(m.at)).slice(0,5),{size:0.7,color:P.dim,max:80}); row.appendChild(lab); row.onclick=ev=>{ ev.stopPropagation(); review(m); }; $('shelf').appendChild(row); if(select) $('shelf').scrollLeft=$('shelf').scrollWidth; }
+function shelfAdd(m,select){ Solarium.tex(m).then(T=>{ if(!T) return; const c=document.createElement('canvas'); const px=112; c.width=c.height=px; drawOrb({g:c.getContext('2d'),W:px,H:px,R:px*0.42,T,at:S.now,rot:0}); row.insertBefore(c,row.firstChild); }).catch(()=>{}); const row=document.createElement('div'); row.className='k'; row.dataset.id=m.id;row.dataset.face=m.atlas?m.atlas.face:'';row.hidden=Atlas.filter!==null&&(!m.atlas||m.atlas.face!==Atlas.filter); const lab=document.createElement('div');lab.className='sun-meta'; dotText(lab,(m.atlas?Atlas.tag(m.atlas.face)+' ':'')+ymd(new Date(m.at)).slice(5)+' '+hms(new Date(m.at)).slice(0,5),{size:0.7,color:P.dim,max:80}); row.appendChild(lab); row.onclick=ev=>{ ev.stopPropagation();if(m.atlas)Atlas.visit(m.atlas.face);review(m); }; $('shelf').appendChild(row); if(select) $('shelf').scrollLeft=$('shelf').scrollWidth; }
 function openSun(m){ const panel=$('panel'); panel.innerHTML=''; panel.classList.add('on'); const h=document.createElement('div'); dotText(h,`${m.name}  ${ymd(new Date(m.at))}${m.code?'  '+m.code:''}${m.who&&m.who.length>1?'  WITH '+m.who.slice(1,4).join(' '):''}`,{size:0.95,color:P.dim,max:W-44}); panel.appendChild(h); const acts=document.createElement('div'); acts.className='acts';
   const mk=(l,fn,cls)=>{ const b=document.createElement('button'); if(cls) b.className=cls; dotText(b,l,{size:1.0,color:cls?`rgb(${P.rust})`:`rgb(${P.ink})`}); b.onclick=ev=>{ ev.stopPropagation(); fn(b); }; acts.appendChild(b); };
   mk('SEND',()=>{ Solarium.tex(m).then(T=>{ plateCanvas(T||Tex,2048).toBlob(b=>deliver(new File([b],sunFile(m).replace(/\.jpg$/,'.png'),{type:'image/png'}),{name:m.name}),'image/png'); }); });
@@ -780,38 +781,46 @@ addEventListener('keydown',ev=>{ if(ev.key===' '&&!Play.m&&!S.held) hold(); else
 
 /* Exact root-face geometry from unsettled-atlas/icosa-world.data.js.
    Camera direction is a local reference, never a claimed geographic fix. */
-const Atlas={on:false,data:{"vertices":[[-0.04425079,-0.960188421,-0.275826148],[0.868438271,-0.440307929,-0.227912041],[0.347311392,-0.67018301,0.655918844],[0.681136518,0.56731703,-0.462822246],[-0.162064484,0.195371335,0.967246165],[-0.795625403,-0.273867277,-0.540348899],[-0.681136518,-0.56731703,0.462822246],[0.162064484,-0.195371335,-0.967246165],[0.795625403,0.273867277,0.540348899],[0.04425079,0.960188421,0.275826148],[-0.868438271,0.440307929,0.227912041],[-0.347311392,0.67018301,-0.655918844]],"faces":[[0,1,2],[7,1,0],[0,2,6],[6,5,0],[0,5,7],[8,2,1],[7,3,1],[1,3,8],[2,4,6],[8,4,2],[3,7,11],[9,8,3],[11,9,3],[10,6,4],[4,8,9],[4,9,10],[5,6,10],[11,7,5],[5,10,11],[11,10,9]]},
+const Atlas={on:true,filter:null,data:{"vertices":[[-0.04425079,-0.960188421,-0.275826148],[0.868438271,-0.440307929,-0.227912041],[0.347311392,-0.67018301,0.655918844],[0.681136518,0.56731703,-0.462822246],[-0.162064484,0.195371335,0.967246165],[-0.795625403,-0.273867277,-0.540348899],[-0.681136518,-0.56731703,0.462822246],[0.162064484,-0.195371335,-0.967246165],[0.795625403,0.273867277,0.540348899],[0.04425079,0.960188421,0.275826148],[-0.868438271,0.440307929,0.227912041],[-0.347311392,0.67018301,-0.655918844]],"faces":[[0,1,2],[7,1,0],[0,2,6],[6,5,0],[0,5,7],[8,2,1],[7,3,1],[1,3,8],[2,4,6],[8,4,2],[3,7,11],[9,8,3],[11,9,3],[10,6,4],[4,8,9],[4,9,10],[5,6,10],[11,7,5],[5,10,11],[11,10,9]]},
  address:14,
+ tag(f){return 'F'+String(f).padStart(2,'0')},
+ current(){return this.face(this.direction())},
+ stamp(f=this.current()){return {face:f,space:'camera-direction',version:1}},
+ refresh(){for(const row of $('shelf').children)row.hidden=this.filter!==null&&(row.dataset.face===''||Number(row.dataset.face)!==this.filter);$('atlas-face').setAttribute('aria-pressed',String(this.filter!==null));},
+ visit(f){const tri=this.data.faces[f].map(i=>this.data.vertices[i]),v=this.unit([0,1,2].map(j=>tri.reduce((a,p)=>a+p[j],0)));AimControl.begin(performance.now());AimControl.point(Math.atan2(v[1],v[0]),Math.asin(v[2]),performance.now());AimControl.end(performance.now());this.address=f;},
  unit(v){const n=Math.hypot(...v);return v.map(x=>x/n)},
  direction(){const v=Hand.aim();return [v[2],v[0],v[1]]},
  face(v){for(let f=0;f<this.data.faces.length;f++){const tri=this.data.faces[f].map(i=>this.data.vertices[i]);let inside=true;for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3];if((a[1]*b[2]-a[2]*b[1])*v[0]+(a[2]*b[0]-a[0]*b[2])*v[1]+(a[0]*b[1]-a[1]*b[0])*v[2]<-1e-8){inside=false;break}}if(inside)return f}return 14},
  edges(){const seen=new Set(),out=[];for(const face of this.data.faces)for(let k=0;k<3;k++){const a=face[k],b=face[(k+1)%3],key=[a,b].sort((x,y)=>x-y).join(',');if(seen.has(key))continue;seen.add(key);const A=this.data.vertices[a],B=this.data.vertices[b],line=[];for(let j=0;j<=40;j++)line.push(this.unit(A.map((v,i)=>v+(B[i]-v)*j/40)));out.push(line)}return out},
- draw(g,flat,w,h,cx=0,cy=0,r=1){if(!this.on)return;this.address=this.face(this.direction());const id='F'+String(this.address).padStart(2,'0');$('atlas-face').textContent=id+' · reference ↗';$('atlas-face').href='https://hartswf0.github.io/unsettled-atlas/icosa-syntegrity.html#'+id;
+ draw(g,flat,w,h,cx=0,cy=0,r=1){if(!this.on)return;this.address=this.face(this.direction());const id='F'+String(this.address).padStart(2,'0');const count=Solarium.suns.filter(m=>m.atlas&&m.atlas.face===this.address).length;$('atlas-face').textContent=this.filter===null?id+' · '+count+' saved':'ALL SUNS · BACK';
   if(!this.lines)this.lines=this.edges();g.save();g.strokeStyle=P.warm;g.globalAlpha=.38;g.lineWidth=1;
-  for(const line of this.lines){g.beginPath();let last=null;for(const v of line){const lat=Math.asin(v[2]),lon=Math.atan2(v[1],v[0]),p=flat?[(lon+Math.PI)/(2*Math.PI)*w,(Math.PI/2-lat)/Math.PI*h,1]:proj(lat,lon);const x=flat?p[0]:cx+p[0]*r,y=flat?p[1]:cy-p[1]*r;if(p[2]<0){last=null;continue}if(!last||(flat&&Math.abs(x-last[0])>w/2))g.moveTo(x,y);else g.lineTo(x,y);last=[x,y]}g.stroke()}g.restore();
+  for(const line of this.lines){g.beginPath();let last=null;for(const v of line){const lat=Math.asin(v[2]),lon=Math.atan2(v[1],v[0]),p=flat?[(lon+Math.PI)/(2*Math.PI)*w,(Math.PI/2-lat)/Math.PI*h,1]:proj(lat,lon);const x=flat?p[0]:cx+p[0]*r,y=flat?p[1]:cy-p[1]*r;if(p[2]<0){last=null;continue}if(!last||(flat&&Math.abs(x-last[0])>w/2))g.moveTo(x,y);else g.lineTo(x,y);last=[x,y]}g.stroke()}
+  if(flat){g.globalAlpha=1;g.font='10px monospace';g.textAlign='center';for(let f=0;f<20;f++){const tri=this.data.faces[f].map(i=>this.data.vertices[i]),v=this.unit([0,1,2].map(j=>tri.reduce((a,p)=>a+p[j],0))),p=worldUV(Math.asin(v[2]),Math.atan2(v[1],v[0]),w,h);g.fillStyle=f===this.address?'#fff0c6':P.warm;g.fillText(this.tag(f),p[0],p[1]);}}
+  g.restore();
  }
 };
-$('atlas-toggle').onclick=()=>{Atlas.on=!Atlas.on;$('atlas-toggle').setAttribute('aria-pressed',String(Atlas.on));$('atlas-face').hidden=!Atlas.on;};
+$('atlas-toggle').onclick=()=>{Atlas.on=!Atlas.on;$('atlas-toggle').setAttribute('aria-pressed',String(Atlas.on));if(!Atlas.on){Atlas.filter=null;Atlas.refresh();}};
+$('atlas-face').onclick=()=>{Atlas.filter=Atlas.filter===null?Atlas.current():null;Atlas.refresh();};
 
 const SunCargo={
  capture(){const frames=Trace.cut();if(!frames.length)return null;const im=frames[frames.length-1],card=document.createElement('canvas');card.width=FW;card.height=FH;card.getContext('2d').putImageData(im,0,0);
   const span=Math.min(Trace.count,N),gaze=[],au=[];for(let n=span-1;n>=0;n--){const f=Trace.at(n);if(f.img){gaze.push(f.g.slice());au.push(f.au)}}
   return {id:'hug-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),at:Date.now(),eyeT:S.now,frames:frames.slice(),gaze,au,frame:im,card,
-   tex:{rgb:Tex.rgb.slice(),at:Tex.at.slice(),au:Tex.au.slice(),has:Tex.has.slice(),patches:Tex.patches},origin:Hand.aim().slice(),place:Solarium.place(),wav:(Tape.ring&&S.micOK)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,landed:false};
+   tex:{rgb:Tex.rgb.slice(),at:Tex.at.slice(),au:Tex.au.slice(),has:Tex.has.slice(),patches:Tex.patches},atlas:Atlas.stamp(),origin:Hand.aim().slice(),place:Solarium.place(),wav:(Tape.ring&&S.micOK)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,landed:false};
  },
  current(){return Grip.plane?Grip.plane.cargo:Grip.cargo;},
  record(c){if(c.record)return c.record;
-  return c.record={id:c.id,at:c.at,place:c.place,name:Solarium.autoName(c.at,c.place),start:c.at-c.frames.length*1000/HZ,end:c.at,eyeT:c.eyeT,
+  return c.record={atlas:c.atlas,id:c.id,at:c.at,place:c.place,name:Solarium.autoName(c.at,c.place),start:c.at-c.frames.length*1000/HZ,end:c.at,eyeT:c.eyeT,
    pics:encode(c.frames),gaze:c.gaze,au:c.au,wav:c.wav,who:[Net.name||'ME'],
    seen:c.tex.has.reduce((n,v)=>n+(v===1),0)/c.tex.has.length,plate:Solarium.plateOf(c.tex),
    bodyFlight:Grip.inputs.map(v=>({...v})),flight:{origin:c.origin,kind:'sun-hug'}};
  },
  async save(c){const m=this.record(c);if(!Solarium.suns.some(v=>v.id===m.id)){Solarium.suns.push(m);while(Solarium.suns.length>Solarium.MAX)Solarium.suns.shift();shelfAdd(m,true);}
-  try{if(!DB.db)await DB.open();await DB.put(m);}catch(e){Grip.note('KEPT FOR NOW · BROWSER STORAGE UNAVAILABLE');}return m;
+  const row=$('shelf').querySelector('[data-id="'+m.id+'"]');if(row&&m.atlas){row.dataset.face=m.atlas.face;const label=row.querySelector('.sun-meta');if(label)dotText(label,Atlas.tag(m.atlas.face)+' '+hms(new Date(m.at)).slice(0,5),{size:.7,color:P.dim,max:80});}Atlas.refresh();try{if(!DB.db)await DB.open();await DB.put(m);}catch(e){Grip.note('KEPT FOR NOW · BROWSER STORAGE UNAVAILABLE');}return m;
  },
  land(c,lat,lon){if(c.landed)return;
   const aim=Hand.v,locked=Hand.locked;try{Hand.set(dirFromLatLon(lat,lon));paintTex(c.frame);}finally{Hand.v=aim;Hand.locked=locked;}
-  c.landed=true;this.record(c).flight.landing=[lat,lon];void this.save(c);
+  c.landed=true;const record=this.record(c);record.atlas=Atlas.stamp(Atlas.face([Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)]));record.flight.landing=[lat,lon];void this.save(c);
  }
 };
 /* Direct contact: pose and pointer input share one held object and one release law. */
@@ -834,6 +843,7 @@ const AimControl={owner:'rest',manual:false,until:0,body:null,tilt:null,base:nul
 
 const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:false,hug:0,warmth:0,
  cargo:null,hands:[],points:new Map(),lastInput:0,lastPose:0,opening:false,plane:null,trail:[],inputs:[],
+ scale(){return 1+this.hug*.08+this.warmth*.02;},
  clamp(v,a,b){return Math.max(a,Math.min(b,v));},
  note(t){if($('bf-note').textContent!==t){$('bf-note').textContent=t;this.noteAt=performance.now();}},
  available(){return !VIEW&&!World.on&&!Play.m&&!Inspect.m&&!$('prev').classList.contains('on')&&!S.filming},
@@ -841,7 +851,7 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
  move(x,y,r,t){if(this.owner==='touch'||this.owner==='keyboard'){AimControl.delta(x-this.rawX,y-this.rawY,t);this.rawX=x;this.rawY=y;}const dt=Math.max(.016,Math.min(.1,(t-this.lastInput)/1000));const limX=orbR()*.08,limY=orbR()*.06;
   x=this.clamp(x,-limX,limX);y=this.clamp(y,-limY,limY);this.vx+=(this.clamp((x-this.tx)/dt,-950,950)-this.vx)*.4;this.vy+=(this.clamp((y-this.ty)/dt,-950,950)-this.vy)*.4;this.tx=x;this.ty=y;this.tr=this.clamp(r,.45,1.2);this.lastInput=t;},
  release(throwIt=true){if(!this.held)return;if(this.owner==='touch'||this.owner==='keyboard')AimControl.end(performance.now());this.held=false;this.owner=null;this.hands=[];
-  if(throwIt&&this.cargo&&!this.cargo.landed&&Math.hypot(this.vx,this.vy)>40){this.plane={cargo:this.cargo,lon:S.rot,lat:S.tilt,heading:Math.atan2(this.vx,-this.vy),speed:this.clamp(Math.hypot(this.vx,this.vy)/650,.12,1.2),alt:0,x:W/2+this.x,y:orbY()+this.y,vx:this.vx,vy:this.vy,age:0};this.cargo=null;this.trail=[];this.note('Your moment is flying. Gather it back.');}
+  if(throwIt&&this.cargo&&!this.cargo.landed&&(Math.hypot(this.vx,this.vy)>40||this.warmth>.35)){this.plane={cargo:this.cargo,lon:S.rot,lat:S.tilt,heading:Math.atan2(this.vx,-this.vy),speed:this.clamp(Math.hypot(this.vx,this.vy)/650,.12,1.2),alt:0,x:W/2+this.x,y:orbY()+this.y,vx:this.vx,vy:this.vy,age:0};this.cargo=null;this.trail=[];this.note('Your moment is flying. Gather it back.');}
   else{this.vx=this.vy=0;this.note(this.cargo?'MOMENT HELD · GATHER TO RELEASE':'OPEN CAMERA TO GATHER A MOMENT');}keysFor();
  },
  pose(p,t){this.lastPose=t;if(this.paused||!this.available()||this.points.size||AimControl.manual||t<AimControl.until)return;
@@ -858,11 +868,11 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
   if(!visible(15)||!visible(16)){if(this.owner==='body')this.release(false);this.opening=false;this.note('Let both hands enter the frame.');return;}
   const map=a=>({x:(facing==='user'?1-a.x:a.x)*W,y:(.12+(a.y-.2)*.9)*H});const a=map(p[15]),b=map(p[16]);
   const gap=Math.hypot(a.x-b.x,a.y-b.y),sw=visible(11)&&visible(12)?Math.hypot(p[11].x-p[12].x,p[11].y-p[12].y):.25;
-  const open=Math.hypot(p[15].x-p[16].x,p[15].y-p[16].y)>Math.max(.45,sw*2.5);
+  const armSpan=Math.hypot(p[15].x-p[16].x,p[15].y-p[16].y)/Math.max(.08,sw);const open=armSpan>2.6;
   if(open){if(this.owner==='body')this.release(true);this.opening=true;return;}
-  if(this.opening&&gap>orbR()*1.7)return;
+  if(this.opening&&armSpan>2.1)return;
   this.opening=false;if(!this.held)this.take('body',t);
-  if(this.owner==='tool')this.owner='body';if(this.owner!=='body')return;this.hands=[a,b];this.move((a.x+b.x)/2-W/2,(a.y+b.y)/2-orbY(),gap/(orbR()*2),t);
+  if(this.owner==='tool')this.owner='body';if(this.owner!=='body')return;this.hands=[a,b];this.move((a.x+b.x)/2-W/2,(a.y+b.y)/2-orbY(),this.clamp(.45+(armSpan-.65)/1.8*.55,.45,1),t);
  },
  step(dt,t){const d=Math.min(.05,Math.max(0,dt/1000));if(this.paused||!this.available())return;
   if(this.owner==='body'&&t-this.lastPose>350){this.release(false);if(this.bodyAim){AimControl.body=null;this.bodyAim=false;}}
@@ -870,7 +880,7 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
 
   }else{const damp=Math.exp(-d*4);this.vx*=damp;this.vy*=damp;this.x*=Math.exp(-d*8);this.y*=Math.exp(-d*8);this.r+=(1-this.r)*(1-Math.exp(-d*3));}
   this.hug+=(this.clamp((1-this.r)/.55,0,1)-this.hug)*(1-Math.exp(-d*8));
-  const heat=this.held?this.hug:0;this.warmth+=(heat-this.warmth)*(1-Math.exp(-d/(heat>this.warmth?1.6:6)));
+  const heat=this.held?this.hug:0;if(heat>.7&&!this.embraced){this.embraced=true;haptic([12,60,18]);this.note('Stay a moment.');}if(heat<.25)this.embraced=false;this.warmth+=(heat-this.warmth)*(1-Math.exp(-d/(heat>this.warmth?1.6:6)));
   if(this.plane){const p=this.plane;p.age+=d;
    if(this.held){p.heading+=this.clamp(this.vx/500,-1,1)*d*1.4;p.lat=this.clamp(p.lat-this.vy/900*d,-1.4,1.4);}
    const a=p.speed*d*(1-this.hug*.96)*(1-this.warmth*.35),la=p.lat,hd=p.heading;
@@ -878,7 +888,7 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
    p.lon+=Math.atan2(Math.sin(hd)*Math.sin(a)*Math.cos(la),Math.cos(a)-Math.sin(la)*Math.sin(p.lat));
    if(a>1e-9)p.heading=Math.atan2(Math.sin(hd)*Math.cos(la),Math.cos(la)*Math.cos(a)*Math.cos(hd)-Math.sin(la)*Math.sin(a));
    p.alt+=((this.held&&this.hug>.5?0:.35)-p.alt)*(1-Math.exp(-d*4));
-   const q=proj(p.lat,p.lon),rr=orbR()*this.r*(1+p.alt),px=W/2+this.x+q[0]*rr,py=orbY()+this.y-q[1]*rr;
+   const q=proj(p.lat,p.lon),rr=orbR()*this.scale()*(1+p.alt),px=W/2+this.x+q[0]*rr,py=orbY()+this.y-q[1]*rr;
    p.vx=px-p.x;p.vy=py-p.y;p.x=px;p.y=py;p.front=q[2];
    this.trail.push({x:px,y:py,front:q[2],lat:p.lat,lon:p.lon,t:S.now});if(this.trail.length>120)this.trail.shift();
    if(this.held&&this.hug>.65&&p.alt<.025&&p.age>.7)this.receive();
@@ -886,9 +896,9 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
 
   this.x=this.clamp(this.x,-orbR()*.08,orbR()*.08);this.y=this.clamp(this.y,-orbR()*.06,orbR()*.06);this.r=this.clamp(this.r,.45,1.05);S.spin=0;S.touched=S.now;
  },
- draw(){if(!this.available())return;const g=CTX,cx=W/2+this.x,cy=orbY()+this.y,R=orbR()*this.r;
+ draw(){if(!this.available())return;const g=CTX,cx=W/2+this.x,cy=orbY()+this.y,R=orbR()*this.scale();
   g.save();g.strokeStyle=P.warm;g.lineWidth=2;
-  if(this.held){for(const side of [-1,1]){g.beginPath();const a=side===1?-.6:Math.PI-.6;g.arc(cx,cy,R+9,a,a+1.2);g.stroke();}g.globalAlpha=.35;
+  if(this.held){for(const side of [-1,1]){g.beginPath();const a=side===1?-.6:Math.PI-.6;g.arc(cx,cy,R+9,a-this.hug*.6,a+1.2+this.hug*.6);g.stroke();}g.globalAlpha=.35;
    for(const h of this.hands){g.beginPath();g.arc(h.x,h.y,9,0,Math.PI*2);g.stroke();}g.globalAlpha=1;}
   if(!this.plane&&!this.cargo){g.restore();return;}const p=this.plane||{x:cx+R*.72,y:cy-R*.5,vx:1,vy:-.5};
   if(this.plane){g.globalAlpha=.35;g.beginPath();let pen=false;this.trail.forEach(v=>{if(v.front<0){pen=false;return}if(pen)g.lineTo(v.x,v.y);else g.moveTo(v.x,v.y);pen=true});g.stroke();g.globalAlpha=this.plane.front<0?.25:1;}
@@ -904,7 +914,7 @@ const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVide
    const mp=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');const fs=await mp.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');if(ticket!==this.token)return;
    const options={baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.45,minTrackingConfidence:.45};let model;
    try{model=await mp.PoseLandmarker.createFromOptions(fs,options)}catch{options.baseOptions.delegate='CPU';model=await mp.PoseLandmarker.createFromOptions(fs,options)}
-   if(ticket!==this.token){model.close();return}this.model=model;this.on=true;this.loading=false;this.lastVideo=-1;S.intro=1;Grip.paused=false;$('bf-pause').textContent='PAUSE';$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','true');Grip.note('Bring your hands closer. The sun gathers with you.');
+   if(ticket!==this.token){model.close();return}this.model=model;this.on=true;this.loading=false;this.lastVideo=-1;S.intro=1;Grip.paused=false;$('bf-pause').textContent='PAUSE';$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','true');Grip.note('Open your arms. Slowly bring them around the sun.');
   }catch(e){if(ticket===this.token){this.close();Grip.note('BODY UNAVAILABLE · TOUCH WORKS');console.warn('[sun-hug] body start:',e.name||'error')}}
  },
  close(){AimControl.body=null;AimControl.base=null;if(Grip.bodyAim){AimControl.body=null;Grip.bodyAim=false;}Grip.bodyRest=null;this.token++;this.loading=false;this.on=false;if(this.model)this.model.close();this.model=null;if(Grip.owner==='body')Grip.release(false);$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','false');},
@@ -913,13 +923,15 @@ const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVide
  draw(){Grip.draw();}
 };
 $('bf-body').onclick=()=>BodyFlight.open();
-$('begin').onclick=async()=>{if(BodyFlight.starting)return;BodyFlight.starting=true;$('begin').disabled=true;$('begin').textContent='OPENING…';await start();BodyFlight.starting=false;$('begin').disabled=false;$('begin').textContent=S.hearing?'OPEN THE SUN':'TRY CAMERA AGAIN';if(S.hearing){S.intro=1;Grip.paused=false;$('bf-pause').textContent='PAUSE';Grip.note('Move your camera. Watch the surface gather.');}};
+$('begin').onclick=async()=>{if(BodyFlight.loading)return;$('begin').disabled=true;$('begin').textContent='FINDING YOU…';try{await BodyFlight.open();}finally{$('begin').disabled=false;$('begin').textContent=BodyFlight.on?'STEP INTO THE SUN':'TRY BODY AGAIN';}};
+$('touch-start').onclick=async()=>{await start();if(S.hearing){S.intro=1;Grip.paused=false;Grip.note('Two fingers gather. Drag to turn.');}};
+
 $('bf-camera').onclick=()=>{BodyFlight.close();Grip.release(false);if(stream)stream.getTracks().forEach(tr=>tr.stop());stream=null;if(video)video.srcObject=null;S.hearing=false;S.micOK=false;if(analyser){try{analyser.disconnect()}catch{}analyser=null;}status();Grip.note('CAMERA OFF · TOUCH WORKS');};
 $('bf-pause').onclick=()=>{Grip.paused=!Grip.paused;Grip.release(false);$('bf-pause').textContent=Grip.paused?'RESUME':'PAUSE';};
 
 function pointerPosition(e){return {x:e.clientX,y:e.clientY}}
 cv.addEventListener('pointerdown',e=>{if(!Grip.available()||Grip.paused)return;
- const hit=Math.hypot(e.clientX-(W/2+Grip.x),e.clientY-(orbY()+Grip.y))<=orbR()*Grip.r+18;
+ const hit=Math.hypot(e.clientX-(W/2+Grip.x),e.clientY-(orbY()+Grip.y))<=orbR()*Grip.scale()+18;
  const planeHit=Grip.plane&&Math.hypot(e.clientX-Grip.plane.x,e.clientY-Grip.plane.y)<32;
  if(!hit&&!planeHit){e.stopImmediatePropagation();return;}e.stopImmediatePropagation();cv.setPointerCapture(e.pointerId);const t=performance.now();
  if(!S.hearing&&!S.sim&&!SunCargo.current()){ $('begin').click();return;}
