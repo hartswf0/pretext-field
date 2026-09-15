@@ -72,10 +72,11 @@ console.log(`[site:build] Injected boot diagnostics into ${injectedCount} pages`
 
 // Preserve the portable world verbatim: its export captures its inline source.
 // Bundling its scripts would make downloaded worlds depend on remote assets.
-if (entrypoints.includes('word-orb.html')) {
-  await mkdir(path.join(outdir, 'word-orb'), { recursive: true })
-  await writeFile(path.join(outdir, 'word-orb', 'index.html'),
-    await readFile(path.join(root, 'word-orb.html'), 'utf-8'))
+for (const name of ['word-orb', 'sun-hug']) {
+  if (!entrypoints.includes(name + '.html')) continue
+  await mkdir(path.join(outdir, name), { recursive: true })
+  await writeFile(path.join(outdir, name, 'index.html'),
+    await readFile(path.join(root, name + '.html'), 'utf-8'))
 }
 
 // ── Step 5: Post-build verification ──────────────────────────────
