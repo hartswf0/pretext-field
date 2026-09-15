@@ -70,6 +70,14 @@ for await (const file of builtGlob.scan(outdir)) {
 }
 console.log(`[site:build] Injected boot diagnostics into ${injectedCount} pages`)
 
+// Preserve the portable world verbatim: its export captures its inline source.
+// Bundling its scripts would make downloaded worlds depend on remote assets.
+if (entrypoints.includes('word-orb.html')) {
+  await mkdir(path.join(outdir, 'word-orb'), { recursive: true })
+  await writeFile(path.join(outdir, 'word-orb', 'index.html'),
+    await readFile(path.join(root, 'word-orb.html'), 'utf-8'))
+}
+
 // ── Step 5: Post-build verification ──────────────────────────────
 let staleCount = 0
 const verifyGlob = new Glob('**/*.html')
