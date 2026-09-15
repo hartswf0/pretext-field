@@ -321,14 +321,17 @@ async function sensors(){
   if(navigator.geolocation) navigator.geolocation.watchPosition(p=>{ fixes.push({t:Date.now(),lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy,alt:p.coords.altitude}); while(fixes.length>FIX_MAX) fixes.shift(); S.gpsWhy=''; status(); },e=>{ S.gpsWhy=e.code===1?'location declined':'no position yet'; status(); },{enableHighAccuracy:true,maximumAge:2000,timeout:15000}); else S.gpsWhy='no location here';
   status(); }
 async function ensureCtx(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') await audioCtx.resume(); return audioCtx; }
+let captureGeneration=0;
 async function start(){
+  const generation=++captureGeneration;
   say('asking for the camera and microphone');
   if(!window.isSecureContext){ fault('needs an https page','<button data-act="sim">watch a made-up room</button>'); return; }
   try{ const ctx=await ensureCtx(); if(stream) stream.getTracks().forEach(t=>t.stop()); let mic=true;
     try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); }
     catch(e1){ mic=false; stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false}); }
+    if(generation!==captureGeneration){stream.getTracks().forEach(t=>t.stop());stream=null;return;}
     if(!video){ video=document.createElement('video'); video.muted=true; video.playsInline=true; video.setAttribute('playsinline',''); }
-    video.srcObject=new MediaStream(stream.getVideoTracks()); await video.play(); Cam.init(); Cam.prev=null;
+    video.srcObject=new MediaStream(stream.getVideoTracks()); await video.play(); if(generation!==captureGeneration)return; Cam.init(); Cam.prev=null;
     if(analyser){ try{ analyser.disconnect(); }catch(e){} analyser=null; }
     if(mic&&stream.getAudioTracks().length){ const src=ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())); analyser=ctx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0.6; src.connect(analyser); abuf=new Uint8Array(analyser.fftSize); S.micOK=Tape.init(ctx,src); } else S.micOK=false;
     const tr=stream.getVideoTracks()[0]; tr.onended=()=>{ S.hearing=false; fault('camera stopped','tap the orb to reconnect'); };
@@ -699,7 +702,7 @@ function stateWord(){ const [sn,dr]=seenSplit(); if(S.mode==='LIVE'){ dotText($(
 let last=performance.now(), frames=0;
 function frame(ts){ try{ const dt=Math.min(100,ts-last); last=ts; S.now=ts/1000; if(document.hidden){ requestAnimationFrame(frame); return; }
   if(!VIEW){ sense(dt); if(!S.held&&!Play.m&&(S.hearing||S.sim)){ slice(dt); dream(); } }
-  if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(S.now-S.touched>20) S.rot+=dt/1000*0.035; if(!S.gotOri){ const lam=S.now*0.15; S.aim=[Math.sin(lam)*0.95,0.15*Math.sin(S.now*0.4),Math.cos(lam)*0.95]; } }
+  if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(S.now-S.touched>20) S.rot+=dt/1000*0.035; if(!S.gotOri&&!window.SunBridge){ const lam=S.now*0.15; S.aim=[Math.sin(lam)*0.95,0.15*Math.sin(S.now*0.4),Math.cos(lam)*0.95]; } }
 
   Celestial.tick(); if(!VIEW){ Mesh.tick(); Net.tick(); } drawOrb(); if(!tiny()&&S.mode==='LIVE'){ const m=Inspect.m; const when=Viewer.pay?new Date(Viewer.pay.a):(m?new Date(m.at):null); const where=Viewer.pay?(Viewer.pay.p?{lat:Viewer.pay.p[0],lon:Viewer.pay.p[1]}:null):(m?m.place:null); Ray.draw(CTX,20,orbY()+orbR()+10,W-40,when,where,0.78); if(!VIEW&&(frames&3)===0) drawTrim(); } if((frames&15)===0&&!tiny()) drawDays(); if(S.setting){ const k=Math.min(1,(S.now-S.setting)/3); const g=CTX; g.fillStyle=theme==='dark'?`rgba(0,0,0,${Math.sin(k*Math.PI)*0.85})`:`rgba(239,233,218,${Math.sin(k*Math.PI)*0.85})`; g.fillRect(0,0,W,H); if(k>=1) S.setting=0; } if(!tiny()){ layout(); drawPlate(); } if((++frames&7)===0) stateWord();
  }catch(e){ say('<span class="err">drawing broke</span>\nit is still recording'); } requestAnimationFrame(frame); }
@@ -732,6 +735,39 @@ $('s-gps').addEventListener('click',ev=>{ ev.stopPropagation(); say(fixes.length
 $('s-together').addEventListener('click',ev=>{ ev.stopPropagation(); S.together=!S.together; status(); keysFor(); say(S.together?'open a sun for others, or join one':''); });
 $('s-theme').addEventListener('click',ev=>{ ev.stopPropagation(); theme=theme==='dark'?'light':'dark'; applyTheme(); status(); dotText($('title'),(VIEW?'A SUN':'SUN SPHERE'),{size:1.1,align:'left'}); });
 addEventListener('keydown',ev=>{ if(ev.key===' '&&!Play.m&&!S.held) hold(); else if(ev.key==='Enter'&&S.held) keep(); else if(ev.key==='Escape'){ if(Play.m) closeMoment(); else if(S.held) letGo(); } });
+
+
+/* Same-origin integration: the capture owns its tracks; consumers clone them. */
+if (new URLSearchParams(location.search).has('terminus') && parent !== window) {
+  const panorama = document.createElement('canvas');
+  panorama.width=TW; panorama.height=TH;
+  const pg=panorama.getContext('2d'), pixels=pg.createImageData(TW,TH);
+  S.aim=[0,0,1]; facing="user";
+  window.SunBridge={
+    panorama,
+    get stream(){ return S.hearing ? stream : null; },
+    get facing(){ return facing; },
+    get status(){ return { live:S.hearing, simulated:S.sim, seen:Tex.seen(), oriented:S.gotOri }; },
+    update(){
+      const T=Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex);
+      for(let i=0;i<TN;i++){
+        const age=Math.max(0,Math.min(1,(S.now-T.at[i])/180));
+        const fade=1-age*.35;
+        for(let c=0;c<3;c++) pixels.data[i*4+c]=T.rgb[i*3+c]*fade;
+        pixels.data[i*4+3]=255;
+      }
+      pg.putImageData(pixels,0,0); return panorama;
+    },
+    stop(){
+      captureGeneration++;
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      stream=null; if(video){video.pause();video.srcObject=null;}
+      S.hearing=false;S.sim=false;S.micOK=false;
+      if(audioCtx) audioCtx.suspend().catch(()=>{});
+      setMode('ASK');status();
+    }
+  };
+}
 
 /* ---------- boot ---------- */
 (function title(){ const s=(VIEW?'A SUN':'SUN SPHERE'), t=$('title'); let i=0; if(reduceMotion){ dotText(t,s,{size:1.1,align:'left'}); return; } const iv=setInterval(()=>{ dotText(t,s.slice(0,++i),{size:1.1,align:'left'}); if(i>=s.length) clearInterval(iv); },70); })();
