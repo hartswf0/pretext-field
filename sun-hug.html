@@ -382,9 +382,10 @@ function beltSource(){ if(Play.m) return {n:Play.imgs?Play.imgs.length:0, frame:
   const span=Math.min(Trace.count,N); const head=S.held?Math.round((1-S.scrub)*(span-1)):0; return {n:span, frame:i=>Trace.at(span-1-i).sm, au:i=>Trace.at(span-1-i).au, g:i=>Trace.at(span-1-i).g, head:span-1-head}; }
 function sampleTex(T,lat,lon){ const x=((Math.floor((lon+Math.PI)/(Math.PI*2)*TW)%TW)+TW)%TW, y=Math.max(0,Math.min(TH-1,Math.floor((Math.PI/2-lat)/Math.PI*TH))); return y*TW+x; }
 function roomLight(T){ let r=0,g=0,b=0,n=0; for(let i=0;i<TN;i+=97){ if(T.has[i]!==1) continue; r+=T.rgb[i*3]; g+=T.rgb[i*3+1]; b+=T.rgb[i*3+2]; n++; } return n?[r/n|0,g/n|0,b/n|0]:null; }
+function worldTexture(){return Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex);}
 function drawOrb(target){
   const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const direct=!RT&&!VIEW&&!World.on&&!Play.m&&!Inspect.m; const R=RT?RT.R:orbR()*(direct?Grip.r:1), cxp=W/2+(direct?Grip.x:0), cyp=RT?H/2:orbY()+(direct?Grip.y:0); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
-  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:(direct&&SunCargo.current()?SunCargo.current().tex:Tex))), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03+(direct?Grip.warmth*.025:0);
+  const T=RT?RT.T:worldTexture(), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03+(direct?Grip.warmth*.025:0);
   const setting=S.setting?Math.max(0,1-(S.now-S.setting)/3):0; if(setting){ ctx.globalAlpha=1; }
   { const heat=direct?Grip.warmth:0;const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5+heat*.65)); const a=(dark?0.38:0.12)*(0.7+0.3*mist+heat*.45)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
   Exposure.build(T); const gain=Exposure.gain*S.bright*(direct?1+Grip.warmth*.25:1), marks=[]; const rotv=RT?RT.rot:S.rot;
@@ -402,7 +403,7 @@ function drawOrb(target){
   if(!RT&&(S.mode==='ASK'||S.mode==='INTRO')){ const u=(S.now%2)/2; ctx.strokeStyle=P.warm; ctx.lineWidth=2; ctx.globalAlpha=1-u; ctx.beginPath(); ctx.arc(cxp,cyp,R*(1.02+u*0.25),0,7); ctx.stroke(); ctx.globalAlpha=1;  }
   if(S.flash&&!RT){ const u=Math.min(1,(S.now-S.flash)/0.7); ctx.strokeStyle=P.warm; ctx.lineWidth=3*(1-u); ctx.globalAlpha=1-u; ctx.beginPath(); ctx.arc(cxp,cyp,R*(1+u*0.9),0,7); ctx.stroke(); ctx.fillStyle=P.warm; ctx.globalAlpha=(1-u)*0.35; ctx.beginPath(); ctx.arc(cxp,cyp,R,0,7); ctx.fill(); ctx.globalAlpha=1; if(u>=1) S.flash=0; }
   if(Viewer.T&&!RT){ const f=Viewer.frustum(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); const [x,y,z]=proj(phi,lam+S.rot); if(z>-0.1){ ctx.strokeStyle=P.warm; ctx.lineWidth=1.4; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.ellipse(cxp+x*R,cyp-y*R,R*0.3*Math.max(0.15,z),R*0.17*Math.max(0.15,z),0,0,7); ctx.stroke(); ctx.setLineDash([]); } }
-  if(!RT&&!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ const src=Brush.imgs?Brush.imgs[(Brush.i+Brush.imgs.length-1)%Brush.imgs.length]:(SunCargo.current()?SunCargo.current().frame:Cam.last); if(src){ const B=basisOf(Hand.aim(),Hand.up()); const tx=Math.tan(FOV/2), ty=tx*FH/FW, a=src.data, cl=Math.cos(FOV*0.75), cr2=Math.cos(S.rot), sr2=Math.sin(S.rot);
+  if(!RT&&!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ const src=Brush.imgs?Brush.imgs[(Brush.i+Brush.imgs.length-1)%Brush.imgs.length]:Cam.last; if(src){ const B=basisOf(Hand.aim(),Hand.up()); const tx=Math.tan(FOV/2), ty=tx*FH/FW, a=src.data, cl=Math.cos(FOV*0.75), cr2=Math.cos(S.rot), sr2=Math.sin(S.rot);
     for(const m of marks){ if(m.z<0.1) continue; const n=[m.x,m.y,m.z]; const dx=n[0]*cr2+n[2]*sr2, dy=n[1], dz=-n[0]*sr2+n[2]*cr2;   // the dot's direction in the room
       const z=dx*B.f[0]+dy*B.f[1]+dz*B.f[2]; if(z<cl) continue; const px=(dx*B.r[0]+dy*B.r[1]+dz*B.r[2])/z/tx, py=(dx*B.u[0]+dy*B.u[1]+dz*B.u[2])/z/ty; if(px<-1||px>1||py<-1||py>1) continue;
       const sx=Math.min(FW-1,Math.floor((px+1)/2*FW)), sy=Math.min(FH-1,Math.floor((1-py)/2*FH)); const j=(sy*FW+sx)*4; const g0=Exposure.gain*S.bright; let r=Math.min(255,a[j]*g0),g=Math.min(255,a[j+1]*g0),b=Math.min(255,a[j+2]*g0); const lum=(r*0.299+g*0.587+b*0.114)/255;
@@ -451,14 +452,31 @@ function dream(){ if(S.now-dreamAt<0.08) return; dreamAt=S.now; const rows=32, y
 /* ---------- the plate: the mosaic as a 128x64 grid of dots; size is brightness; the loud cells wear a ring ---------- */
 const plateC=$('plate'), plg=plateC.getContext('2d'); let plateFrame=0;
 function drawPlate(){ if((++plateFrame&1)&&!Play.m) return; const w=plateC.clientWidth, h=plateC.clientHeight; if(!w) return; const d=Math.min(2,devicePixelRatio||1); if(plateC.width!==Math.round(w*d)||plateC.height!==Math.round(h*d)){ plateC.width=Math.round(w*d); plateC.height=Math.round(h*d); } plg.setTransform(d,0,0,d,0,0); plg.clearRect(0,0,w,h);
-  const T=Viewer.T||Inspect.T||(Play.m?Play.m.tex:(SunCargo.current()?SunCargo.current().tex:Tex)), at=Play.m?Play.m.eyeT:S.now, dark=theme==='dark', cols=128, rows=64, cw=w/cols;Exposure.build(T);const plateGain=Exposure.gain*S.bright;
+  const T=worldTexture(), at=Play.m?Play.m.eyeT:S.now, dark=theme==='dark', cols=128, rows=64, cw=w/cols;Exposure.build(T);const plateGain=Exposure.gain*S.bright;
   for(let yy=0;yy<rows;yy++) for(let xx=0;xx<cols;xx++){ const i=(yy*2)*TW+xx*2; if(!T.has[i]) continue; const r=Math.min(255,T.rgb[i*3]*plateGain),g=Math.min(255,T.rgb[i*3+1]*plateGain),b=Math.min(255,T.rgb[i*3+2]*plateGain); const age=Math.min(1,(at-T.at[i])/180); const lum=(r*0.299+g*0.587+b*0.114)/255, bright=dark?lum:1-lum; const rad=cw*(0.12+0.42*bright)*(1-age*0.35); if(rad<0.3) continue;
     plg.globalAlpha=(1-age*0.65)*(Viewer.reveal?(Viewer.reveal[i]<0?0.22:(Viewer.reveal[i]<=Viewer.u()*Viewer.n?1:0.22)):1); plg.fillStyle=`rgb(${r},${g},${b})`; const px=(xx+0.5)*cw, py=(yy+0.5)*cw; plg.beginPath(); plg.arc(px,py,rad,0,7); plg.fill();
     if(T.au[i]>0.4&&((xx+yy)&3)===0){ plg.strokeStyle=P.warm; plg.lineWidth=0.6; plg.beginPath(); plg.arc(px,py,cw*0.55,0,7); plg.stroke(); } }
   plg.globalAlpha=1;
   if(Viewer.T){ const f=Viewer.frustum(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); plg.strokeStyle=P.warm; plg.setLineDash([2,3]); plg.lineWidth=1; plg.strokeRect((lam+Math.PI)/(Math.PI*2)*w-w*0.09,(Math.PI/2-phi)/Math.PI*h-h*0.1,w*0.18,h*0.2); plg.setLineDash([]); Viewer.eye(plg,w-w*0.3-4,4,w*0.3,w*0.3*9/16); }
   if(!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ S.throughPlate=null; const f=Hand.aim(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); plg.strokeStyle=P.warm; plg.setLineDash([2,3]); plg.lineWidth=1; const rx=(lam+Math.PI)/(Math.PI*2)*w, ry=(Math.PI/2-phi)/Math.PI*h; plg.strokeRect(rx-w*0.09,ry-h*0.1,w*0.18,h*0.2); plg.setLineDash([]); const pr=plateC.getBoundingClientRect?plateC.getBoundingClientRect():{left:0,top:0}; S.throughPlate=[pr.left+rx,pr.top+ry]; }
-  plg.strokeStyle=P.warm; plg.globalAlpha=0.35; plg.beginPath(); plg.moveTo(0,h/2); plg.lineTo(w,h/2); plg.stroke(); if(S.grid){ plg.globalAlpha=0.3; for(let k=1;k<12;k++){ plg.beginPath(); plg.moveTo(k/12*w,0); plg.lineTo(k/12*w,h); plg.stroke(); } for(let k=1;k<6;k++){ plg.beginPath(); plg.moveTo(0,k/6*h); plg.lineTo(w,k/6*h); plg.stroke(); } } plg.globalAlpha=1;Atlas.draw(plg,true,w,h); }
+  plg.strokeStyle=P.warm; plg.globalAlpha=0.35; plg.beginPath(); plg.moveTo(0,h/2); plg.lineTo(w,h/2); plg.stroke(); if(S.grid){ plg.globalAlpha=0.3; for(let k=1;k<12;k++){ plg.beginPath(); plg.moveTo(k/12*w,0); plg.lineTo(k/12*w,h); plg.stroke(); } for(let k=1;k<6;k++){ plg.beginPath(); plg.moveTo(0,k/6*h); plg.lineTo(w,k/6*h); plg.stroke(); } } plg.globalAlpha=1;Atlas.draw(plg,true,w,h);if(!Viewer.T&&!Inspect.m&&!Play.m)drawWorldField(plg,w,h); }
+
+/* Both maps use the flight's spherical coordinates, including the longitude seam. */
+function worldUV(lat,lon,w,h){return [((lon+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)/(2*Math.PI)*w,(Math.PI/2-lat)/Math.PI*h];}
+function drawWorldField(g,w,h){
+ const aim=Hand.aim(),lat=Math.asin(Math.max(-1,Math.min(1,aim[1]))),lon=Math.atan2(aim[0],aim[2]),uv=worldUV(lat,lon,w,h);
+ g.save();g.beginPath();g.rect(0,0,w,h);g.clip();
+ // Warmth is response to contact, never a temperature measurement.
+ if(Grip.warmth>.01){for(const offset of [-w,0,w]){const x=uv[0]+offset,r=Math.max(12,w*.18);const glow=g.createRadialGradient(x,uv[1],0,x,uv[1],r);glow.addColorStop(0,'rgba(255,188,83,'+(Grip.warmth*.28)+')');glow.addColorStop(1,'rgba(255,140,40,0)');g.fillStyle=glow;g.fillRect(x-r,uv[1]-r,r*2,r*2);}}
+ // The path is the camera's actual recent aim history.
+ const span=Math.min(Trace.count,N);g.strokeStyle=P.warm;g.lineWidth=1;g.beginPath();let last=null;
+ for(let i=span-1;i>=0;i-=3){const a=Trace.at(i).g;if(!a)continue;const p=worldUV(Math.asin(Math.max(-1,Math.min(1,a[1]))),Math.atan2(a[0],a[2]),w,h);if(!last||Math.abs(p[0]-last[0])>w/2)g.moveTo(...p);else g.lineTo(...p);last=p;}g.globalAlpha=.35;g.stroke();g.globalAlpha=1;
+ g.fillStyle=P.warm;for(const offset of [-w,0,w]){g.beginPath();g.arc(uv[0]+offset,uv[1],3,0,Math.PI*2);g.fill();}
+ const plane=Grip.plane;if(plane){g.beginPath();last=null;for(const a of Grip.trail){const p=worldUV(a.lat,a.lon,w,h);if(!last||Math.abs(p[0]-last[0])>w/2)g.moveTo(...p);else g.lineTo(...p);last=p;}g.globalAlpha=.7;g.stroke();g.globalAlpha=1;
+ const p=worldUV(plane.lat,plane.lon,w,h);for(const offset of [-w,0,w]){g.save();g.translate(p[0]+offset,p[1]);g.rotate(plane.heading-Math.PI/2);g.beginPath();g.moveTo(10,0);g.lineTo(-7,-5);g.lineTo(-3,0);g.lineTo(-7,5);g.closePath();g.fillStyle='#fff0c6';g.fill();g.stroke();g.restore();}}
+ g.restore();
+}
+
 let pd2=null;
 function plateAim(ev){ const r=plateC.getBoundingClientRect(); const u=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), v=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height)); AimControl.point(u*Math.PI*2-Math.PI,Math.PI/2-v*Math.PI,performance.now()); }
 plateC.style.touchAction='none';
@@ -720,14 +738,14 @@ function seenSplit(){ let seen=0,dreamed=0; for(let i=0;i<TN;i++){ if(Tex.has[i]
 function stateWord(){ const [sn,dr]=seenSplit(); if(S.mode==='LIVE'){ dotText($('sysword'),Math.round(Math.min(Trace.count,N)/HZ)+'S HELD  '+Math.round(sn*100)+'%',{size:0.9,color:P.dim,max:Math.min(300,W*0.7)}); return; } const t=Play.m?'PLAYING':S.held?'HELD':(S.mode==='LIVE'?(Net.role?(Net.role==='host'?'HOSTING ':'IN ')+Net.code+'  '+(1+Net.who.size)+' HERE':Solarium.suns.length+' SUNS  '+Solarium.days()+' DAYS  '+Solarium.layers.length+' LAYERS'):S.mode==='ASK'?'OFF':S.mode==='FAULT'?'FAULT':''); dotText($('sysword'),t,{size:0.9,color:P.dim,max:160}); }
 
 /* ---------- the loop: bounded work per frame; the frame is the only clock ---------- */
-let last=performance.now(), frames=0;
+let last=performance.now(), frames=0,lastDrawError=-Infinity;
 function frame(ts){ try{ const dt=Math.min(100,ts-last); last=ts; S.now=ts/1000; if(document.hidden){ requestAnimationFrame(frame); return; }
   if(!VIEW){BodyFlight.step(dt,ts);AimControl.step(dt,ts);}
   if(!VIEW){ sense(dt); if(!S.held&&!Play.m&&(S.hearing||S.sim)){ slice(dt); dream(); } }
   if(S.intro<1&&!reduceMotion){ S.intro+=dt/2400; S.rot=(1-S.intro)*Math.PI*1.2; S.tilt=0.18; } if(S.spin&&!p0){ S.rot-=S.spin; S.spin*=Math.pow(0.001,dt/900); if(Math.abs(S.spin)<0.0004) S.spin=0; } else { if(VIEW&&S.now-S.touched>20) S.rot+=dt/1000*0.035;  }
 
   Celestial.tick(); if(!VIEW){ Mesh.tick(); Net.tick(); } drawOrb(); if(!VIEW)BodyFlight.draw(); if(S.mode==='LIVE'){ const m=Inspect.m; const when=Viewer.pay?new Date(Viewer.pay.a):(m?new Date(m.at):null); const where=Viewer.pay?(Viewer.pay.p?{lat:Viewer.pay.p[0],lon:Viewer.pay.p[1]}:null):(m?m.place:null); Ray.draw(CTX,20,orbY()+orbR()+10,W-40,when,where,0.78); if(!VIEW&&(frames&3)===0) drawTrim(); } if((frames&15)===0&&!tiny()) drawDays(); if(S.setting){ const k=Math.min(1,(S.now-S.setting)/3); const g=CTX; g.fillStyle=theme==='dark'?`rgba(0,0,0,${Math.sin(k*Math.PI)*0.85})`:`rgba(239,233,218,${Math.sin(k*Math.PI)*0.85})`; g.fillRect(0,0,W,H); if(k>=1) S.setting=0; } { layout(); drawPlate(); } if((++frames&7)===0) stateWord();
- }catch(e){ say('<span class="err">drawing broke</span>\nit is still recording'); } requestAnimationFrame(frame); }
+ }catch(e){if(ts-lastDrawError>3000){lastDrawError=ts;console.error('[sun-hug] render loop failed',e);say('A view could not update. Your saved suns are intact.');}} requestAnimationFrame(frame); }
 function sense(dt){ let ae=0; if(analyser&&abuf){ analyser.getByteTimeDomainData(abuf); let s=0; for(let i=0;i<abuf.length;i++){ const v=(abuf[i]-128)/128; s+=v*v; } ae=Math.min(1,Math.sqrt(s/abuf.length)*5); } else if(S.sim) ae=0.1+0.5*Math.abs(Math.sin(S.now*1.3))*Math.random(); S.audio=Math.max(S.audio*0.85,ae); }
 const SW=32, SH=18; const smallC=document.createElement('canvas'); smallC.width=SW; smallC.height=SH; const smallG=smallC.getContext('2d',{willReadFrequently:true});
 function shrink(img){ const t=halftone.t||(halftone.t=document.createElement('canvas')); t.width=FW; t.height=FH; t.getContext('2d').putImageData(img,0,0); smallG.drawImage(t,0,0,SW,SH); try{ return smallG.getImageData(0,0,SW,SH).data.slice(); }catch(e){ return null; } }
@@ -862,7 +880,7 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
    p.alt+=((this.held&&this.hug>.5?0:.35)-p.alt)*(1-Math.exp(-d*4));
    const q=proj(p.lat,p.lon),rr=orbR()*this.r*(1+p.alt),px=W/2+this.x+q[0]*rr,py=orbY()+this.y-q[1]*rr;
    p.vx=px-p.x;p.vy=py-p.y;p.x=px;p.y=py;p.front=q[2];
-   this.trail.push({x:px,y:py,front:q[2]});if(this.trail.length>45)this.trail.shift();
+   this.trail.push({x:px,y:py,front:q[2],lat:p.lat,lon:p.lon,t:S.now});if(this.trail.length>120)this.trail.shift();
    if(this.held&&this.hug>.65&&p.alt<.025&&p.age>.7)this.receive();
   }
 
@@ -891,7 +909,7 @@ const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVide
  },
  close(){AimControl.body=null;AimControl.base=null;if(Grip.bodyAim){AimControl.body=null;Grip.bodyAim=false;}Grip.bodyRest=null;this.token++;this.loading=false;this.on=false;if(this.model)this.model.close();this.model=null;if(Grip.owner==='body')Grip.release(false);$('bf-body').textContent='BODY';$('bf-body').setAttribute('aria-pressed','false');},
  step(dt,t){if(Grip.noteAt&&t-Grip.noteAt>8000&&!this.loading)$('bf-note').textContent='';$('onboard').hidden=S.hearing||S.sim||!!SunCargo.current();$('bf-pause').hidden=!(this.on||Grip.plane||Grip.held||Grip.paused);$('bf-camera').hidden=!S.hearing;if(this.on){if(!S.hearing||!video||!stream||!stream.getVideoTracks().some(tr=>tr.readyState==='live')){this.close();return}
-   if(t-this.lastInfer>65&&video.readyState>=2&&video.currentTime!==this.lastVideo){this.lastInfer=t;this.lastVideo=video.currentTime;try{const r=this.model.detectForVideo(video,t);Grip.pose(r.landmarks[0]||null,t)}catch(e){this.close();Grip.note('TRACKING STOPPED · TOUCH WORKS')}}}Grip.step(dt,t);},
+   if(t-this.lastInfer>65&&video.readyState>=2&&video.currentTime!==this.lastVideo){this.lastInfer=t;this.lastVideo=video.currentTime;try{const r=this.model.detectForVideo(video,t);Grip.pose(r.landmarks[0]||null,t)}catch(e){console.error('[sun-hug] pose detection failed',e);this.close();Grip.note('Tracking stopped. Camera and touch are still available.')}}}Grip.step(dt,t);},
  draw(){Grip.draw();}
 };
 $('bf-body').onclick=()=>BodyFlight.open();
