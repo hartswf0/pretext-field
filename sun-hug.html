@@ -372,7 +372,7 @@ function sampleTex(T,lat,lon){ const x=((Math.floor((lon+Math.PI)/(Math.PI*2)*TW
 function roomLight(T){ let r=0,g=0,b=0,n=0; for(let i=0;i<TN;i+=97){ if(T.has[i]!==1) continue; r+=T.rgb[i*3]; g+=T.rgb[i*3+1]; b+=T.rgb[i*3+2]; n++; } return n?[r/n|0,g/n|0,b/n|0]:null; }
 function drawOrb(target){
   const RT=target||null; const ctx=RT?RT.g:CTX; const W=RT?RT.W:WW(), H=RT?RT.H:HH(); const direct=!RT&&!VIEW&&!World.on&&!Play.m&&!Inspect.m&&!document.body.classList.contains("tool-open"); const R=RT?RT.R:orbR()*(direct?Grip.r:1), cxp=W/2+(direct?Grip.x:0), cyp=RT?H/2:orbY()+(direct?Grip.y:0); ctx.fillStyle=P.paper; ctx.fillRect(0,0,W,H);
-  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:Tex)), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03;
+  const T=RT?RT.T:(Viewer.T||Inspect.T||(Play.m?Play.m.tex:(direct&&Grip.held&&Grip.cargo?Grip.cargo.tex:Tex))), at=RT?RT.at:(Play.m?Play.m.eyeT:(S.held?Trace.timeAtScrub(S.scrub):S.now)), dark=theme==='dark', base=R/170, breath=1+S.audio*0.03;
   const setting=S.setting?Math.max(0,1-(S.now-S.setting)/3):0; if(setting){ ctx.globalAlpha=1; }
   { const mist=0.5+0.5*Math.sin(S.now*Math.PI/60); const gr=ctx.createRadialGradient(cxp,cyp,R*0.55,cxp,cyp,R*(1.7+mist*0.5)); const a=(dark?0.38:0.12)*(0.7+0.3*mist)*Math.min(1.4,S.bright); gr.addColorStop(0,`rgba(255,170,60,${a})`); gr.addColorStop(0.5,`rgba(230,110,40,${a*0.45})`); gr.addColorStop(1,'rgba(230,110,40,0)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
   Exposure.build(T); const gain=Exposure.gain*S.bright*(direct?1+Grip.hug*.45:1), marks=[]; const rotv=RT?RT.rot:S.rot;
@@ -744,18 +744,34 @@ $('s-together').addEventListener('click',ev=>{ ev.stopPropagation(); S.together=
 $('s-theme').addEventListener('click',ev=>{ ev.stopPropagation(); theme=theme==='dark'?'light':'dark'; applyTheme(); status(); dotText($('title'),(VIEW?'A SUN':'SUN HUG'),{size:1.1,align:'left'}); });
 addEventListener('keydown',ev=>{ if(ev.key===' '&&!Play.m&&!S.held) hold(); else if(ev.key==='Enter'&&S.held) keep(); else if(ev.key==='Escape'){ if(Play.m) closeMoment(); else if(S.held) letGo(); } });
 
+/* A single captured identity from Trace through paper flight back into Tex and Solarium. */
+const SunCargo={
+ capture(){const frames=Trace.cut();if(!frames.length)return null;const im=frames[frames.length-1],card=document.createElement('canvas');card.width=FW;card.height=FH;card.getContext('2d').putImageData(im,0,0);
+  const span=Math.min(Trace.count,N),gaze=[],au=[];for(let n=span-1;n>=0;n--){const f=Trace.at(n);if(f.img){gaze.push(f.g.slice());au.push(f.au)}}
+  return {id:'hug-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),at:Date.now(),eyeT:S.now,frames:frames.slice(),gaze,au,frame:im,card,
+   tex:{rgb:Tex.rgb.slice(),at:Tex.at.slice(),au:Tex.au.slice(),has:Tex.has.slice(),patches:Tex.patches},origin:Hand.aim().slice(),place:Solarium.place(),wav:(Tape.ring&&S.micOK)?Tape.wav(Tape.cutSeconds(frames.length/HZ)):null,landed:false};
+ },
+ land(c,lat,lon){if(c.landed)return;c.landed=true;
+  // Return the carried pixels through the original camera-to-sphere brush.
+  const aim=Hand.v,locked=Hand.locked;Hand.set(dirFromLatLon(lat,lon));paintTex(c.frame);Hand.v=aim;Hand.locked=locked;
+  const m={id:c.id,at:c.at,place:c.place,name:Solarium.autoName(c.at,c.place),start:c.at-c.frames.length*1000/HZ,end:c.at,eyeT:c.eyeT,
+   pics:encode(c.frames),gaze:c.gaze,au:c.au,wav:c.wav,who:[Net.name||'ME'],seen:1,plate:Solarium.plateOf(c.tex),
+   flight:{origin:c.origin,landing:[lat,lon],kind:'sun-hug'}};
+  Solarium.suns.push(m);while(Solarium.suns.length>Solarium.MAX)Solarium.suns.shift();DB.put(m).catch(()=>Grip.note('LANDED · STORAGE UNAVAILABLE'));shelfAdd(m,true);
+ }
+};
 /* Direct contact: pose and pointer input share one held object and one release law. */
 const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:false,hug:0,
- hands:[],points:new Map(),lastInput:0,lastPose:0,opening:false,plane:null,trail:[],inputs:[],
+ cargo:null,hands:[],points:new Map(),lastInput:0,lastPose:0,opening:false,plane:null,trail:[],inputs:[],
  clamp(v,a,b){return Math.max(a,Math.min(b,v));},
  note(t){if($('bf-note').textContent!==t)$('bf-note').textContent=t;},
  available(){return !VIEW&&!World.on&&!Play.m&&!Inspect.m&&!document.body.classList.contains('tool-open')},
- take(owner,t){this.held=true;this.owner=owner;this.lastInput=t;this.tx=this.x;this.ty=this.y;this.tr=this.r;this.vx=this.vy=0;this.note(owner==='body'?'IN YOUR HANDS':'HELD');},
+ take(owner,t){if(!this.cargo)this.cargo=this.plane?this.plane.cargo:SunCargo.capture();this.held=true;this.owner=owner;this.lastInput=t;this.tx=this.x;this.ty=this.y;this.tr=this.r;this.vx=this.vy=0;this.note(owner==='body'?'IN YOUR HANDS':'HELD');},
  move(x,y,r,t){const dt=Math.max(.016,Math.min(.1,(t-this.lastInput)/1000));const limX=Math.max(0,W/2-orbR()*.6-16),limY=Math.max(20,H*.25);
   x=this.clamp(x,-limX,limX);y=this.clamp(y,-limY,limY);this.vx+=(this.clamp((x-this.tx)/dt,-950,950)-this.vx)*.4;this.vy+=(this.clamp((y-this.ty)/dt,-950,950)-this.vy)*.4;this.tx=x;this.ty=y;this.tr=this.clamp(r,.45,1.2);this.lastInput=t;},
  release(throwIt=true){if(!this.held)return;this.held=false;this.owner=null;this.hands=[];
-  if(throwIt&&Math.hypot(this.vx,this.vy)>40){this.plane={x:W/2+this.x,y:orbY()+this.y,vx:this.vx*.85,vy:this.vy*.85,age:0};this.trail=[];this.note('YOUR RELEASE · CATCH THE PAPER PLANE');}
-  else{this.vx=this.vy=0;this.note(throwIt?'AT REST':'CONTACT LOST · TOUCH THE SUN');}
+  if(throwIt&&this.cargo&&Math.hypot(this.vx,this.vy)>40){this.plane={cargo:this.cargo,lon:S.rot,lat:S.tilt,heading:Math.atan2(this.vx,-this.vy),speed:this.clamp(Math.hypot(this.vx,this.vy)/650,.12,1.2),alt:0,x:W/2+this.x,y:orbY()+this.y,vx:this.vx,vy:this.vy,age:0};this.cargo=null;this.trail=[];this.note('THIS MOMENT IS IN FLIGHT · HUG TO BRING IT HOME');}
+  else{this.vx=this.vy=0;this.note(this.cargo?'MOMENT HELD · GATHER TO RELEASE':'OPEN CAMERA TO GATHER A MOMENT');}
  },
  pose(p,t){this.lastPose=t;if(this.paused||!this.available()||this.points.size)return;
   const visible=i=>p&&p[i]&&(p[i].visibility==null||p[i].visibility>.45);
@@ -774,22 +790,31 @@ const Grip={x:0,y:0,r:1,tx:0,ty:0,tr:1,vx:0,vy:0,held:false,owner:null,paused:fa
    S.rot+=(this.x-px)/Math.max(80,orbR())*.3;S.tilt=this.clamp(S.tilt+(this.y-py)/Math.max(80,orbR())*.15,-1,1);
   }else{const damp=Math.exp(-d*4);this.vx*=damp;this.vy*=damp;this.x+=this.vx*d*.18;this.y+=this.vy*d*.18;this.r+=(1-this.r)*(1-Math.exp(-d*3));}
   this.hug+=(this.clamp((1-this.r)/.55,0,1)-this.hug)*(1-Math.exp(-d*8));
-  if(this.plane){const p=this.plane;p.age+=d;p.x+=p.vx*d;p.y+=p.vy*d;p.vx*=Math.exp(-d*.4);p.vy*=Math.exp(-d*.4);
-   if(p.x<20||p.x>W-20){p.x=this.clamp(p.x,20,W-20);p.vx*=-.65}if(p.y<65||p.y>H-100){p.y=this.clamp(p.y,65,H-100);p.vy*=-.65}
-   if(this.held&&Math.hypot(p.x-(W/2+this.x),p.y-(orbY()+this.y))<orbR()*this.r&&p.age>.6){this.plane=null;this.note('CAUGHT');}
-   if(this.plane&&Math.hypot(p.vx,p.vy)>5){this.trail.push({x:p.x,y:p.y});if(this.trail.length>45)this.trail.shift();}
+  if(this.plane){const p=this.plane;p.age+=d;
+   if(this.held){p.heading+=this.clamp(this.vx/500,-1,1)*d*1.4;p.lat=this.clamp(p.lat-this.vy/900*d,-1.4,1.4);}
+   const a=p.speed*d*(1-this.hug*.96),la=p.lat,hd=p.heading;
+   p.lat=Math.asin(this.clamp(Math.sin(la)*Math.cos(a)+Math.cos(la)*Math.sin(a)*Math.cos(hd),-1,1));
+   p.lon+=Math.atan2(Math.sin(hd)*Math.sin(a)*Math.cos(la),Math.cos(a)-Math.sin(la)*Math.sin(p.lat));
+   if(a>1e-9)p.heading=Math.atan2(Math.sin(hd)*Math.cos(la),Math.cos(la)*Math.cos(a)*Math.cos(hd)-Math.sin(la)*Math.sin(a));
+   p.alt+=((this.held&&this.hug>.5?0:.35)-p.alt)*(1-Math.exp(-d*4));
+   const q=proj(p.lat,p.lon),rr=orbR()*this.r*(1+p.alt),px=W/2+this.x+q[0]*rr,py=orbY()+this.y-q[1]*rr;
+   p.vx=px-p.x;p.vy=py-p.y;p.x=px;p.y=py;p.front=q[2];
+   this.trail.push({x:px,y:py,front:q[2]});if(this.trail.length>45)this.trail.shift();
+   if(this.held&&this.hug>.65&&p.alt<.025&&p.age>.7)this.receive();
   }
+
   S.spin=0;S.touched=S.now;
  },
  draw(){if(!this.available())return;const g=CTX,cx=W/2+this.x,cy=orbY()+this.y,R=orbR()*this.r;
   g.save();g.strokeStyle=P.warm;g.lineWidth=2;
   if(this.held){for(const side of [-1,1]){g.beginPath();const a=side===1?-.6:Math.PI-.6;g.arc(cx,cy,R+9,a,a+1.2);g.stroke();}g.globalAlpha=.35;
    for(const h of this.hands){g.beginPath();g.arc(h.x,h.y,9,0,Math.PI*2);g.stroke();}g.globalAlpha=1;}
-  const p=this.plane||{x:cx+R*.72,y:cy-R*.5,vx:1,vy:-.5};
-  if(this.plane){g.globalAlpha=.35;g.beginPath();this.trail.forEach((v,i)=>i?g.lineTo(v.x,v.y):g.moveTo(v.x,v.y));g.stroke();g.globalAlpha=1;}
-  g.translate(p.x,p.y);g.rotate(Math.atan2(p.vy,p.vx));g.beginPath();g.moveTo(19,0);g.lineTo(-13,-10);g.lineTo(-7,0);g.lineTo(-13,10);g.closePath();g.fillStyle='#fff0c6';g.fill();g.lineWidth=1;g.stroke();g.beginPath();g.moveTo(19,0);g.lineTo(-7,0);g.stroke();g.restore();
+  if(!this.plane&&!this.cargo){g.restore();return;}const p=this.plane||{x:cx+R*.72,y:cy-R*.5,vx:1,vy:-.5};
+  if(this.plane){g.globalAlpha=.35;g.beginPath();let pen=false;this.trail.forEach(v=>{if(v.front<0){pen=false;return}if(pen)g.lineTo(v.x,v.y);else g.moveTo(v.x,v.y);pen=true});g.stroke();g.globalAlpha=this.plane.front<0?.25:1;}
+  g.translate(p.x,p.y);g.rotate(Math.atan2(p.vy,p.vx));g.beginPath();g.moveTo(19,0);g.lineTo(-13,-10);g.lineTo(-7,0);g.lineTo(-13,10);g.closePath();g.fillStyle='#fff0c6';g.fill();const cargo=this.plane?this.plane.cargo:this.cargo;if(cargo&&cargo.card){g.save();g.clip();g.drawImage(cargo.card,-13,-10,32,20);g.restore();}g.lineWidth=1;g.stroke();g.beginPath();g.moveTo(19,0);g.lineTo(-7,0);g.stroke();g.restore();
  },
- reset(){this.release(false);this.x=this.y=this.tx=this.ty=this.vx=this.vy=0;this.r=this.tr=1;this.hug=0;this.plane=null;this.trail=[];this.note('TOUCH THE SUN · MOVE · RELEASE');}
+ receive(){if(!this.plane)return;const p=this.plane;this.cargo=p.cargo;this.plane=null;this.trail=[];SunCargo.land(p.cargo,p.lat,p.lon);this.cargo=null;this.note('YOUR MOMENT IS PART OF THIS SUN');},
+ reset(){this.release(false);this.cargo=null;this.x=this.y=this.tx=this.ty=this.vx=this.vy=0;this.r=this.tr=1;this.hug=0;this.plane=null;this.trail=[];this.note('TOUCH THE SUN · MOVE · RELEASE');}
 };
 const BodyFlight={on:false,loading:false,token:0,model:null,lastInfer:0,lastVideo:-1,inputs:Grip.inputs,
  label:t=>Grip.note(t),
@@ -816,7 +841,7 @@ cv.addEventListener('pointerdown',e=>{if(!Grip.available()||Grip.paused)return;
  const hit=Math.hypot(e.clientX-(W/2+Grip.x),e.clientY-(orbY()+Grip.y))<=orbR()*Grip.r+18;
  const planeHit=Grip.plane&&Math.hypot(e.clientX-Grip.plane.x,e.clientY-Grip.plane.y)<32;
  if(!hit&&!planeHit){e.stopImmediatePropagation();return;}e.stopImmediatePropagation();cv.setPointerCapture(e.pointerId);const t=performance.now();
- if(planeHit){Grip.plane=null;Grip.note('CAUGHT');}
+ if(planeHit){Grip.receive();}
  Grip.points.set(e.pointerId,pointerPosition(e));if(!Grip.held||Grip.owner!=='touch')Grip.take('touch',t);
  Grip.pointerBase={x:e.clientX,y:e.clientY,sx:Grip.x,sy:Grip.y};Grip.pinchBase=null;
  if(S.mode==='INTRO'||S.mode==='ASK'){S.intro=1;setMode('LIVE');}
@@ -843,6 +868,7 @@ if(VIEW){ Viewer.start(); requestAnimationFrame(frame); } else { Solarium.load()
 </script>
 </body>
 </html>
+
 
 
 
