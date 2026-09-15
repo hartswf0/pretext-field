@@ -68,13 +68,18 @@ body.view #below,body.view #shelf,body.view #status,body.view #keys,body.view #t
 #begin{min-height:44px;padding:8px 16px;color:var(--ink);border:1px solid var(--line);border-radius:24px}
 button:focus-visible{outline:2px solid var(--warm);outline-offset:3px}
 @media(max-width:339px),(max-height:339px){#top,#status,#below,#shelf{display:flex!important}#sys{display:none}}
+
+#surface-head{display:flex;justify-content:space-between;align-items:center;max-width:100%;min-height:24px;font-size:9px;letter-spacing:.08em;color:var(--dim);pointer-events:auto}
+#surface-head>span:last-child{display:flex;align-items:center;gap:10px}#atlas-toggle{width:44px;height:30px;font-size:18px}#atlas-toggle[aria-pressed="true"]{color:var(--warm)}#atlas-face{color:var(--warm);text-decoration:none}#atlas-face[hidden]{display:none}
+#plate{opacity:1;max-width:100%}#shelf{justify-content:flex-start;touch-action:pan-x;overscroll-behavior-x:contain;scroll-padding:20px}#shelf .k{flex:0 0 auto}#shelf .k:first-child{margin-left:auto}#shelf .k:last-child{margin-right:auto}
+#below{touch-action:pan-y}#trim{width:min(100%,420px)}
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="the room as a sphere of pictures; tap to hold the last fifteen seconds"></canvas>
 <div id="top"><div id="title"></div><div id="sys"><div id="sysword"></div><div id="dot"></div></div></div>
 <div id="topkeys"></div>
-<div id="below"><canvas id="ticket" aria-label="the solar ticket: zodiac, sky, cycles"></canvas><canvas id="trim" aria-label="the trim tab: drag through your suns"></canvas><canvas id="plate" aria-label="the room as a mosaic of everything the eye has seen, oldest fading"></canvas><canvas id="pic" hidden></canvas><canvas id="strip" aria-label="the fifteen seconds; drag to scrub"></canvas><div id="keys" aria-label="Capture this sun"></div><div id="onboard"><button id="begin">OPEN THE SUN</button><span>Your camera becomes its surface.</span></div><span id="bf-note" role="status"></span><div id="panel"></div><div id="line"></div></div>
+<div id="below"><canvas id="ticket" aria-label="the solar ticket: zodiac, sky, cycles"></canvas><canvas id="trim" aria-label="the trim tab: drag through your suns"></canvas><div id="surface-head"><span id="surface-label">CAMERA SURFACE</span><span><a id="atlas-face" hidden target="_blank" rel="noopener" href="https://hartswf0.github.io/unsettled-atlas/icosa-syntegrity.html#F14">F14 · reference ↗</a><button id="atlas-toggle" aria-label="Show ICOSA triangle reference" aria-pressed="false">△</button></span></div><canvas id="plate" aria-label="the room as a mosaic of everything the eye has seen, oldest fading"></canvas><canvas id="pic" hidden></canvas><canvas id="strip" aria-label="the fifteen seconds; drag to scrub"></canvas><div id="keys" aria-label="Capture this sun"></div><div id="onboard"><button id="begin">OPEN THE SUN</button><span>Your camera becomes its surface.</span></div><span id="bf-note" role="status"></span><div id="panel"></div><div id="line"></div></div>
 <div id="shelf"></div>
 <input id="importfile" type="file" accept="image/*,application/json,.json" multiple hidden>
 <div id="days"></div>
@@ -365,7 +370,8 @@ function paintEye(img){
 const cv=$('stage'), CTX=cv.getContext('2d'); let W=0,H=0; const WW=()=>W, HH=()=>H; const ctx=CTX;
 function resize(){ const d=Math.min(2,devicePixelRatio||1); W=innerWidth; H=innerHeight; cv.width=W*d; cv.height=H*d; cv.style.width=W+'px'; cv.style.height=H+'px'; ctx.setTransform(d,0,0,d,0,0); } addEventListener('resize',resize); resize();
 const tiny=()=>Math.min(W,H)<340, orbR=()=>Math.min(W*.30,H*.16,220), orbY=()=>52+orbR();
-function layout(){const top=orbY()+orbR()*1.12+36,bottom=124,space=H-bottom-top;const below=$('below');below.style.top=top+'px';below.style.bottom=bottom+'px';const ph=Math.max(40,Math.min(120,space-110));$('plate').style.width=Math.min(W-40,ph*2)+'px';}
+function layout(){const top=orbY()+orbR()*1.12+36,bottom=124,space=H-bottom-top;const below=$('below');below.style.top=top+'px';below.style.bottom=bottom+'px';const pw=Math.min(W-40,720,Math.max(80,(space-148)*2));$('plate').style.width=pw+'px';$('surface-head').style.width=pw+'px';}
+
 
 function proj(lat,lon){ const x=Math.cos(lat)*Math.sin(lon-S.rot), y=Math.sin(lat), z=Math.cos(lat)*Math.cos(lon-S.rot); return [x,y*Math.cos(S.tilt)-z*Math.sin(S.tilt),y*Math.sin(S.tilt)+z*Math.cos(S.tilt)]; }
 /* the belt: time runs around the orb. band 0 is now, at the front; band k is k seconds ago, receding
@@ -395,14 +401,14 @@ function drawOrb(target){
   if(!RT&&(S.mode==='ASK'||S.mode==='INTRO')){ const u=(S.now%2)/2; ctx.strokeStyle=P.warm; ctx.lineWidth=2; ctx.globalAlpha=1-u; ctx.beginPath(); ctx.arc(cxp,cyp,R*(1.02+u*0.25),0,7); ctx.stroke(); ctx.globalAlpha=1;  }
   if(S.flash&&!RT){ const u=Math.min(1,(S.now-S.flash)/0.7); ctx.strokeStyle=P.warm; ctx.lineWidth=3*(1-u); ctx.globalAlpha=1-u; ctx.beginPath(); ctx.arc(cxp,cyp,R*(1+u*0.9),0,7); ctx.stroke(); ctx.fillStyle=P.warm; ctx.globalAlpha=(1-u)*0.35; ctx.beginPath(); ctx.arc(cxp,cyp,R,0,7); ctx.fill(); ctx.globalAlpha=1; if(u>=1) S.flash=0; }
   if(Viewer.T&&!RT){ const f=Viewer.frustum(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); const [x,y,z]=proj(phi,lam+S.rot); if(z>-0.1){ ctx.strokeStyle=P.warm; ctx.lineWidth=1.4; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.ellipse(cxp+x*R,cyp-y*R,R*0.3*Math.max(0.15,z),R*0.17*Math.max(0.15,z),0,0,7); ctx.stroke(); ctx.setLineDash([]); } }
-  if(!RT&&!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ const src=Brush.imgs?Brush.imgs[(Brush.i+Brush.imgs.length-1)%Brush.imgs.length]:Cam.last; if(src){ const B=basisOf(Hand.aim(),Hand.up()); const tx=Math.tan(FOV/2), ty=tx*FH/FW, a=src.data, cl=Math.cos(FOV*0.75), cr2=Math.cos(S.rot), sr2=Math.sin(S.rot);
+  if(!RT&&!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ const src=Brush.imgs?Brush.imgs[(Brush.i+Brush.imgs.length-1)%Brush.imgs.length]:(SunCargo.current()?SunCargo.current().frame:Cam.last); if(src){ const B=basisOf(Hand.aim(),Hand.up()); const tx=Math.tan(FOV/2), ty=tx*FH/FW, a=src.data, cl=Math.cos(FOV*0.75), cr2=Math.cos(S.rot), sr2=Math.sin(S.rot);
     for(const m of marks){ if(m.z<0.1) continue; const n=[m.x,m.y,m.z]; const dx=n[0]*cr2+n[2]*sr2, dy=n[1], dz=-n[0]*sr2+n[2]*cr2;   // the dot's direction in the room
       const z=dx*B.f[0]+dy*B.f[1]+dz*B.f[2]; if(z<cl) continue; const px=(dx*B.r[0]+dy*B.r[1]+dz*B.r[2])/z/tx, py=(dx*B.u[0]+dy*B.u[1]+dz*B.u[2])/z/ty; if(px<-1||px>1||py<-1||py>1) continue;
       const sx=Math.min(FW-1,Math.floor((px+1)/2*FW)), sy=Math.min(FH-1,Math.floor((1-py)/2*FH)); const j=(sy*FW+sx)*4; const g0=Exposure.gain*S.bright; let r=Math.min(255,a[j]*g0),g=Math.min(255,a[j+1]*g0),b=Math.min(255,a[j+2]*g0); const lum=(r*0.299+g*0.587+b*0.114)/255;
       const front=(m.z+1)/2, rad=(1.0+lum*2.6)*(0.55+front*0.55)*base; ctx.globalAlpha=1; ctx.fillStyle=`rgb(${r|0},${g|0},${b|0})`; ctx.beginPath(); ctx.arc(cxp+m.x*R*breath,cyp-m.y*R*breath,rad,0,7); ctx.fill(); } }
     const f=Hand.aim(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); const [x,y,z]=proj(phi,lam+S.rot); if(z>-0.1){ const px=cxp+x*R, py=cyp-y*R; ctx.strokeStyle=P.warm; ctx.lineWidth=1.2; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.ellipse(px,py,R*0.3*Math.max(0.15,z),R*0.17*Math.max(0.15,z),0,0,7); ctx.stroke(); if(S.throughPlate){ ctx.globalAlpha=0.55; ctx.beginPath(); ctx.moveTo(px,py+R*0.17*Math.max(0.15,z)); ctx.lineTo(S.throughPlate[0],S.throughPlate[1]-plateC.clientHeight*0.1); ctx.stroke(); ctx.globalAlpha=1; } ctx.setLineDash([]); } }
   if(S.raising&&!RT){ const u=Math.min(1,(S.now-S.raising.t)/2); ctx.strokeStyle=P.warm; ctx.lineWidth=2; ctx.globalAlpha=1-u; ctx.beginPath(); ctx.arc(cxp,cyp,R*(0.2+u*0.9),0,7); ctx.stroke(); ctx.globalAlpha=1; }
-  if(RT) return;
+  if(RT) return;Atlas.draw(ctx,false,W,H,cxp,cyp,R);
   for(const w of Net.others()){ if(!w.g) continue; const lam=Math.atan2(w.g[0],w.g[2]), phi=Math.asin(Math.max(-1,Math.min(1,w.g[1]))); const [x,y,z]=proj(phi,lam+S.rot); if(z<0) continue; const px=cxp+x*R, py=cyp-y*R; const fresh=Math.max(0,1-(S.now-w.t)/6); ctx.strokeStyle=P.warm; ctx.lineWidth=1.4; ctx.globalAlpha=0.35+0.65*fresh; ctx.beginPath(); ctx.arc(px,py,R*0.08*(1+(w.au||0)*0.6),0,7); ctx.stroke(); const tmp=document.createElement('div'); const c=dotText(tmp,w.name||'SOMEONE',{size:0.8,max:120}); const d=Math.min(2,devicePixelRatio||1); ctx.drawImage(c,px-c.width/d/2,py+R*0.1,c.width/d,c.height/d); ctx.globalAlpha=1; }
   // the gaze: where the eye is now, and its last fifteen seconds as a fading trail
   if(!Play.m){ const span=Math.min(Trace.count,N); ctx.strokeStyle=P.warm; for(let a=0;a<span;a+=5){ const g=Trace.at(a).g; const lam=Math.atan2(g[0],g[2])-S.rot*0, phi=Math.asin(Math.max(-1,Math.min(1,g[1]))); const [x,y,z]=proj(phi,lam+S.rot); if(z<0) continue; ctx.globalAlpha=(1-a/span)*0.7; ctx.lineWidth=(a===0?1.6:0.8)*base; ctx.beginPath(); ctx.arc(cxp+x*R*breath,cyp-y*R*breath,(a===0?6:2)*base,0,7); ctx.stroke(); } ctx.globalAlpha=1; }
@@ -443,15 +449,15 @@ function dream(){ if(S.now-dreamAt<0.08) return; dreamAt=S.now; const rows=32, y
     if(n<2) continue; const k=i*3, w=Tex.has[i]?0.15:1; Tex.rgb[k]+=(r/n-Tex.rgb[k])*w; Tex.rgb[k+1]+=(g/n-Tex.rgb[k+1])*w; Tex.rgb[k+2]+=(b/n-Tex.rgb[k+2])*w; if(!Tex.has[i]){ Tex.at[i]=t/n-20; Tex.has[i]=2; } } }
 /* ---------- the plate: the mosaic as a 128x64 grid of dots; size is brightness; the loud cells wear a ring ---------- */
 const plateC=$('plate'), plg=plateC.getContext('2d'); let plateFrame=0;
-function drawPlate(){ if((++plateFrame&1)&&!Play.m) return; const w=plateC.clientWidth, h=plateC.clientHeight; if(!w) return; const d=Math.min(2,devicePixelRatio||1); if(plateC.width!==Math.round(w*d)){ plateC.width=Math.round(w*d); plateC.height=Math.round(h*d); } plg.setTransform(d,0,0,d,0,0); plg.clearRect(0,0,w,h);
-  const T=Viewer.T||Inspect.T||(Play.m?Play.m.tex:(SunCargo.current()?SunCargo.current().tex:Tex)), at=Play.m?Play.m.eyeT:S.now, dark=theme==='dark', cols=128, rows=64, cw=w/cols;
-  for(let yy=0;yy<rows;yy++) for(let xx=0;xx<cols;xx++){ const i=(yy*2)*TW+xx*2; if(!T.has[i]) continue; const r=T.rgb[i*3],g=T.rgb[i*3+1],b=T.rgb[i*3+2]; const age=Math.min(1,(at-T.at[i])/180); const lum=(r*0.299+g*0.587+b*0.114)/255, bright=dark?lum:1-lum; const rad=cw*(0.12+0.42*bright)*(1-age*0.35); if(rad<0.3) continue;
+function drawPlate(){ if((++plateFrame&1)&&!Play.m) return; const w=plateC.clientWidth, h=plateC.clientHeight; if(!w) return; const d=Math.min(2,devicePixelRatio||1); if(plateC.width!==Math.round(w*d)||plateC.height!==Math.round(h*d)){ plateC.width=Math.round(w*d); plateC.height=Math.round(h*d); } plg.setTransform(d,0,0,d,0,0); plg.clearRect(0,0,w,h);
+  const T=Viewer.T||Inspect.T||(Play.m?Play.m.tex:(SunCargo.current()?SunCargo.current().tex:Tex)), at=Play.m?Play.m.eyeT:S.now, dark=theme==='dark', cols=128, rows=64, cw=w/cols;Exposure.build(T);const plateGain=Exposure.gain*S.bright;
+  for(let yy=0;yy<rows;yy++) for(let xx=0;xx<cols;xx++){ const i=(yy*2)*TW+xx*2; if(!T.has[i]) continue; const r=Math.min(255,T.rgb[i*3]*plateGain),g=Math.min(255,T.rgb[i*3+1]*plateGain),b=Math.min(255,T.rgb[i*3+2]*plateGain); const age=Math.min(1,(at-T.at[i])/180); const lum=(r*0.299+g*0.587+b*0.114)/255, bright=dark?lum:1-lum; const rad=cw*(0.12+0.42*bright)*(1-age*0.35); if(rad<0.3) continue;
     plg.globalAlpha=(1-age*0.65)*(Viewer.reveal?(Viewer.reveal[i]<0?0.22:(Viewer.reveal[i]<=Viewer.u()*Viewer.n?1:0.22)):1); plg.fillStyle=`rgb(${r},${g},${b})`; const px=(xx+0.5)*cw, py=(yy+0.5)*cw; plg.beginPath(); plg.arc(px,py,rad,0,7); plg.fill();
     if(T.au[i]>0.4&&((xx+yy)&3)===0){ plg.strokeStyle=P.warm; plg.lineWidth=0.6; plg.beginPath(); plg.arc(px,py,cw*0.55,0,7); plg.stroke(); } }
   plg.globalAlpha=1;
   if(Viewer.T){ const f=Viewer.frustum(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); plg.strokeStyle=P.warm; plg.setLineDash([2,3]); plg.lineWidth=1; plg.strokeRect((lam+Math.PI)/(Math.PI*2)*w-w*0.09,(Math.PI/2-phi)/Math.PI*h-h*0.1,w*0.18,h*0.2); plg.setLineDash([]); Viewer.eye(plg,w-w*0.3-4,4,w*0.3,w*0.3*9/16); }
   if(!Play.m&&!Inspect.m&&(S.hearing||S.sim)){ S.throughPlate=null; const f=Hand.aim(); const lam=Math.atan2(f[0],f[2]), phi=Math.asin(Math.max(-1,Math.min(1,f[1]))); plg.strokeStyle=P.warm; plg.setLineDash([2,3]); plg.lineWidth=1; const rx=(lam+Math.PI)/(Math.PI*2)*w, ry=(Math.PI/2-phi)/Math.PI*h; plg.strokeRect(rx-w*0.09,ry-h*0.1,w*0.18,h*0.2); plg.setLineDash([]); const pr=plateC.getBoundingClientRect?plateC.getBoundingClientRect():{left:0,top:0}; S.throughPlate=[pr.left+rx,pr.top+ry]; }
-  plg.strokeStyle=P.warm; plg.globalAlpha=0.35; plg.beginPath(); plg.moveTo(0,h/2); plg.lineTo(w,h/2); plg.stroke(); if(S.grid){ plg.globalAlpha=0.3; for(let k=1;k<12;k++){ plg.beginPath(); plg.moveTo(k/12*w,0); plg.lineTo(k/12*w,h); plg.stroke(); } for(let k=1;k<6;k++){ plg.beginPath(); plg.moveTo(0,k/6*h); plg.lineTo(w,k/6*h); plg.stroke(); } } plg.globalAlpha=1; }
+  plg.strokeStyle=P.warm; plg.globalAlpha=0.35; plg.beginPath(); plg.moveTo(0,h/2); plg.lineTo(w,h/2); plg.stroke(); if(S.grid){ plg.globalAlpha=0.3; for(let k=1;k<12;k++){ plg.beginPath(); plg.moveTo(k/12*w,0); plg.lineTo(k/12*w,h); plg.stroke(); } for(let k=1;k<6;k++){ plg.beginPath(); plg.moveTo(0,k/6*h); plg.lineTo(w,k/6*h); plg.stroke(); } } plg.globalAlpha=1;Atlas.draw(plg,true,w,h); }
 let pd2=null;
 function plateAim(ev){ const r=plateC.getBoundingClientRect(); const u=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), v=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height)); Hand.set(dirFromLatLon(Math.PI/2-v*Math.PI,u*Math.PI*2-Math.PI)); }
 plateC.style.touchAction='none';
@@ -752,6 +758,22 @@ $('s-theme').addEventListener('click',ev=>{ ev.stopPropagation(); theme=theme===
 addEventListener('keydown',ev=>{ if(ev.key===' '&&!Play.m&&!S.held) hold(); else if(ev.key==='Enter'&&S.held) keep(); else if(ev.key==='Escape'){ if(Play.m) closeMoment(); else if(S.held) letGo(); } });
 
 /* A single captured identity from Trace through paper flight back into Tex and Solarium. */
+
+/* Exact root-face geometry from unsettled-atlas/icosa-world.data.js.
+   Camera direction is a local reference, never a claimed geographic fix. */
+const Atlas={on:false,data:{"vertices":[[-0.04425079,-0.960188421,-0.275826148],[0.868438271,-0.440307929,-0.227912041],[0.347311392,-0.67018301,0.655918844],[0.681136518,0.56731703,-0.462822246],[-0.162064484,0.195371335,0.967246165],[-0.795625403,-0.273867277,-0.540348899],[-0.681136518,-0.56731703,0.462822246],[0.162064484,-0.195371335,-0.967246165],[0.795625403,0.273867277,0.540348899],[0.04425079,0.960188421,0.275826148],[-0.868438271,0.440307929,0.227912041],[-0.347311392,0.67018301,-0.655918844]],"faces":[[0,1,2],[7,1,0],[0,2,6],[6,5,0],[0,5,7],[8,2,1],[7,3,1],[1,3,8],[2,4,6],[8,4,2],[3,7,11],[9,8,3],[11,9,3],[10,6,4],[4,8,9],[4,9,10],[5,6,10],[11,7,5],[5,10,11],[11,10,9]]},
+ address:14,
+ unit(v){const n=Math.hypot(...v);return v.map(x=>x/n)},
+ direction(){const v=Hand.aim();return [v[2],v[0],v[1]]},
+ face(v){for(let f=0;f<this.data.faces.length;f++){const tri=this.data.faces[f].map(i=>this.data.vertices[i]);let inside=true;for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3];if((a[1]*b[2]-a[2]*b[1])*v[0]+(a[2]*b[0]-a[0]*b[2])*v[1]+(a[0]*b[1]-a[1]*b[0])*v[2]<-1e-8){inside=false;break}}if(inside)return f}return 14},
+ edges(){const seen=new Set(),out=[];for(const face of this.data.faces)for(let k=0;k<3;k++){const a=face[k],b=face[(k+1)%3],key=[a,b].sort((x,y)=>x-y).join(',');if(seen.has(key))continue;seen.add(key);const A=this.data.vertices[a],B=this.data.vertices[b],line=[];for(let j=0;j<=40;j++)line.push(this.unit(A.map((v,i)=>v+(B[i]-v)*j/40)));out.push(line)}return out},
+ draw(g,flat,w,h,cx=0,cy=0,r=1){if(!this.on)return;this.address=this.face(this.direction());const id='F'+String(this.address).padStart(2,'0');$('atlas-face').textContent=id+' · reference ↗';$('atlas-face').href='https://hartswf0.github.io/unsettled-atlas/icosa-syntegrity.html#'+id;
+  if(!this.lines)this.lines=this.edges();g.save();g.strokeStyle=P.warm;g.globalAlpha=.38;g.lineWidth=1;
+  for(const line of this.lines){g.beginPath();let last=null;for(const v of line){const lat=Math.asin(v[2]),lon=Math.atan2(v[1],v[0]),p=flat?[(lon+Math.PI)/(2*Math.PI)*w,(Math.PI/2-lat)/Math.PI*h,1]:proj(lat,lon);const x=flat?p[0]:cx+p[0]*r,y=flat?p[1]:cy-p[1]*r;if(p[2]<0){last=null;continue}if(!last||(flat&&Math.abs(x-last[0])>w/2))g.moveTo(x,y);else g.lineTo(x,y);last=[x,y]}g.stroke()}g.restore();
+ }
+};
+$('atlas-toggle').onclick=()=>{Atlas.on=!Atlas.on;$('atlas-toggle').setAttribute('aria-pressed',String(Atlas.on));$('atlas-face').hidden=!Atlas.on;};
+
 const SunCargo={
  capture(){const frames=Trace.cut();if(!frames.length)return null;const im=frames[frames.length-1],card=document.createElement('canvas');card.width=FW;card.height=FH;card.getContext('2d').putImageData(im,0,0);
   const span=Math.min(Trace.count,N),gaze=[],au=[];for(let n=span-1;n>=0;n--){const f=Trace.at(n);if(f.img){gaze.push(f.g.slice());au.push(f.au)}}
