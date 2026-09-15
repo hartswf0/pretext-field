@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f1e7">
+<title>A little world · Terminus</title>
+<style>
+:root{color-scheme:light;--paper:#f5f1e7;--ink:#263e3b;--sea:#226c69;--line:#d8dace}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}button,input,textarea{font:inherit}button{cursor:pointer;min-height:46px;border:1px solid var(--line);background:transparent;color:inherit;border-radius:28px;padding:10px 20px}button:hover{background:#e6ebe0}button:focus-visible,textarea:focus-visible,canvas:focus-visible{outline:3px solid #ba733c;outline-offset:4px}button:disabled{opacity:.4;cursor:default}.primary{background:var(--sea);color:#fff;border-color:var(--sea)}.primary:hover{background:#195553}[hidden]{display:none!important}
+#app{height:100svh;min-height:500px;max-width:1500px;margin:auto;display:grid;grid-template-rows:auto minmax(180px,1fr) auto;padding:20px clamp(16px,4vw,60px) max(18px,env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font:italic 24px Georgia,serif;margin:0}header small{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.65;margin-top:2px}#menuButton{font-size:23px;width:48px;padding:0}
+#stage{position:relative;min-height:0}#orb{width:100%;height:100%;display:block;touch-action:none}#camera{position:absolute;top:12px;left:0;width:94px;aspect-ratio:4/3;object-fit:cover;transform:scaleX(-1);border-radius:18px;border:3px solid var(--paper)}
+#whisper{position:absolute;bottom:0;left:0;right:0;text-align:center;font:italic clamp(16px,2vw,22px) Georgia,serif;pointer-events:none;padding:0 8px;color:#52706a}
+#dock{width:min(100%,540px);justify-self:center;text-align:center;padding-top:15px}#eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:#77887c;margin:0 0 7px}h2{font:normal clamp(25px,4vw,37px)/1.15 Georgia,serif;margin:0 0 9px}#hint{font-size:13px;margin:0 0 15px;color:#64766e}#compose{position:relative;display:flex;gap:8px;align-items:flex-end}textarea{resize:none;width:100%;height:75px;border:1px solid var(--line);border-radius:20px;padding:14px 16px;background:#fff9;color:var(--ink);outline-offset:1px}#send{height:75px;flex-shrink:0;min-width:72px}#suggestions{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:10px 0}#suggestions button{font-size:12px;min-height:36px;padding:5px 11px;border-style:dashed}#controls{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}#status{min-height:20px;font-size:11px;color:#6e7d70;margin:10px 0 0}#attachment{font-size:12px;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}#attachment button{min-height:28px;padding:0 10px}
+dialog{border:1px solid var(--line);border-radius:25px;padding:24px;width:min(440px,calc(100% - 28px));max-height:85svh;background:var(--paper);color:var(--ink)}dialog::backdrop{background:#183d3855;backdrop-filter:blur(6px)}dialog h2{font-size:30px}dialog .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}dialog p{font-size:13px;color:#62766d}dialog button{font-size:13px}#memories{padding:0;list-style:none;max-height:180px;overflow:auto}#memories button{width:100%;text-align:left;border-radius:10px;margin-top:5px;overflow-wrap:anywhere}#close{float:right;padding:0;width:44px;font-size:22px}#privacy{font-size:12px}
+@media(max-height:650px) and (orientation:portrait){#app{padding-top:10px;padding-bottom:10px;min-height:480px}#dock{padding-top:6px}h2{font-size:25px}#hint{margin-bottom:9px}#suggestions{margin:6px 0}header small{display:none}#whisper{font-size:15px}}
+@media(orientation:landscape) and (max-height:600px){#app{min-height:320px;grid-template-columns:minmax(0,1fr) minmax(260px,42%);grid-template-rows:auto 1fr;gap:0 20px;padding:10px 20px}header{grid-column:1/-1}#stage{grid-column:1;grid-row:2}#dock{grid-column:2;grid-row:2;align-self:center;padding:6px 0}h2{font-size:27px}#whisper{font-size:14px}header small{display:none}#hint{margin-bottom:8px}#suggestions{margin:7px 0}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+
+/* Keep typing controls reachable with the phone keyboard open. */
+input,textarea,select{font-size:16px}
+input,select{width:100%;min-height:48px;border:1px solid var(--line);border-radius:12px;background:#fff9;color:var(--ink);padding:10px;margin:6px 0 12px}
+label{display:block;font-size:13px}#imagineRow{margin:8px 0}#imagine{min-height:44px;font-size:13px}
+#suggestions button{min-height:44px}#attachment button{min-height:44px;min-width:44px}
+#apiState{min-height:20px}#apiSettings{margin:16px 0}#apiSettings summary{cursor:pointer;min-height:44px;padding:10px 0}
+#app{height:100dvh;height:var(--viewport-height,100dvh)}
+@media(max-width:600px){#app{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}}
+body.typing #app{min-height:340px;grid-template-rows:auto minmax(45px,1fr) auto}
+body.typing #suggestions,body.typing #whisper,body.typing #eyebrow,body.typing #hint{display:none}
+body.typing h2{font-size:23px}body.typing #dock{padding-top:5px}
+@media(orientation:landscape) and (max-height:600px){body.typing #app{grid-template-rows:auto 1fr;min-height:270px}#app{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div><h1>A little world</h1><small>Terminus · body, words, wonder</small></div><button id="menuButton" aria-label="Open world menu">···</button></header>
+<section id="stage" aria-label="Your world"><canvas id="orb" tabindex="0" aria-label="Drag or use arrow keys to turn the world. During flight, move the world beneath the paper airplane, then choose Land here."></canvas><video id="camera" hidden muted playsinline aria-label="Local camera preview"></video><p id="whisper">Somewhere, something is waiting to begin.</p></section>
+<section id="dock" aria-label="Make a world">
+<p id="eyebrow">A first little adventure · 1 of 3</p><h2 id="heading">Give the world a spin.</h2><p id="hint">One finger. A whole new point of view.</p>
+<div id="attachment" hidden><span>A picture is coming along.</span><button id="removeImage" aria-label="Remove attached picture">×</button></div>
+<form id="compose" hidden><textarea id="wish" maxlength="180" rows="2" aria-label="Your wish for this world" placeholder="What belongs in your world?"></textarea><button id="send" class="primary" aria-label="Launch your wish">Fly ↗</button></form>
+<div id="imagineRow" hidden><button id="imagine" type="button">Imagine a picture ✧</button></div>
+<div id="suggestions" hidden><button type="button">A harbor for lost things</button><button type="button">A garden on the moon</button><button type="button">Somewhere we can begin again</button></div>
+<div id="controls"><button id="next" class="primary">Give it a twirl ↻</button><button id="land" class="primary" hidden>Land here ↓</button><button id="again" class="primary" hidden>Send another wish ↗</button><button id="cancel" hidden>Bring it back</button></div>
+<p id="status" role="status" aria-live="polite"></p>
+</section>
+</main>
+<dialog id="menu"><button id="close" aria-label="Close menu">×</button><h2>Your little world.</h2><p>Words become places. Pictures become landscapes. Everything stays here until you carry it away.</p>
+<div class="row"><button id="addImage">Bring a picture ＋</button><button id="body">Steer with movement</button></div>
+<p id="privacy">Camera steering follows movement in the frame, not a tracked skeleton. Camera frames stay on this device. Touch always works.</p>
+<div class="row"><button id="save" class="primary">Keep this world ↓</button><button id="undo">Undo last landing</button><button id="help">First flight again</button></div>
+<p>“Keep this world” downloads one HTML file with your pictures and words inside. It opens offline. Camera access depends on your browser and may require HTTPS.</p>
+<details id="apiSettings"><summary>AI pictures · API key</summary>
+<label for="apiKey">Your OpenAI API key</label><input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" autocapitalize="none" spellcheck="false">
+<label for="imageModel">Image model</label><select id="imageModel"><option value="gpt-image-2.5-sunburst">GPT Image 2.5 Sunburst</option><option value="gpt-image-1">GPT Image 1</option></select>
+<div class="row"><button id="useKey" class="primary">Use key this session</button><button id="forgetKey">Forget key</button></div>
+<p id="apiState" role="status">No API key set.</p><p>Your key stays in this tab’s memory and is sent only to OpenAI. It is never saved in your world or download. “Imagine” sends your words to OpenAI and uses paid API credits. Camera frames and uploaded pictures are not sent.</p></details>
+<ol id="memories" aria-label="Landed wishes"></ol>
+</dialog>
+<dialog id="generating"><h2>A place is taking shape.</h2><p>Your wish is becoming a picture. This can take a minute or two.</p><button id="cancelGeneration">Cancel generation</button></dialog>
+<input id="imageInput" type="file" accept="image/*" hidden>
+<script id="worldSeed" type="application/json">{"marks":[]}</script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id), canvas=$('orb'), ctx=canvas.getContext('2d');
+const original='<!doctype html>\n'+document.documentElement.outerHTML;
+const TAU=Math.PI*2, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let seed;try{seed=JSON.parse($('worldSeed').textContent)}catch{seed={marks:[]}}
+let marks=Array.isArray(seed.marks)?seed.marks:[],yaw=0,pitch=.13,mode='intro',onboard=true,flight=null,attachment=null;
+let width=0,height=0,radius=1,cx=0,cy=0,drag=null,twirl=0,last=0,dirty=true,uploadId=0;
+let stream=null,cameraPending=false,cameraToken=0,previous=null,motionClock=0,cameraLost=0;
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const tex=document.createElement('canvas');tex.width=1024;tex.height=512;
+const tx=tex.getContext('2d',{willReadFrequently:true});
+const sphere=document.createElement('canvas'),sx=sphere.getContext('2d');
+let pixels,lookup=[],output,N=0;
+const motion=document.createElement('canvas');motion.width=64;motion.height=48;
+const mx=motion.getContext('2d',{willReadFrequently:true});
+const storageKey=typeof seed.id==='string'?seed.id:'first-world';
+let apiKey='',generation=null;
+let db=null,saveQueue=Promise.resolve();
+function say(text){$('status').textContent=text}
+function rand(seed){let x=seed;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296}}
+function base(){
+ const random=rand(81);tx.fillStyle='#dae7d5';tx.fillRect(0,0,1024,512);
+ const g=tx.createLinearGradient(0,0,0,512);g.addColorStop(0,'#b8d0b6');g.addColorStop(.4,'#217c81');g.addColorStop(.8,'#68bdba');g.addColorStop(1,'#ede1b6');tx.fillStyle=g;tx.fillRect(0,0,1024,512);
+ for(let j=0;j<64;j++){tx.beginPath();for(let x=0;x<=1024;x+=8){const y=j*9+6*Math.sin(x*.018+j*.7)+3*Math.sin(x*.047);x?tx.lineTo(x,y):tx.moveTo(x,y)}tx.strokeStyle=j%3?'#d3f1d53c':'#134d5c45';tx.lineWidth=1;tx.stroke()}
+ for(let j=0;j<17;j++){const x=random()*1024,y=70+random()*380;tx.save();tx.translate(x,y);tx.rotate(random()*2);tx.fillStyle=['#d9c795','#e1ddb4','#9fab82','#6a9d85'][j%4];tx.beginPath();for(let k=0;k<=24;k++){let a=k/24*TAU,r=20+random()*26;tx.lineTo(Math.cos(a)*r*1.7,Math.sin(a)*r)}tx.closePath();tx.fill();tx.strokeStyle='#f8ecd3';tx.lineWidth=2;tx.stroke();tx.restore()}
+ for(let j=0;j<8;j++){tx.save();tx.translate(j*142-60,115+j%3*120);tx.rotate(-.16);tx.fillStyle='#f5f1e7';tx.fillRect(-12,-24,280,38);tx.fillStyle='#276b6a';tx.font='italic 21px Georgia';tx.fillText(['leave room for wonder','the shore remembers','a place to begin','follow the small light'][j%4],0,2);tx.restore()}
+ for(let j=0;j<4200;j++){tx.fillStyle=random()>.5?'#fff9dc18':'#193f4512';tx.fillRect(random()*1024,random()*512,1,1)}
+}
+function makeCard(text){
+ const c=document.createElement('canvas');c.width=400;c.height=250;const q=c.getContext('2d');
+ q.fillStyle='#f7efd7';q.fillRect(0,0,400,250);q.strokeStyle='#bdac7c';q.lineWidth=2;q.strokeRect(10,10,380,230);
+ q.fillStyle='#286e6a';q.font='italic 28px Georgia';q.textBaseline='middle';
+ const words=text.split(/\s+/);let line='',lines=[];
+ for(const w of words){if(q.measureText(line+w).width>340&&line){lines.push(line.trim());line=''}line+=w+' '}if(line)lines.push(line.trim());
+ // Fit long unbroken words as well as multi-line wishes.
+ const size=Math.min(28,170/Math.max(1,lines.length));q.font='italic '+size+'px Georgia';
+ lines.forEach((l,i)=>q.fillText(l,30,125+(i-(lines.length-1)/2)*(size+4),340));
+ return c.toDataURL('image/png');
+}
+function image(src){return new Promise((resolve,reject)=>{const im=new Image;im.onload=()=>resolve(im);im.onerror=reject;im.src=src})}
+function stamp(m,im){
+ const u=((m.lon/TAU+.5)%1+1)%1*1024,v=(.5-m.lat/Math.PI)*512;
+ const w=150/Math.max(.5,Math.cos(m.lat)),h=94;
+ for(const offset of [-1024,0,1024]){tx.save();tx.translate(u+offset,v);tx.rotate(m.tilt||0);tx.drawImage(im,-w/2,-h/2,w,h);tx.restore()}
+}
+let rebuildId=0;
+async function rebuild(){
+ const ticket=++rebuildId, snapshot=marks.slice();
+ const ims=await Promise.all(snapshot.map(m=>image(m.image).catch(()=>null)));
+ if(ticket!==rebuildId)return;
+ base();snapshot.forEach((m,i)=>{if(ims[i])stamp(m,ims[i])});pixels=tx.getImageData(0,0,1024,512).data;dirty=true;
+}
+function persist(){
+ const snapshot=marks.map(m=>({...m}));
+ saveQueue=saveQueue.then(()=>new Promise(resolve=>{
+ if(!db){say('Use Keep this world to save a portable copy.');resolve();return}
+ const t=db.transaction('world','readwrite');t.objectStore('world').put(snapshot,storageKey);
+ t.oncomplete=()=>{say('Kept on this device.');resolve()};t.onerror=t.onabort=()=>{say('Device storage is full. Keep a downloaded copy.');resolve()}
+ }));
+}
+async function restore(){
+ await new Promise(resolve=>{
+ try{const req=indexedDB.open('little-world-standalone-v1',1);
+ req.onupgradeneeded=()=>req.result.createObjectStore('world');
+ req.onerror=()=>resolve();
+ req.onsuccess=()=>{db=req.result;const r=db.transaction('world').objectStore('world').get(storageKey);r.onsuccess=()=>{if(Array.isArray(r.result)){marks=r.result}if(marks.length){mode='compose';onboard=false}resolve()};r.onerror=()=>resolve()}
+ }catch{resolve()}
+ });if(marks.length){mode='compose';onboard=false}await rebuild();ui();
+}
+function resize(){
+ const b=canvas.getBoundingClientRect();width=b.width;height=b.height;
+ const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(width*d);canvas.height=Math.round(height*d);ctx.setTransform(d,0,0,d,0,0);
+ radius=Math.max(20,Math.min(width*.39,(height-35)*.42));cx=width/2;cy=(height-22)/2;
+ const n=Math.max(64,Math.min(340,Math.round(radius*1.65)));
+ if(n!==N){N=n;sphere.width=sphere.height=N;output=sx.createImageData(N,N);lookup=[];
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++){const nx=(x+.5)/N*2-1,ny=1-(y+.5)/N*2,r=nx*nx+ny*ny;if(r<1)lookup.push([(y*N+x)*4,nx,ny,Math.sqrt(1-r)])}}
+ dirty=true;
+}
+function renderSphere(){
+ if(!pixels)return;
+ const a=Math.cos(yaw),b=Math.sin(yaw),c=Math.cos(pitch),d=Math.sin(pitch),out=output.data;
+ for(const [i,x,y,z] of lookup){
+ const yy=y*c+z*d,zz=z*c-y*d,xx=x*a+zz*b,zz2=zz*a-x*b;
+ const u=((Math.atan2(xx,zz2)/TAU+.5)*1024|0)%1024,v=clamp((.5-Math.asin(clamp(yy,-1,1))/Math.PI)*512|0,0,511),k=(v*1024+u)*4;
+ const light=.66+.31*z+.13*(-x+y);out[i]=pixels[k]*light;out[i+1]=pixels[k+1]*light;out[i+2]=pixels[k+2]*light;out[i+3]=255;
+ }sx.putImageData(output,0,0);dirty=false;
+}
+function plane(x,y,angle,scale=1){
+ ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.scale(scale,scale);ctx.shadowColor='#56624a44';ctx.shadowBlur=9;ctx.shadowOffsetY=4;
+ ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(-18,-12);ctx.lineTo(-10,1);ctx.lineTo(-18,13);ctx.closePath();ctx.fillStyle='#fff9e7';ctx.fill();ctx.shadowColor='transparent';ctx.strokeStyle='#946b3d';ctx.lineWidth=1.2;ctx.stroke();
+ ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(-10,1);ctx.lineTo(-14,8);ctx.stroke();ctx.restore();
+}
+function ui(){
+ const intro=mode==='intro',compose=mode==='compose',flying=mode==='flight',landed=mode==='landed';
+ $('eyebrow').textContent=onboard?'A first little adventure · '+(intro?'1':compose?'2':'3')+' of 3':'Your world is still becoming';
+ $('heading').textContent=intro?'Give the world a spin.':compose?'What shall we put here?':flying?'Find a place for your wish.':'A little more world exists.';
+ $('hint').textContent=intro?'One finger. A whole new point of view.':compose?'A place, a memory, something impossible.':flying?'Turn the world beneath your plane. Land when it feels right.':'Your words have become part of the landscape.';
+ $('imagineRow').hidden=!compose;
+ $('compose').hidden=!compose;$('suggestions').hidden=!compose||!!attachment;$('next').hidden=!intro;
+ $('land').hidden=!flying;$('cancel').hidden=!flying;$('again').hidden=!landed;$('attachment').hidden=!attachment||!compose;
+ $('undo').disabled=!marks.length||flying;
+ $('whisper').textContent=intro?'Somewhere, something is waiting to begin.':compose?'The world has room for this, too.':flying?'No wrong direction. Only somewhere new.':flight?flight.text:'Every arrival changes the map.';
+}
+function begin(){mode='compose';ui()}
+function launch(e){
+ if(generation){if(e)e.preventDefault();return}
+ if(e)e.preventDefault();const text=$('wish').value.trim();
+ if(!text){$('wish').focus();say('Give your airplane a few words to carry.');return}
+ if(marks.length>=60){say('This world holds 60 wishes. Download it before making another.');return}
+ flight={text,image:attachment||makeCard(text),elapsed:0};mode='flight';$('wish').blur();say('Your wish is in flight.');ui();
+}
+async function land(){
+ if(mode!=='flight')return;
+ // The plane settles over the center of the visible hemisphere.
+ const mark={text:flight.text,image:flight.image,lon:yaw,lat:pitch,tilt:-.08+Math.sin(marks.length)*.09};
+ marks.push(mark);attachment=null;mode='landed';onboard=false;ui();await rebuild();persist();
+}
+$('compose').onsubmit=launch;
+$('next').onclick=()=>{twirl=reduced?0:1.7;begin()};
+$('land').onclick=land;
+$('again').onclick=()=>{$('wish').value='';flight=null;mode='compose';ui()};
+$('cancel').onclick=()=>{mode='compose';flight=null;ui();say('Back in your hands.')};
+$('suggestions').onclick=e=>{if(e.target.tagName==='BUTTON'){$('wish').value=e.target.textContent;$('wish').focus()}};
+canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,distance:0};twirl=0};
+canvas.onpointermove=e=>{
+ if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+ yaw-=dx*.008;pitch=clamp(pitch+dy*.007,-1.25,1.25);drag.distance+=Math.abs(dx)+Math.abs(dy);drag.x=e.clientX;drag.y=e.clientY;dirty=true;
+ if(mode==='intro'&&drag.distance>45)begin();
+};
+canvas.onpointerup=canvas.onpointercancel=()=>{drag=null};
+canvas.onkeydown=e=>{
+ if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Enter'].includes(e.key))return;e.preventDefault();
+ if(e.key==='Enter'){if(mode==='intro')begin();else if(mode==='flight')land();return}
+ yaw+=e.key==='ArrowLeft'?.12:e.key==='ArrowRight'?-.12:0;
+ pitch=clamp(pitch+(e.key==='ArrowUp'?.1:e.key==='ArrowDown'?-.1:0),-1.25,1.25);dirty=true;if(mode==='intro')begin();
+};
+function memoryList(){
+ const list=$('memories');list.replaceChildren();
+ marks.slice().reverse().forEach(m=>{const li=document.createElement('li'),b=document.createElement('button');b.textContent=m.text;b.onclick=()=>{yaw=m.lon;pitch=m.lat;dirty=true;$('menu').close();$('whisper').textContent=m.text};li.append(b);list.append(li)});
+}
+$('menuButton').onclick=()=>{memoryList();$('menu').showModal()};
+$('close').onclick=()=>$('menu').close();
+$('help').onclick=()=>{if(mode==='flight')flight=null;mode='intro';onboard=true;ui();$('menu').close()};
+$('undo').onclick=async()=>{if(mode==='flight'||!marks.length)return;marks.pop();await rebuild();persist();memoryList();mode='compose';ui()};
+$('addImage').onclick=()=>$('imageInput').click();
+$('imageInput').onchange=async e=>{
+ const file=e.target.files[0];e.target.value='';if(!file)return;
+ if(file.size>20*1024*1024){say('Choose a picture smaller than 20 MB.');$('menu').close();return}
+ const ticket=++uploadId,url=URL.createObjectURL(file);
+ try{
+ const im=await image(url);if(ticket!==uploadId)return;
+ const c=document.createElement('canvas'),scale=Math.min(1,800/Math.max(im.width,im.height));c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));c.getContext('2d').drawImage(im,0,0,c.width,c.height);attachment=c.toDataURL('image/jpeg',.82);
+ mode='compose';flight=null;ui();$('menu').close();say('Your picture will travel with your next wish.');
+ }catch{say('That picture could not open. Try a JPEG or PNG.');$('menu').close()}finally{URL.revokeObjectURL(url)}
+};
+$('removeImage').onclick=()=>{attachment=null;uploadId++;ui()};
+$('save').onclick=()=>{
+ const data=JSON.stringify({marks,id:'world-'+Date.now().toString(36)}).replace(/</g,'\\u003c');
+ const html=original.replace(/(<script id="worldSeed" type="application\/json">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+data+b);
+ const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),a=document.createElement('a');
+ a.href=url;a.download='my-little-world.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);say('Your world is packed into one HTML file.');$('menu').close();
+};
+function stopCamera(){
+ cameraToken++;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;cameraPending=false;previous=null;$('camera').srcObject=null;$('camera').hidden=true;$('body').textContent='Steer with movement';$('body').disabled=false;
+}
+$('body').onclick=async()=>{
+ if(stream||cameraPending){stopCamera();return}
+ if(!navigator.mediaDevices?.getUserMedia){say('Camera is unavailable here. Your finger can still steer.');$('menu').close();return}
+ const ticket=++cameraToken;cameraPending=true;$('body').textContent='Cancel camera';
+ try{
+ const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:320,height:240},audio:false});
+ if(ticket!==cameraToken){s.getTracks().forEach(t=>t.stop());return}
+ stream=s;$('camera').srcObject=s;await $('camera').play();
+ if(ticket!==cameraToken)return;
+ cameraPending=false;$('camera').hidden=false;$('body').textContent='Stop camera';$('menu').close();say('Move a hand left or right to turn the world. A still background helps.');
+ stream.getVideoTracks()[0].onended=()=>stopCamera();
+ }catch{if(ticket===cameraToken){stopCamera();say('Camera could not start. Touch steering is ready.');$('menu').close()}}
+};
+function track(t,dt){
+ if(!stream||t-motionClock<100||$('camera').readyState<2)return;motionClock=t;
+ mx.drawImage($('camera'),0,0,64,48);const now=mx.getImageData(0,0,64,48).data;
+ if(previous&&!drag&&!$('menu').open){let weight=0,x=0,y=0;
+ for(let j=0;j<48;j++)for(let i=0;i<64;i++){const k=(j*64+i)*4,d=Math.abs(now[k]-previous[k])+Math.abs(now[k+1]-previous[k+1])+Math.abs(now[k+2]-previous[k+2]);if(d>95){weight++;x+=i;y+=j}}
+ if(weight>22&&weight<1500){const nx=1-x/weight/32,ny=y/weight/24-1;yaw+=nx*.075;pitch=clamp(pitch-ny*.04,-1.25,1.25);dirty=true;cameraLost=0;if(mode==='intro')begin()}
+ }previous=now;
+}
+function animate(t){
+ requestAnimationFrame(animate);if(document.hidden){last=t;return}const dt=Math.min(.05,(t-last)/1000||.016);last=t;
+ if(twirl>0){yaw+=dt*twirl;twirl=Math.max(0,twirl-dt*1.1);dirty=true}
+ if(!drag&&mode==='intro'&&!reduced){yaw+=dt*.035;dirty=true}
+ track(t,dt);if(flight&&mode==='flight')flight.elapsed+=dt;
+ if(dirty)renderSphere();
+ ctx.clearRect(0,0,width,height);
+ ctx.save();ctx.translate(cx,cy+radius*1.06);ctx.scale(1,.14);ctx.beginPath();ctx.arc(0,0,radius*.85,0,TAU);ctx.fillStyle='#56766213';ctx.fill();ctx.restore();
+ ctx.drawImage(sphere,cx-radius,cy-radius,radius*2,radius*2);
+ const f=mode==='flight';
+ if(f){
+ const a=reduced?0:Math.sin(flight.elapsed*1.5)*.08;
+ ctx.beginPath();ctx.arc(cx,cy,13,0,TAU);ctx.strokeStyle='#fff9e8cc';ctx.lineWidth=1.5;ctx.stroke();
+ plane(cx+Math.cos(flight.elapsed*1.6)*radius*.07,cy-radius*.08+Math.sin(flight.elapsed*1.6)*radius*.04,-.4+a,1.1);
+ }else{
+ const a=reduced?-.55:t*.00025;
+ const px=cx+Math.cos(a)*radius*1.12,py=cy+Math.sin(a)*radius*.35-radius*.15;
+ if(Math.sin(a)>0||Math.abs(Math.cos(a))>.82)plane(px,py,Math.atan2(Math.cos(a)*.35,-Math.sin(a)),.8);
+ }
+}
+
+$('useKey').onclick=()=>{
+ const key=$('apiKey').value.trim();
+ if(!key||/\s/.test(key)){ $('apiState').textContent='Paste a valid API key first.';return }
+ apiKey=key;$('apiKey').value='';$('apiState').textContent='Key set for this tab. Ready to imagine.';$('menu').close();say('Write a wish, then tap Imagine a picture.');
+};
+$('forgetKey').onclick=()=>{apiKey='';$('apiKey').value='';$('apiState').textContent='Key forgotten.'};
+function cancelGeneration(){
+ if(generation){generation.cancelled=true;generation.controller.abort()}
+}
+$('cancelGeneration').onclick=cancelGeneration;
+$('generating').addEventListener('cancel',e=>{e.preventDefault();cancelGeneration()});
+$('imagine').onclick=async()=>{
+ if(generation)return;
+ const prompt=$('wish').value.trim();
+ if(!prompt){$('wish').focus();say('Write a few words for your picture first.');return}
+ if(!apiKey){$('apiSettings').open=true;$('menu').showModal();$('apiKey').focus();return}
+ const job={controller:new AbortController(),cancelled:false,timedOut:false};generation=job;
+ $('generating').showModal();$('send').disabled=true;$('imagine').disabled=true;
+ const timeout=setTimeout(()=>{job.timedOut=true;job.controller.abort()},180000);
+ try{
+  const response=await fetch('https://api.openai.com/v1/images/generations',{
+   method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+   body:JSON.stringify({model:$('imageModel').value,prompt:'Create one poetic, tactile collage landscape for a small imaginary world. Paper grain, turquoise water, warm stone, delicate ink, luminous atmosphere. Fill the frame with the scene, not a globe, screen, or interface. Honor this wish: '+prompt,n:1,size:'1024x1024',quality:'medium'}),
+   signal:job.controller.signal,credentials:'omit',redirect:'error'
+  });
+  if(!response.ok){
+   const messages={401:'The API key was rejected. Check it in the world menu.',403:'This project cannot use the selected image model. Check model access or choose another.',429:'API quota or rate limit reached. Check your API billing, then try again.'};
+   throw new Error(messages[response.status]||'OpenAI returned an error ('+response.status+'). Your wish is still here.');
+  }
+  const result=await response.json(),b64=result.data?.[0]?.b64_json;
+  if(typeof b64!=='string'||!b64||b64.length>30000000)throw new Error('No usable picture came back. Try again.');
+  if(job.cancelled||job.timedOut)return;
+  const im=await image('data:image/png;base64,'+b64);
+  if(job.cancelled||job.timedOut)return;
+  const c=document.createElement('canvas');c.width=768;c.height=768;
+  c.getContext('2d').drawImage(im,0,0,768,768);
+  attachment=c.toDataURL('image/jpeg',.86);$('wish').value=prompt;ui();
+  say('Your picture is ready. Tap Fly to find its place.');
+ }catch(error){
+  say(job.cancelled?'Generation cancelled. Your wish is still here.':job.timedOut?'Generation took too long. Try again when you are ready.':error instanceof TypeError?'Could not reach OpenAI. Check your connection and try the HTTPS page.':error.message);
+ }finally{
+  clearTimeout(timeout);if(generation===job)generation=null;
+  $('generating').close();$('send').disabled=false;$('imagine').disabled=false;
+ }
+};
+function fitViewport(){
+ const viewport=window.visualViewport;
+ if(viewport)document.documentElement.style.setProperty('--viewport-height',Math.round(viewport.height)+'px');
+ document.body.classList.toggle('typing',document.activeElement===$('wish'));
+}
+window.visualViewport?.addEventListener('resize',fitViewport);
+$('wish').addEventListener('focus',fitViewport);
+$('wish').addEventListener('blur',fitViewport);
+fitViewport();
+addEventListener('pagehide',()=>{cancelGeneration();apiKey='';$('apiKey').value='';$('apiState').textContent='No API key set.'});
+
+new ResizeObserver(resize).observe($('stage'));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera()});
+addEventListener('pagehide',stopCamera);
+base();pixels=tx.getImageData(0,0,1024,512).data;resize();restore();requestAnimationFrame(animate);
+</script>
+</body>
+</html>
