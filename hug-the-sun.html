@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#070604">
+<title>Hug the Sun</title>
+<meta name="description" content="A post-text body interface: embrace the sun, turn the world, release a paper plane.">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#070604;
+  --ink:#f1eadb;
+  --gold:#ffc65a;
+  --hot:#ff8a2a;
+  --dim:#8b7652;
+  --green:#88e8ae;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);touch-action:none;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+#world,#pose{position:fixed;inset:0;width:100%;height:100%;display:block}
+#world{z-index:0}
+#pose{z-index:2;pointer-events:none;mix-blend-mode:screen}
+#veil{position:fixed;inset:0;z-index:8;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(55,31,8,.15),rgba(0,0,0,.72) 55%,rgba(0,0,0,.92));transition:opacity .6s ease}
+#veil.gone{opacity:0;pointer-events:none}
+#enter{appearance:none;border:1px solid rgba(255,198,90,.45);background:rgba(10,8,4,.48);min-width:120px;min-height:54px;border-radius:999px;letter-spacing:.24em;text-transform:uppercase;font-size:12px;backdrop-filter:blur(12px);box-shadow:0 0 60px rgba(255,164,40,.08);cursor:pointer}
+#enter:active{transform:scale(.98)}
+#enter small{display:block;margin-top:5px;color:var(--dim);font-size:8px;letter-spacing:.1em;text-transform:none}
+#brand{position:fixed;z-index:4;left:max(18px,env(safe-area-inset-left));top:max(16px,env(safe-area-inset-top));font-size:11px;letter-spacing:.2em;opacity:.62;pointer-events:none}
+#live{position:fixed;z-index:4;right:max(18px,env(safe-area-inset-right));top:max(16px,env(safe-area-inset-top));width:8px;height:8px;border-radius:50%;background:#6a5d48;box-shadow:0 0 0 rgba(136,232,174,0);transition:.5s ease;pointer-events:none}
+#live.on{background:var(--green);box-shadow:0 0 18px rgba(136,232,174,.65)}
+#hint{position:fixed;z-index:4;left:50%;bottom:calc(max(18px,env(safe-area-inset-bottom)) + 10px);transform:translateX(-50%);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:rgba(241,234,219,.5);opacity:0;transition:opacity .8s ease;white-space:nowrap;pointer-events:none}
+#hint.show{opacity:1}
+#debugToggle{position:fixed;z-index:5;right:0;bottom:0;width:46px;height:46px;opacity:0;border:0;background:transparent;cursor:pointer}
+#debug{position:fixed;z-index:5;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));display:none;gap:6px;flex-direction:column;min-width:180px;padding:10px;border:1px solid rgba(255,198,90,.18);background:rgba(4,3,2,.68);font-size:9px;line-height:1.45;color:#bca77d;pointer-events:none}
+#debug.on{display:flex}
+#cam{display:none}
+@media (max-width:700px){#brand{font-size:9px;letter-spacing:.16em}#hint{font-size:8px;max-width:80vw;overflow:hidden;text-overflow:ellipsis}#enter{min-width:108px;min-height:50px}}
+@media (prefers-reduced-motion:reduce){#veil,#hint{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="world" aria-label="A glowing sun that responds to your body. Move, embrace it with both arms, turn, then release."></canvas>
+<canvas id="pose" aria-hidden="true"></canvas>
+<video id="cam" playsinline muted></video>
+<div id="brand">SUN SPHERE</div>
+<div id="live" aria-hidden="true"></div>
+<div id="hint" aria-live="polite"></div>
+<button id="debugToggle" aria-label="Toggle diagnostics"></button>
+<div id="debug" aria-hidden="true"></div>
+<div id="veil"><button id="enter">ENTER<small>camera stays in this browser</small></button></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+import { FilesetResolver, PoseLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm';
+
+const worldCanvas = document.querySelector('#world');
+const poseCanvas = document.querySelector('#pose');
+const pctx = poseCanvas.getContext('2d');
+const video = document.querySelector('#cam');
+const enter = document.querySelector('#enter');
+const veil = document.querySelector('#veil');
+const live = document.querySelector('#live');
+const hint = document.querySelector('#hint');
+const debug = document.querySelector('#debug');
+const debugToggle = document.querySelector('#debugToggle');
+
+const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const damp=(a,b,k,dt)=>lerp(a,b,1-Math.exp(-k*dt));
+const dist2=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2});
+
+let W=innerWidth,H=innerHeight,DPR=Math.min(devicePixelRatio||1,2);
+let poseLandmarker=null, tracking=false, lastVideoTime=-1, lastPose=null;
+let audio=null, tone=null, toneGain=null, noiseGain=null;
+let userHasMoved=false, lastHintAt=0;
+let debugOn=false;
+let pointer={active:false,x:.5,y:.5,dx:0,dy:0,radius:.58};
+
+const state={
+  leanX:0, leanY:0, twist:0, handSpan:1.8, depth:0,
+  hug:0, hugPeak:0, held:false, releaseEnergy:0,
+  steerX:0, steerY:0, zoom:0,
+  worldYaw:0, worldPitch:0,
+  orbitRadius:3.15, orbitTilt:.24, orbitBank:0,
+  planeAngle:.25, planeSpeed:.48,
+  wake:0, dataPull:0, dataIndex:0,
+  poseConfidence:0, bodyCenter:{x:.5,y:.56,z:0},
+  camOK:false
+};
+
+const renderer=new THREE.WebGLRenderer({canvas:worldCanvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(DPR);
+renderer.setSize(W,H,false);
+renderer.setClearColor(0x070604,1);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.2;
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x070604,.035);
+const camera=new THREE.PerspectiveCamera(42,W/H,.1,100);
+camera.position.set(0,.05,8.7);
+
+const root=new THREE.Group();
+scene.add(root);
+
+// --- sun: dense, literal dots instead of a texture ---
+const sunGroup=new THREE.Group();
+root.add(sunGroup);
+const sunRadius=2.15;
+const count=7800;
+const pos=new Float32Array(count*3);
+const cols=new Float32Array(count*3);
+const seed=new Float32Array(count);
+const cA=new THREE.Color(0xffd476), cB=new THREE.Color(0xff7a22), cC=new THREE.Color(0xfff1b8);
+for(let i=0;i<count;i++){
+  const y=1-(i/(count-1))*2;
+  const r=Math.sqrt(Math.max(0,1-y*y));
+  const phi=i*Math.PI*(3-Math.sqrt(5));
+  const jitter=(Math.sin(i*12.9898)*43758.5453)%1;
+  const rr=sunRadius*(.985+.025*Math.sin(i*2.17));
+  const x=Math.cos(phi)*r*rr;
+  const z=Math.sin(phi)*r*rr;
+  pos[i*3]=x;pos[i*3+1]=y*rr;pos[i*3+2]=z;
+  const t=clamp((y+1)*.3+.35*Math.sin(phi*2.2)+.12*Math.sin(i*.12));
+  const cc=(i%17===0?cC:cA.clone().lerp(cB,t*.55));
+  cols[i*3]=cc.r;cols[i*3+1]=cc.g;cols[i*3+2]=cc.b;
+  seed[i]=jitter;
+}
+const sunGeo=new THREE.BufferGeometry();
+sunGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+sunGeo.setAttribute('color',new THREE.BufferAttribute(cols,3));
+sunGeo.setAttribute('aSeed',new THREE.BufferAttribute(seed,1));
+const sunMat=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,vertexColors:true,
+  uniforms:{uTime:{value:0},uPoint:{value:4.2*DPR},uHug:{value:0}},
+  vertexShader:`
+    attribute float aSeed; varying vec3 vColor; varying float vPulse;
+    uniform float uTime,uPoint,uHug;
+    void main(){
+      vColor=color;
+      float shimmer=.88+.22*sin(uTime*1.8+aSeed*21.0+position.y*3.0);
+      vPulse=shimmer;
+      vec3 p=position*(1.0+uHug*.025*sin(uTime*2.3+aSeed*8.0));
+      vec4 mv=modelViewMatrix*vec4(p,1.0);
+      gl_PointSize=uPoint*shimmer*(330.0/-mv.z);
+      gl_Position=projectionMatrix*mv;
+    }`,
+  fragmentShader:`
+    varying vec3 vColor; varying float vPulse;
+    void main(){
+      vec2 q=gl_PointCoord-.5; float d=dot(q,q);
+      if(d>.25) discard;
+      float a=smoothstep(.25,.02,d)*(.72+.28*vPulse);
+      gl_FragColor=vec4(vColor*a,a);
+    }`
+});
+const sunPts=new THREE.Points(sunGeo,sunMat);
+sunGroup.add(sunPts);
+
+const halo=new THREE.Mesh(
+  new THREE.SphereGeometry(sunRadius*1.01,48,32),
+  new THREE.MeshBasicMaterial({color:0xff8d27,transparent:true,opacity:.045,blending:THREE.AdditiveBlending,side:THREE.BackSide,depthWrite:false})
+);
+sunGroup.add(halo);
+
+// faint icosahedron: the world/data only becomes legible through contact
+const icoGeo=new THREE.IcosahedronGeometry(sunRadius*1.48,1);
+const ico=new THREE.LineSegments(new THREE.WireframeGeometry(icoGeo),new THREE.LineBasicMaterial({color:0xffb143,transparent:true,opacity:0,depthWrite:false}));
+sunGroup.add(ico);
+
+// geographic/data wells. No labels; their brightness is the data.
+const wells=[
+  [33.75,-84.39,1.0],[28.61,77.21,1.35],[51.51,-.13,.72],[6.52,3.38,.95],[-23.55,-46.63,.82],
+  [35.68,139.69,1.18],[1.35,103.82,.86],[-33.87,151.21,.76],[19.43,-99.13,.8],[25.2,55.27,.9],
+  [31.23,121.47,1.04],[-1.29,36.82,.7],[40.71,-74.01,1.28],[48.86,2.35,.84],[13.76,100.5,.74],
+  [37.77,-122.42,.94],[-34.6,-58.38,.7],[41.01,28.97,.8],[22.32,114.17,.86],[59.91,10.75,.58]
+];
+function latlon(lat,lon,r=sunRadius*1.055){
+  const la=THREE.MathUtils.degToRad(lat), lo=THREE.MathUtils.degToRad(lon);
+  return new THREE.Vector3(r*Math.cos(la)*Math.sin(lo),r*Math.sin(la),r*Math.cos(la)*Math.cos(lo));
+}
+const wellGeo=new THREE.BufferGeometry();
+const wpos=new Float32Array(wells.length*3);
+wells.forEach((w,i)=>{const p=latlon(w[0],w[1]);wpos.set([p.x,p.y,p.z],i*3)});
+wellGeo.setAttribute('position',new THREE.BufferAttribute(wpos,3));
+const wellMat=new THREE.PointsMaterial({color:0xffe5a1,size:.085,transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+const wellPts=new THREE.Points(wellGeo,wellMat);
+sunGroup.add(wellPts);
+
+// --- orbit + paper plane ---
+const orbitLineGeo=new THREE.BufferGeometry();
+const orbitN=220;
+const orbitArr=new Float32Array((orbitN+1)*3);
+orbitLineGeo.setAttribute('position',new THREE.BufferAttribute(orbitArr,3));
+const orbitLine=new THREE.Line(orbitLineGeo,new THREE.LineBasicMaterial({color:0xffc65a,transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending}));
+root.add(orbitLine);
+
+const plane=new THREE.Group();
+const pg=new THREE.BufferGeometry();
+pg.setAttribute('position',new THREE.Float32BufferAttribute([
+   .42,0,0,  -.28,.19,0,  -.15,0,.03,
+   .42,0,0,  -.28,-.19,0, -.15,0,.03,
+   .42,0,0,  -.15,0,.03,  -.34,0,.02
+],3));
+pg.computeVertexNormals();
+const pm=new THREE.MeshBasicMaterial({color:0xfff2d2,side:THREE.DoubleSide,transparent:true,opacity:.98});
+plane.add(new THREE.Mesh(pg,pm));
+plane.scale.setScalar(.72);
+root.add(plane);
+
+// little trail that turns gesture into visible consequence
+const trailLen=70;
+const trailPts=Array.from({length:trailLen},()=>new THREE.Vector3());
+const trailArr=new Float32Array(trailLen*3);
+const trailGeo=new THREE.BufferGeometry();trailGeo.setAttribute('position',new THREE.BufferAttribute(trailArr,3));
+const trail=new THREE.Line(trailGeo,new THREE.LineBasicMaterial({color:0xffad39,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending}));
+root.add(trail);
+
+// star dust / world response
+const starN=500;
+const starPos=new Float32Array(starN*3);
+for(let i=0;i<starN;i++){
+  const r=9+Math.random()*22, a=Math.random()*Math.PI*2, y=(Math.random()-.5)*14;
+  starPos.set([Math.cos(a)*r,y,Math.sin(a)*r],i*3);
+}
+const starGeo=new THREE.BufferGeometry();starGeo.setAttribute('position',new THREE.BufferAttribute(starPos,3));
+scene.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xd79b45,size:.025,transparent:true,opacity:.23,depthWrite:false})));
+
+function resize(){
+  W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
+  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
+  camera.aspect=W/H;camera.updateProjectionMatrix();
+  poseCanvas.width=Math.round(W*DPR);poseCanvas.height=Math.round(H*DPR);poseCanvas.style.width=W+'px';poseCanvas.style.height=H+'px';
+  pctx.setTransform(DPR,0,0,DPR,0,0);
+  sunMat.uniforms.uPoint.value=(W<650?3.4:4.2)*DPR;
+}
+addEventListener('resize',resize,{passive:true});resize();
+
+function hintOnce(text,ms=1500){
+  const now=performance.now();
+  if(now-lastHintAt<900) return;
+  lastHintAt=now;hint.textContent=text;hint.classList.add('show');
+  clearTimeout(hint._t);hint._t=setTimeout(()=>hint.classList.remove('show'),ms);
+}
+
+function startAudio(){
+  try{
+    audio=new (window.AudioContext||window.webkitAudioContext)();
+    tone=audio.createOscillator();tone.type='sine';tone.frequency.value=72;
+    const overtone=audio.createOscillator();overtone.type='sine';overtone.frequency.value=144;
+    toneGain=audio.createGain();toneGain.gain.value=.0001;
+    const g2=audio.createGain();g2.gain.value=.0001;
+    tone.connect(toneGain).connect(audio.destination);overtone.connect(g2).connect(audio.destination);
+    tone.start();overtone.start();tone._overtone=overtone;tone._g2=g2;
+  }catch(e){}
+}
+
+async function startTracking(){
+  startAudio();
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+    video.srcObject=stream;await video.play();
+    state.camOK=true;
+    const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    try{
+      poseLandmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.42,minPosePresenceConfidence:.42,minTrackingConfidence:.42});
+    }catch(_gpu){
+      poseLandmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.42,minPosePresenceConfidence:.42,minTrackingConfidence:.42});
+    }
+    tracking=true;live.classList.add('on');hintOnce('move',1200);
+  }catch(err){
+    console.warn(err);
+    state.camOK=false;tracking=false;live.classList.remove('on');
+    hintOnce('drag to steer · wheel to breathe',2600);
+  }
+}
+
+enter.addEventListener('click',async()=>{
+  veil.classList.add('gone');
+  await startTracking();
+});
+
+debugToggle.addEventListener('click',()=>{debugOn=!debugOn;debug.classList.toggle('on',debugOn)});
+
+// pointer remains a fallback, never a competing interface
+function pointerPos(e){return{x:e.clientX/W,y:e.clientY/H}}
+addEventListener('pointerdown',e=>{pointer.active=true;const p=pointerPos(e);pointer.x=p.x;pointer.y=p.y;userHasMoved=true});
+addEventListener('pointermove',e=>{if(!pointer.active)return;const p=pointerPos(e);pointer.dx=p.x-pointer.x;pointer.dy=p.y-pointer.y;pointer.x=p.x;pointer.y=p.y;state.steerX=clamp((p.x-.5)*2,-1,1);state.steerY=clamp((.5-p.y)*2,-1,1)});
+addEventListener('pointerup',()=>pointer.active=false);
+addEventListener('pointercancel',()=>pointer.active=false);
+addEventListener('wheel',e=>{pointer.radius=clamp(pointer.radius+e.deltaY*.00045,.28,.95);userHasMoved=true},{passive:true});
+
+const connections=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+function projectLM(lm){return{x:(1-lm.x)*W,y:lm.y*H,z:lm.z||0,v:lm.visibility??1}}
+function drawPose(lm){
+  pctx.clearRect(0,0,W,H);
+  if(!lm)return;
+  pctx.save();pctx.globalCompositeOperation='lighter';pctx.lineCap='round';
+  const alpha=.16+.5*state.hug;
+  pctx.strokeStyle=`rgba(255,202,104,${alpha})`;pctx.lineWidth=1.25;
+  for(const [a,b] of connections){const A=projectLM(lm[a]),B=projectLM(lm[b]);if(A.v<.35||B.v<.35)continue;pctx.beginPath();pctx.moveTo(A.x,A.y);pctx.lineTo(B.x,B.y);pctx.stroke()}
+  for(const i of [0,11,12,13,14,15,16,23,24,25,26,27,28]){
+    const P=projectLM(lm[i]);if(P.v<.35)continue;
+    const r=(i===15||i===16)?5+9*state.hug:2.2;
+    pctx.fillStyle=`rgba(255,224,156,${.18+.58*state.hug})`;pctx.beginPath();pctx.arc(P.x,P.y,r,0,Math.PI*2);pctx.fill();
+  }
+  pctx.restore();
+}
+
+function consumePose(lm){
+  const LS=projectLM(lm[11]),RS=projectLM(lm[12]),LW=projectLM(lm[15]),RW=projectLM(lm[16]),LH=projectLM(lm[23]),RH=projectLM(lm[24]);
+  const sMid=mid(LS,RS), hMid=mid(LH,RH), wMid=mid(LW,RW);
+  const shoulder=Math.max(45,dist2(LS,RS));
+  const span=dist2(LW,RW)/shoulder;
+  const shoulderTilt=(RS.y-LS.y)/shoulder;
+  const torsoLean=(hMid.x-sMid.x)/shoulder;
+  const wristOffset=(wMid.x-sMid.x)/shoulder;
+  const twist=((lm[12].z||0)-(lm[11].z||0))*4.2;
+  const bodyDepth=clamp((.26-shoulder/W)*4,-1,1);
+  state.handSpan=damp(state.handSpan,span,7,.016);
+  state.leanX=damp(state.leanX,clamp(torsoLean*2.7+wristOffset*.65,-1,1),8,.016);
+  state.leanY=damp(state.leanY,clamp(-shoulderTilt*2.4,-1,1),8,.016);
+  state.twist=damp(state.twist,clamp(twist,-1,1),8,.016);
+  state.depth=damp(state.depth,bodyDepth,5,.016);
+  state.bodyCenter={x:sMid.x/W,y:(sMid.y+hMid.y)/(2*H),z:(lm[11].z+lm[12].z+lm[23].z+lm[24].z)/4};
+  state.poseConfidence=[lm[11],lm[12],lm[15],lm[16],lm[23],lm[24]].reduce((a,p)=>a+(p.visibility||0),0)/6;
+
+  // Screen-space embrace: body near center, hands on opposite sides of the visible sun, at roughly solar height.
+  const cx=W*.5, cy=H*.46;
+  const sr=Math.min(W,H)*(W<700?.29:.31);
+  const left=Math.min(LW.x,RW.x), right=Math.max(LW.x,RW.x);
+  const straddle=clamp((right-left)/(sr*1.25),0,1)*clamp((cx-left)/(sr*.95),0,1)*clamp((right-cx)/(sr*.95),0,1);
+  const handY=1-clamp(Math.abs(wMid.y-cy)/(sr*.92),0,1);
+  const bodyNear=1-clamp(Math.abs(sMid.x-cx)/(sr*1.25),0,1);
+  const spanFit=1-clamp(Math.abs((right-left)-sr*1.55)/(sr*1.2),0,1);
+  const inFront=clamp((((lm[11].z+lm[12].z)/2)-((lm[15].z+lm[16].z)/2)+.08)*3.2,0,1);
+  const hugRaw=straddle*handY*bodyNear*(.45+.55*spanFit)*(.72+.28*inFront);
+  state.hug=damp(state.hug,hugRaw,10,.016);
+  state.steerX=damp(state.steerX,clamp(state.leanX*.72+state.twist*.42,-1,1),8,.016);
+  state.steerY=damp(state.steerY,clamp(state.leanY*.65+(cy-wMid.y)/(sr*2.2),-1,1),8,.016);
+  userHasMoved=userHasMoved||Math.abs(state.steerX)>.12||Math.abs(state.steerY)>.12||state.hug>.18;
+}
+
+function updatePose(){
+  if(!tracking||!poseLandmarker||video.readyState<2)return;
+  if(video.currentTime===lastVideoTime)return;
+  lastVideoTime=video.currentTime;
+  try{
+    const res=poseLandmarker.detectForVideo(video,performance.now());
+    const lm=res.landmarks?.[0]||null;
+    lastPose=lm;
+    if(lm)consumePose(lm); else state.hug=damp(state.hug,0,3,.016);
+    drawPose(lm);
+  }catch(e){console.warn(e)}
+}
+
+function updateOrbitLine(radius,tilt,bank){
+  const a=orbitLineGeo.attributes.position.array;
+  for(let i=0;i<=orbitN;i++){
+    const t=i/orbitN*Math.PI*2;
+    let x=Math.cos(t)*radius, y=Math.sin(t)*radius*.28, z=Math.sin(t)*radius*.86;
+    const ct=Math.cos(tilt),st=Math.sin(tilt);let yy=y*ct-z*st,zz=y*st+z*ct;y=yy;z=zz;
+    const cb=Math.cos(bank),sb=Math.sin(bank);let xx=x*cb-y*sb;yy=x*sb+y*cb;x=xx;y=yy;
+    a[i*3]=x;a[i*3+1]=y;a[i*3+2]=z;
+  }
+  orbitLineGeo.attributes.position.needsUpdate=true;
+}
+
+let prevHug=0, lastT=performance.now();
+const tmp=new THREE.Vector3(), tmp2=new THREE.Vector3(), tangent=new THREE.Vector3();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min(.05,(now-lastT)/1000||.016);lastT=now;
+  updatePose();
+
+  if(!tracking && pointer.active){
+    state.hug=damp(state.hug,0,4,dt);
+  }
+
+  // transitions are the interface
+  if(state.hug>.62){
+    state.held=true;state.hugPeak=Math.max(state.hugPeak,state.hug);
+    if(prevHug<=.62)hintOnce('hold',700);
+  }
+  if(state.held && state.hug<.24 && prevHug>=.24){
+    state.releaseEnergy=clamp(state.hugPeak*1.45+.25,0,1.5);
+    state.held=false;state.hugPeak=0;state.wake=1;
+    hintOnce('release',650);
+  }
+  prevHug=state.hug;
+
+  const openRadius=tracking?clamp(state.handSpan/2.8,.42,.9):pointer.radius;
+  const targetRadius=lerp(2.42,3.75,openRadius)*(1-state.hug*.22);
+  state.orbitRadius=damp(state.orbitRadius,targetRadius,2.7,dt);
+  state.orbitTilt=damp(state.orbitTilt,state.steerY*.7+state.hug*state.twist*.35,2.8,dt);
+  state.orbitBank=damp(state.orbitBank,state.steerX*.48+state.hug*state.leanX*.45,3.1,dt);
+  state.worldYaw+=state.steerX*dt*(.18+.58*state.hug);
+  state.worldPitch=damp(state.worldPitch,state.steerY*.23,2.4,dt);
+
+  // data wells nudge the flight; the world pushes back
+  state.dataIndex=(state.dataIndex+((Math.abs(state.steerX)+Math.abs(state.steerY))>.25?dt*1.6:dt*.18))%wells.length;
+  const wi=Math.floor(state.dataIndex)%wells.length;
+  const weight=wells[wi][2];
+  state.dataPull=damp(state.dataPull,weight*(.04+.18*state.hug),1.2,dt);
+  state.planeSpeed=damp(state.planeSpeed,.42+.32*Math.abs(state.steerX)+.65*state.hug+.8*state.releaseEnergy+state.dataPull,2.5,dt);
+  state.planeAngle+=state.planeSpeed*dt;
+  state.releaseEnergy=Math.max(0,state.releaseEnergy-dt*.36);
+  state.wake=Math.max(0,state.wake-dt*.22);
+
+  // direct body-camera coupling: you move, the world parallax shifts rather than a cursor moving.
+  const bodyX=tracking?(state.bodyCenter.x-.5):0;
+  const bodyY=tracking?(state.bodyCenter.y-.52):0;
+  camera.position.x=damp(camera.position.x,-bodyX*1.1,2.8,dt);
+  camera.position.y=damp(camera.position.y,.05-bodyY*.75,2.8,dt);
+  const camZ=8.7+state.depth*.55-state.hug*.22;
+  camera.position.z=damp(camera.position.z,camZ,2.2,dt);
+  camera.lookAt(0,0,0);
+
+  sunGroup.rotation.y=state.worldYaw+now*.000035;
+  sunGroup.rotation.x=state.worldPitch;
+  const sunScale=1+state.hug*.12+state.wake*.018*Math.sin(now*.03);
+  sunGroup.scale.setScalar(damp(sunGroup.scale.x,sunScale,5,dt));
+  sunMat.uniforms.uTime.value=now/1000;
+  sunMat.uniforms.uHug.value=state.hug;
+  halo.material.opacity=.04+state.hug*.16+state.wake*.05;
+  ico.material.opacity=.015+state.hug*.14+state.wake*.05;
+  ico.rotation.y=-state.worldYaw*.45;
+  ico.rotation.z=state.twist*.08;
+  wellMat.opacity=.16+state.hug*.5+state.wake*.22;
+  wellMat.size=.06+state.hug*.055;
+
+  updateOrbitLine(state.orbitRadius,state.orbitTilt,state.orbitBank);
+  orbitLine.material.opacity=.10+state.hug*.3+state.wake*.22;
+
+  const a=state.planeAngle,r=state.orbitRadius;
+  let x=Math.cos(a)*r,y=Math.sin(a)*r*.28,z=Math.sin(a)*r*.86;
+  const ct=Math.cos(state.orbitTilt),st=Math.sin(state.orbitTilt);let yy=y*ct-z*st,zz=y*st+z*ct;y=yy;z=zz;
+  const cb=Math.cos(state.orbitBank),sb=Math.sin(state.orbitBank);let xx=x*cb-y*sb;yy=x*sb+y*cb;x=xx;y=yy;
+  // world-pull perturbation keeps mastery from becoming a one-axis steering wheel
+  const pulse=Math.sin(now*.00065+wi)*state.dataPull;
+  x+=pulse*.34;y+=Math.cos(now*.0007+wi)*state.dataPull*.22;
+  plane.position.set(x,y,z);
+  // face along motion
+  const da=.012;
+  const x2=Math.cos(a+da)*r,z2=Math.sin(a+da)*r*.86,y2=Math.sin(a+da)*r*.28;
+  tmp2.set(x2,y2,z2);tangent.copy(tmp2).sub(plane.position).normalize();
+  plane.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),tangent);
+  plane.rotateX(state.orbitTilt*.18);plane.rotateY(state.orbitBank*.12);
+  const ps=.63+state.releaseEnergy*.32+state.hug*.08;plane.scale.setScalar(ps);
+
+  trailPts.unshift(plane.position.clone());trailPts.length=trailLen;
+  const ta=trailGeo.attributes.position.array;
+  trailPts.forEach((p,i)=>{ta[i*3]=p.x;ta[i*3+1]=p.y;ta[i*3+2]=p.z});
+  trailGeo.attributes.position.needsUpdate=true;
+  trail.material.opacity=.07+state.hug*.13+state.wake*.35;
+
+  // audio is bodily state, never a reward jingle
+  if(audio&&toneGain){
+    const targetGain=.002+state.hug*.018+state.wake*.008;
+    toneGain.gain.setTargetAtTime(targetGain,audio.currentTime,.08);
+    tone.frequency.setTargetAtTime(62+state.hug*45+state.planeSpeed*9,audio.currentTime,.08);
+    tone._g2.gain.setTargetAtTime(targetGain*.28,audio.currentTime,.1);
+    tone._overtone.frequency.setTargetAtTime(124+state.hug*92,audio.currentTime,.1);
+  }
+
+  if(debugOn){
+    debug.innerHTML=`pose ${state.poseConfidence.toFixed(2)}<br>hug ${state.hug.toFixed(2)}<br>span ${state.handSpan.toFixed(2)}<br>steer ${state.steerX.toFixed(2)} / ${state.steerY.toFixed(2)}<br>twist ${state.twist.toFixed(2)}<br>orbit ${state.orbitRadius.toFixed(2)}<br>world pull ${state.dataPull.toFixed(2)}`;
+  }
+
+  if(!userHasMoved && tracking && now-lastHintAt>6500)hintOnce('move',900);
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+
+// clean up camera if page is left open in the background
+addEventListener('pagehide',()=>{try{video.srcObject?.getTracks().forEach(t=>t.stop())}catch(e){}});
+</script>
+</body>
+</html>
