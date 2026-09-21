@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>SEAT · one sphere, one place to stand</title>
+<meta name="description" content="SEAT: a sphere of directions cut into addressed triangles, filled by an eye that looks around, and drawn on a floor and two walls so that it is correct from one seat.">
+<meta name="theme-color" content="#f1eee4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f1eee4'/%3E%3Cpath d='M16 4 29 27H3Z' fill='none' stroke='%23121514' stroke-width='2'/%3E%3Crect x='13' y='17' width='6' height='6' fill='%23a8462a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f1eee4;--ink:#121514;--signal:#a8462a}
+*{box-sizing:border-box;border-radius:0}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--paper);color:var(--ink);
+  font:12px/1.4 "IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
+#top{display:flex;gap:12px;align-items:baseline;padding:8px 10px 7px;border-bottom:1px solid var(--ink)}
+#name{font-weight:600;letter-spacing:.14em}
+#status{flex:1;min-width:0}
+#status.fault{color:var(--signal)}
+#stage{position:relative;min-height:0;touch-action:none;cursor:crosshair}
+#stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+#ras{image-rendering:pixelated;image-rendering:crisp-edges}
+#help{position:absolute;inset:0;background:var(--paper);padding:14px 14px 20px;overflow:auto;max-width:none}
+#help p{margin:0 0 10px;max-width:64ch}
+#help p.chk{color:var(--signal)}
+#ins{border-top:1px solid var(--ink);padding:7px 10px 8px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px}
+#bEnter{border:1px solid var(--ink);min-height:34px;height:34px}
+#bOut{border:1px solid var(--ink);min-height:0;padding:3px 8px;align-self:center}
+#ins .l{min-width:0}
+#insA{font-weight:600}
+#note{grid-column:1/-1;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--ink);
+  padding:6px 0;width:100%;-webkit-user-select:text;user-select:text;outline:none}
+#note:focus-visible{border-bottom:2px solid var(--signal)}
+#closeIns{width:34px;height:34px;padding:0;border:1px solid var(--ink);position:relative}
+#closeIns::before,#closeIns::after{content:"";position:absolute;left:8px;right:8px;top:16px;height:1px;background:var(--ink)}
+#closeIns::before{transform:rotate(45deg)}#closeIns::after{transform:rotate(-45deg)}
+#dock{border-top:1px solid var(--ink)}
+.row{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--ink)}
+.row:last-child{border-bottom:0}
+button{font:inherit;color:inherit;background:none;border:0;border-right:1px solid var(--ink);
+  padding:0 9px;min-height:40px;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
+button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+button:focus-visible{outline:2px solid var(--signal);outline-offset:-3px}
+.sp{flex:1;border-right:1px solid var(--ink)}
+label.rg{display:flex;align-items:center;gap:8px;padding:0 11px;min-height:40px;border-right:1px solid var(--ink);letter-spacing:.07em}
+input[type=range]{-webkit-appearance:none;appearance:none;background:none;height:40px;margin:0;width:72px;min-width:40px;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--ink)}
+input[type=range]::-moz-range-track{height:1px;background:var(--ink)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:9px;height:19px;background:var(--ink);margin-top:-9px;border:0}
+input[type=range]::-moz-range-thumb{width:9px;height:19px;background:var(--ink);border:0;border-radius:0}
+input[type=range]:focus-visible{outline:2px solid var(--signal);outline-offset:-3px}
+#tapeRow label.rg{flex:1;min-width:110px}
+#tape{flex:1;width:auto}
+</style>
+</head>
+<body>
+<div id="top"><span id="name">SEAT</span><button id="bOut" hidden></button><span id="status" role="status">Starting.</span></div>
+
+<div id="stage">
+  <canvas id="ras"></canvas>
+  <canvas id="ov"></canvas>
+  <div id="help" hidden>
+    <p>One sphere of directions, cut into triangles. Every triangle has an address such as f07·2103: face 07, then one digit for each level down.</p>
+    <p>An eye looks around and leaves what it sees in the triangles it covers. Where it has looked more often, the triangles are smaller.</p>
+    <p>Solid colour was seen. Screened colour is inferred from neighbours. Blank was never reached.</p>
+    <p>Pinch or scroll to zoom. Drag to turn or pan. Tap a triangle to read it. Double-tap it, or press ENTER, to go into it: the view flies there and the eye looks there, so detail builds where you go. OUT steps back one level.</p>
+    <p>After FILM finishes, press SAVE FILM to keep the video.</p>
+    <p>Shots are made in INSIDE. The rectangle is the film frame. Aim and zoom, press MARK IN, aim and zoom again, press MARK OUT. That is one shot. PLAY runs the shots in order with cuts between them. FILM records them as a video with sound and saves it. Once there are shots, the red outlines mean: this region is in frame and is not yet fine enough for that lens.</p>
+    <p>ORB shows the sphere from outside. INSIDE shows it from the centre. NET shows it unfolded. ROOM draws it on a floor and two walls so that it is correct from the seat.</p>
+    <p>SCREEN toggles the screening of inferred colour. SHORT toggles the red outlines. PIXEL is the size of one pixel on the real surface.</p>
+    <p>In ROOM, drag the seat to move it. Stand elsewhere to see the stretch. Pin a position to say that people will stand there too.</p>
+    <p>A red outline means a region needs finer triangles than it has, given this seat, these pins and this surface pixel size. The eye goes to red regions first.</p>
+    <p>Tap any triangle to read it and to leave a note on it. The tape slider reads the sphere as it was earlier.</p>
+    <p>The camera source needs an orientation sensor. It stops at depth 4, because the sensor is only good to a few degrees.</p>
+    <p class="chk" id="checks"></p>
+  </div>
+</div>
+
+<div id="dockWrap">
+  <div id="ins" hidden>
+    <div class="l"><div id="insA"></div><div id="insB"></div></div>
+    <button id="bEnter">ENTER</button>
+    <button id="closeIns" aria-label="Close"></button>
+    <input id="note" type="text" placeholder="Note for this region" autocomplete="off" spellcheck="false">
+  </div>
+  <div id="dock">
+    <div class="row" id="shotRow" hidden>
+      <button id="bMark">MARK IN</button>
+      <button id="bDur">6 s</button>
+      <button id="bPlay" hidden>PLAY</button>
+      <button id="bFilm" hidden>FILM</button>
+      <button id="bSaveFilm" hidden>SAVE FILM</button>
+      <button id="bUndo" hidden>UNDO</button>
+      <span class="sp"></span>
+    </div>
+    <div class="row" id="roomRow" hidden>
+      <button id="bStand" aria-pressed="false">SIT IN SEAT</button>
+      <button id="bPin">PIN HERE</button>
+      <button id="bUnpin" hidden>CLEAR PINS</button>
+      <label class="rg">EYE <input id="eyeH" type="range" min="0.6" max="2.4" step="0.05" value="1.5" aria-label="Eye height"></label>
+      <button id="bPitch">PIXEL 2 cm</button>
+      <span class="sp"></span>
+    </div>
+    <div class="row">
+      <button id="vOrb" aria-pressed="true">ORB</button>
+      <button id="vIn" aria-pressed="false">INSIDE</button>
+      <button id="vNet" aria-pressed="false">NET</button>
+      <button id="vRoom" aria-pressed="false">ROOM</button>
+      <span class="sp"></span>
+      <button id="bGrid" aria-pressed="true">GRID</button>
+      <button id="bGap" aria-pressed="true" hidden>SHORT</button>
+      <button id="bInf" aria-pressed="true">SCREEN</button>
+    </div>
+    <div class="row" id="tapeRow">
+      <button id="bRun">STOP</button>
+      <button id="bSrc" aria-pressed="false">CAMERA</button>
+      <button id="bExport">SAVE</button>
+      <label class="rg">TAPE <input id="tape" type="range" min="0" max="1000" step="1" value="1000" aria-label="Tape position"></label>
+      <button id="bNow" hidden>NOW</button>
+      <button id="bHelp" aria-pressed="false">?</button>
+    </div>
+  </div>
+</div>
+
+<video id="vid" playsinline muted hidden></video>
+
+<script>
+'use strict';
+// ===== KERNEL-BEGIN =====
+// Named ceilings and constants.
+const MAXD=7;               // deepest cell depth (edge about half a degree)
+const START_DEPTH=1;        // first deposits land here
+const K_VISITS=3;           // frames over a cell before it may subdivide
+const LOG_CAP=700000;       // tape length in observations
+const RELOG_S=4;            // re-log a cell if its last observation is older than this
+const RELOG_DIFF=36;        // or if its colour moved by more than this (sum of channels)
+const FILL_FRAC=0.7;        // share of a region's cells that must be seen for a depth to count
+const INFER_PASSES=14;      // diffusion passes for inferred colour
+const LEDGER_DEPTH=2;       // demand and gap are kept per depth-2 region
+const NLEDGER=320;
+const BASE_DEPTH=3;         // depth needed at the seat before any magnification
+const CAMERA_CEILING=4;     // A2: sensor-only pose is good to about depth 4
+const POW4=[1,4,16,64,256,1024,4096,16384];
+const LEAFBITS=2*MAXD, LEAFMASK=(1<<LEAFBITS)-1;
+
+// Icosahedron. Faces 0-4 top cap, 5-9 upper band, 10-14 lower band, 15-19 bottom cap.
+const FA=[],FB=[],FC=[],FN=[],FK=[],FE1=[],FE2=[],FD=[],NET=[],NB2=[];
+(function buildIcosa(){
+  const lat=Math.atan(0.5),cl=Math.cos(lat),sl=Math.sin(lat),V=[[0,1,0]];
+  for(let i=0;i<5;i++){const a=i*72*Math.PI/180;V.push([cl*Math.cos(a),sl,cl*Math.sin(a)]);}
+  for(let i=0;i<5;i++){const a=(i*72+36)*Math.PI/180;V.push([cl*Math.cos(a),-sl,cl*Math.sin(a)]);}
+  V.push([0,-1,0]);
+  const h=Math.sqrt(3)/2,U=i=>1+(i%5),L=i=>6+(i%5);
+  const U2=i=>[i,h],L2=i=>[i+0.5,0];
+  const F=[];
+  for(let i=0;i<5;i++)F.push([[0,U(i),U(i+1)],[[i+0.5,2*h],U2(i),U2(i+1)]]);
+  for(let i=0;i<5;i++)F.push([[U(i),L(i),U(i+1)],[U2(i),L2(i),U2(i+1)]]);
+  for(let i=0;i<5;i++)F.push([[L(i),L(i+1),U(i+1)],[L2(i),L2(i+1),U2(i+1)]]);
+  for(let i=0;i<5;i++)F.push([[11,L(i+1),L(i)],[[i+1,-h],L2(i+1),L2(i)]]);
+  for(const [vi,n2] of F){
+    let A=V[vi[0]],B=V[vi[1]],C=V[vi[2]],nA=n2[0],nB=n2[1],nC=n2[2];
+    const e1=[B[0]-A[0],B[1]-A[1],B[2]-A[2]],e2=[C[0]-A[0],C[1]-A[1],C[2]-A[2]];
+    const cx=e1[1]*e2[2]-e1[2]*e2[1],cy=e1[2]*e2[0]-e1[0]*e2[2],cz=e1[0]*e2[1]-e1[1]*e2[0];
+    if(cx*(A[0]+B[0]+C[0])+cy*(A[1]+B[1]+C[1])+cz*(A[2]+B[2]+C[2])<0){const t=B;B=C;C=t;const t2=nB;nB=nC;nC=t2;}
+    const E1=[B[0]-A[0],B[1]-A[1],B[2]-A[2]],E2=[C[0]-A[0],C[1]-A[1],C[2]-A[2]];
+    const g=[A[0]+B[0]+C[0],A[1]+B[1]+C[1],A[2]+B[2]+C[2]],gl=Math.hypot(g[0],g[1],g[2]);
+    const N=[g[0]/gl,g[1]/gl,g[2]/gl];
+    const d11=E1[0]*E1[0]+E1[1]*E1[1]+E1[2]*E1[2],d12=E1[0]*E2[0]+E1[1]*E2[1]+E1[2]*E2[2],d22=E2[0]*E2[0]+E2[1]*E2[1]+E2[2]*E2[2];
+    FA.push(A);FB.push(B);FC.push(C);FN.push(N);FK.push(N[0]*A[0]+N[1]*A[1]+N[2]*A[2]);
+    FE1.push(E1);FE2.push(E2);FD.push([d11,d12,d22,1/(d11*d22-d12*d12)]);
+    // 2D barycentric coefficients for the net triangle
+    const x1=nB[0]-nA[0],y1=nB[1]-nA[1],x2=nC[0]-nA[0],y2=nC[1]-nA[1],det=1/(x1*y2-x2*y1);
+    NET.push([nA,nB,nC]);NB2.push([nA[0],nA[1],y2*det,-x2*det,-y1*det,x1*det]);
+  }
+})();
+
+let _lastFace=0;
+function faceOf(x,y,z){const m=FN[_lastFace];if(m[0]*x+m[1]*y+m[2]*z>0.9345)return _lastFace;let b=-2,f=0;for(let i=0;i<20;i++){const n=FN[i],d=n[0]*x+n[1]*y+n[2]*z;if(d>b){b=d;f=i;}}_lastFace=f;return f;}
+let _a=0,_b=0,_c=0;
+function baryOfDir(f,x,y,z){
+  const n=FN[f],s=FK[f]/(n[0]*x+n[1]*y+n[2]*z),A=FA[f];
+  const vx=x*s-A[0],vy=y*s-A[1],vz=z*s-A[2],e1=FE1[f],e2=FE2[f],D=FD[f];
+  const p1=vx*e1[0]+vy*e1[1]+vz*e1[2],p2=vx*e2[0]+vy*e2[1]+vz*e2[2];
+  _b=(D[2]*p1-D[1]*p2)*D[3];_c=(D[0]*p2-D[1]*p1)*D[3];_a=1-_b-_c;
+}
+function leafFromBary(f,a,b,c){
+  if(a<0)a=0;if(b<0)b=0;if(c<0)c=0;const s=a+b+c;a/=s;b/=s;c/=s;
+  let path=0;
+  for(let l=0;l<MAXD;l++){
+    let ch;
+    if(a>0.5){ch=1;a=2*a-1;b*=2;c*=2;}
+    else if(b>0.5){ch=2;b=2*b-1;a*=2;c*=2;}
+    else if(c>0.5){ch=3;c=2*c-1;a*=2;b*=2;}
+    else{ch=0;a=1-2*a;b=1-2*b;c=1-2*c;}
+    path=path*4+ch;
+  }
+  return f*POW4[MAXD]+path;
+}
+function leafOf(x,y,z){const f=faceOf(x,y,z);baryOfDir(f,x,y,z);return leafFromBary(f,_a,_b,_c);}
+function idxAt(leaf,n){return (leaf>>>LEAFBITS)*POW4[n]+((leaf&LEAFMASK)>>>(2*(MAXD-n)));}
+function cellCorners(f,path,depth){
+  let A=[1,0,0],B=[0,1,0],C=[0,0,1];
+  const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2,(p[2]+q[2])/2];
+  for(let l=depth-1;l>=0;l--){
+    const ch=(path>>>(2*l))&3,mAB=mid(A,B),mBC=mid(B,C),mCA=mid(C,A);
+    if(ch===1){B=mAB;C=mCA;}else if(ch===2){A=mAB;C=mBC;}else if(ch===3){A=mCA;B=mBC;}else{A=mBC;B=mCA;C=mAB;}
+  }
+  return [A,B,C];
+}
+function planePoint(f,w){const A=FA[f],B=FB[f],C=FC[f];return [w[0]*A[0]+w[1]*B[0]+w[2]*C[0],w[0]*A[1]+w[1]*B[1]+w[2]*C[1],w[0]*A[2]+w[1]*B[2]+w[2]*C[2]];}
+function norm3(v){const l=Math.hypot(v[0],v[1],v[2])||1;return [v[0]/l,v[1]/l,v[2]/l];}
+function dirOfBary(f,w){return norm3(planePoint(f,w));}
+function netOfBary(f,w){const t=NET[f];return [w[0]*t[0][0]+w[1]*t[1][0]+w[2]*t[2][0],w[0]*t[0][1]+w[1]*t[1][1]+w[2]*t[2][1]];}
+function netFaceBary(nx,ny){ // returns face or -1, sets _a,_b,_c
+  for(let f=0;f<20;f++){const q=NB2[f],dx=nx-q[0],dy=ny-q[1],b=q[2]*dx+q[3]*dy,c=q[4]*dx+q[5]*dy,a=1-b-c;
+    if(a>=-1e-9&&b>=-1e-9&&c>=-1e-9){_a=a;_b=b;_c=c;return f;}}
+  return -1;
+}
+function addrString(f,path,depth){let s='f'+(f<10?'0':'')+f;if(depth>0){s+='\u00b7';for(let l=depth-1;l>=0;l--)s+=(path>>>(2*l))&3;}return s;}
+function solidAngle(a,b,c){
+  const t=a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]);
+  const d=1+(a[0]*b[0]+a[1]*b[1]+a[2]*b[2])+(b[0]*c[0]+b[1]*c[1]+b[2]*c[2])+(c[0]*a[0]+c[1]*a[1]+c[2]*a[2]);
+  return 2*Math.atan2(Math.abs(t),d);
+}
+
+// Ledger regions: centre direction, solid angle, three neighbours.
+const LC=[],LW=[],LNB=[];
+(function buildLedger(){
+  const mids=[];
+  for(let i=0;i<NLEDGER;i++){
+    const f=i>>4,p=i&15,w=cellCorners(f,p,LEDGER_DEPTH),P=w.map(x=>dirOfBary(f,x));
+    LC.push(norm3([P[0][0]+P[1][0]+P[2][0],P[0][1]+P[1][1]+P[2][1],P[0][2]+P[1][2]+P[2][2]]));
+    LW.push(solidAngle(P[0],P[1],P[2]));
+    for(let e=0;e<3;e++){const q=P[e],r=P[(e+1)%3];mids.push(norm3([q[0]+r[0],q[1]+r[1],q[2]+r[2]]));}
+    LNB.push([]);
+  }
+  for(let i=0;i<mids.length;i++)for(let j=i+1;j<mids.length;j++){
+    const a=mids[i],b=mids[j];
+    if(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2])<1e-6){const ci=(i/3)|0,cj=(j/3)|0;if(ci!==cj){LNB[ci].push(cj);LNB[cj].push(ci);}}
+  }
+})();
+
+// Store. The tape (log) is the record; the per-depth arrays are a cache of resolve at one time.
+function makeStore(){
+  const S={rgb:[],prov:[],tt:[],cnt:[],lastF:[],filled:new Uint16Array(NLEDGER*(MAXD+1)),
+    logD:new Uint8Array(LOG_CAP),logI:new Uint32Array(LOG_CAP),logT:new Float32Array(LOG_CAP),logC:new Uint8Array(LOG_CAP*4),
+    logN:0,full:false,inf:new Float32Array(NLEDGER*3),infOk:new Uint8Array(NLEDGER),anySeen:false};
+  for(let n=0;n<=MAXD;n++){const N=20*POW4[n];S.rgb.push(new Uint8Array(N*3));S.prov.push(new Uint8Array(N));S.tt.push(new Float32Array(N));S.cnt.push(new Uint16Array(N));S.lastF.push(new Int32Array(N).fill(-1));}
+  return S;
+}
+function clearCells(S){for(let n=0;n<=MAXD;n++){S.prov[n].fill(0);S.cnt[n].fill(0);S.lastF[n].fill(-1);}S.filled.fill(0);S.infOk.fill(0);S.anySeen=false;}
+function writeCell(S,n,idx,r,g,b,p,t){
+  const had=S.prov[n][idx],o=idx*3;S.rgb[n][o]=r;S.rgb[n][o+1]=g;S.rgb[n][o+2]=b;S.prov[n][idx]=p;S.tt[n][idx]=t;S.anySeen=true;
+  if(!had&&n>=LEDGER_DEPTH)S.filled[(idx>>>(2*(n-LEDGER_DEPTH)))*(MAXD+1)+n]++;
+}
+// deposit: returns the depth written, or -1 if nothing was logged.
+function deposit(S,leaf,r,g,b,t,frameId,ceiling,p){
+  if(S.full)return -1;
+  let deep=-1;for(let n=ceiling;n>=0;n--){if(S.prov[n][idxAt(leaf,n)]){deep=n;break;}}
+  let n=deep<START_DEPTH?START_DEPTH:deep,idx=idxAt(leaf,n);
+  if(deep>=START_DEPTH&&S.cnt[n][idx]>=K_VISITS&&n<ceiling){n++;idx=idxAt(leaf,n);}
+  if(S.lastF[n][idx]!==frameId){S.lastF[n][idx]=frameId;if(S.cnt[n][idx]<65535)S.cnt[n][idx]++;}
+  const o=idx*3,c=S.rgb[n];
+  if(S.prov[n][idx]&&(t-S.tt[n][idx])<RELOG_S&&Math.abs(c[o]-r)+Math.abs(c[o+1]-g)+Math.abs(c[o+2]-b)<RELOG_DIFF)return -1;
+  writeCell(S,n,idx,r,g,b,p,t);
+  const i=S.logN;S.logD[i]=n;S.logI[i]=idx;S.logT[i]=t;S.logC[i*4]=r;S.logC[i*4+1]=g;S.logC[i*4+2]=b;S.logC[i*4+3]=p;
+  S.logN++;if(S.logN>=LOG_CAP)S.full=true;
+  return n;
+}
+function replay(S,tMax){
+  clearCells(S);
+  for(let i=0;i<S.logN;i++){if(S.logT[i]>tMax)break;writeCell(S,S.logD[i],S.logI[i],S.logC[i*4],S.logC[i*4+1],S.logC[i*4+2],S.logC[i*4+3],S.logT[i]);}
+}
+// resolve: deepest seen on the path, else inferred, else empty. Writes colour to out. Returns 0 empty, 1 seen, 2 inferred, 3 given.
+const _rd=[0];
+function resolveLeaf(S,leaf,out){
+  for(let n=MAXD;n>=0;n--){const idx=idxAt(leaf,n),p=S.prov[n][idx];if(p){const o=idx*3,c=S.rgb[n];out[0]=c[o];out[1]=c[o+1];out[2]=c[o+2];_rd[0]=n;return p;}}
+  const i=idxAt(leaf,LEDGER_DEPTH);_rd[0]=-1;
+  if(S.infOk[i]){out[0]=S.inf[i*3];out[1]=S.inf[i*3+1];out[2]=S.inf[i*3+2];return 2;}
+  return 0;
+}
+function seenDepth(S,i){
+  let sd=-1;if(S.prov[0][i>>4])sd=0;if(S.prov[1][i>>2])sd=1;
+  if(S.prov[2][i])sd=2;else return sd;
+  for(let n=3;n<=MAXD;n++){if(S.filled[i*(MAXD+1)+n]>=FILL_FRAC*POW4[n-2])sd=n;else break;}
+  return sd;
+}
+function infer(S){
+  const known=new Uint8Array(NLEDGER),col=new Float32Array(NLEDGER*3),has=new Uint8Array(NLEDGER);let any=false;
+  for(let i=0;i<NLEDGER;i++){
+    let n=-1,idx=0;if(S.prov[2][i]){n=2;idx=i;}else if(S.prov[1][i>>2]){n=1;idx=i>>2;}else if(S.prov[0][i>>4]){n=0;idx=i>>4;}
+    if(n>=0){known[i]=1;has[i]=1;any=true;col[i*3]=S.rgb[n][idx*3];col[i*3+1]=S.rgb[n][idx*3+1];col[i*3+2]=S.rgb[n][idx*3+2];}
+  }
+  S.infOk.fill(0);if(!any)return;
+  for(let pass=0;pass<INFER_PASSES;pass++){
+    const nh=new Uint8Array(has),nc=new Float32Array(col);
+    for(let i=0;i<NLEDGER;i++){if(known[i])continue;let r=0,g=0,b=0,k=0;
+      for(const j of LNB[i])if(has[j]){r+=col[j*3];g+=col[j*3+1];b+=col[j*3+2];k++;}
+      if(k){nh[i]=1;nc[i*3]=r/k;nc[i*3+1]=g/k;nc[i*3+2]=b/k;}}
+    has.set(nh);col.set(nc);
+  }
+  for(let i=0;i<NLEDGER;i++)if(!known[i]&&has[i]){S.infOk[i]=1;S.inf[i*3]=col[i*3];S.inf[i*3+1]=col[i*3+1];S.inf[i*3+2]=col[i*3+2];}
+}
+
+// Surface: a corner of three planes. Floor y=0, wall A x=0, wall B z=0.
+const ROOM={W:4,D:4,H:2.8};
+const _hit={t:0,plane:0,x:0,y:0,z:0};
+function surfaceHit(ox,oy,oz,dx,dy,dz){
+  let bt=Infinity,bp=0;
+  if(dy<0){const t=-oy/dy,x=ox+dx*t,z=oz+dz*t;if(t>1e-6&&x>=0&&x<=ROOM.W&&z>=0&&z<=ROOM.D&&t<bt){bt=t;bp=1;}}
+  if(dx<0){const t=-ox/dx,y=oy+dy*t,z=oz+dz*t;if(t>1e-6&&y>=0&&y<=ROOM.H&&z>=0&&z<=ROOM.D&&t<bt){bt=t;bp=2;}}
+  if(dz<0){const t=-oz/dz,x=ox+dx*t,y=oy+dy*t;if(t>1e-6&&x>=0&&x<=ROOM.W&&y>=0&&y<=ROOM.H&&t<bt){bt=t;bp=3;}}
+  if(!bp)return 0;
+  _hit.t=bt;_hit.plane=bp;_hit.x=ox+dx*bt;_hit.y=oy+dy*bt;_hit.z=oz+dz*bt;return bp;
+}
+const PLANE_N=[null,[0,1,0],[1,0,0],[0,0,1]];
+// demand for one ledger region. Returns null if the region does not land on the surface from the seat.
+function demandFor(i,E,pins,pitch){
+  const d=LC[i];if(!surfaceHit(E[0],E[1],E[2],d[0],d[1],d[2]))return null;
+  const n=PLANE_N[_hit.plane],px=_hit.x,py=_hit.y,pz=_hit.z,rE=_hit.t;
+  const cosE=-(n[0]*d[0]+n[1]*d[1]+n[2]*d[2]),wE=cosE/(rE*rE);
+  let mag=1,who=-1;
+  for(let k=0;k<pins.length;k++){const P=pins[k],vx=px-P[0],vy=py-P[1],vz=pz-P[2],r=Math.hypot(vx,vy,vz);
+    const cs=-(n[0]*vx+n[1]*vy+n[2]*vz)/r;if(cs>0){const m=(cs/(r*r))/wE;if(m>mag){mag=m;who=k;}}}
+  const levels=Math.max(0,Math.ceil(Math.log(mag)/Math.log(4)-1e-9));
+  const area=LW[i]/wE,cap=LEDGER_DEPTH+Math.floor(Math.log(Math.max(area/(pitch*pitch),1))/Math.log(4));
+  return {need:Math.max(0,Math.min(BASE_DEPTH+levels,cap,MAXD)),mag,who,cap,plane:_hit.plane};
+}
+
+// Test world: a fixed scene with fine detail, used when there is no camera.
+const SUN=norm3([0.55,0.5,-0.66]);
+const PILLARS=[[0.4,0.10,0.34,168,70,42],[1.7,0.07,0.52,40,120,110],[2.9,0.13,0.22,30,34,32],[-2.2,0.06,0.62,214,160,50],[-0.9,0.09,0.28,240,236,226]];
+function envColor(x,y,z,out){
+  let r,g,b;
+  if(y>=0){const t=Math.pow(y,0.6),bd=((Math.asin(y)*36)|0)&1?0.975:1;r=(250-150*t)*bd;g=(224-92*t)*bd;b=176+10*t;
+    const s=x*SUN[0]+y*SUN[1]+z*SUN[2];if(s>0.994){r=255;g=250;b=222;}else if(s>0){const k=Math.pow(s,22)*110;r+=k;g+=k*0.85;b+=k*0.4;}
+  }else{const k=-1.5/y,gx=x*k,gz=z*k,dist=Math.hypot(gx,gz),ch=(Math.floor(gx)+Math.floor(gz))&1,f=Math.min(1,dist/26);
+    const c2=((Math.floor(gx*4)+Math.floor(gz*4))&1)?1.06:0.94,r0=(ch?176:118)*c2,g0=(ch?124:84)*c2,b0=(ch?80:60)*c2;r=r0+(250-r0)*f;g=g0+(224-g0)*f;b=b0+(176-b0)*f;}
+  const az=Math.atan2(z,x),el=Math.asin(Math.max(-1,Math.min(1,y)));
+  { // graticule: a line every 10 degrees, wide enough for the deepest cells to resolve
+    const ad=az*57.29578+180,ed=el*57.29578+90,ce=Math.max(0.05,Math.cos(el));
+    if(Math.abs(ad-Math.round(ad/10)*10)*ce<0.3||Math.abs(ed-Math.round(ed/10)*10)<0.3){r*=0.7;g*=0.7;b*=0.7;}
+  }
+  for(const p of PILLARS){let da=az-p[0];da=Math.atan2(Math.sin(da),Math.cos(da));
+    if(Math.abs(da)<p[1]&&el<p[2]&&el>-0.3){const sh=0.78+0.22*(da/p[1]);r=p[3]*sh;g=p[4]*sh;b=p[5]*sh;
+      if(((el*40)|0)%6===0){r*=0.8;g*=0.8;b*=0.8;}}}
+  out[0]=r>255?255:r|0;out[1]=g>255?255:g|0;out[2]=b>255?255:b|0;
+}
+// Device orientation (degrees) to a rotation that maps device vectors to world vectors (east, north, up).
+function devRot(alpha,beta,gamma){
+  const k=Math.PI/180,cA=Math.cos(alpha*k),sA=Math.sin(alpha*k),cB=Math.cos(beta*k),sB=Math.sin(beta*k),cG=Math.cos(gamma*k),sG=Math.sin(gamma*k);
+  return [cA*cG-sA*sB*sG,-cB*sA,cG*sA*sB+cA*sG, cG*sA+cA*sB*sG,cA*cB,sA*sG-cA*cG*sB, -cB*sG,sB,cB*cG];
+}
+// Shots. A pose is a look direction and the vertical half-angle tangent of the film frame. A shot runs from pose a to pose b in dur seconds.
+const FILM_W=480,FILM_H=270,FILM_CELL_PX=12,SHOT_SAMPLES=24,FRAME_MARGIN=1.1,REGION_RAD=0.13;
+function poseDir(p){return [Math.cos(p.pitch)*Math.sin(p.yaw),Math.sin(p.pitch),Math.cos(p.pitch)*Math.cos(p.yaw)];}
+function poseAt(shot,u){
+  const e=u*u*(3-2*u),a=poseDir(shot.a),b=poseDir(shot.b),d=norm3([a[0]+(b[0]-a[0])*e+1e-9,a[1]+(b[1]-a[1])*e,a[2]+(b[2]-a[2])*e]),la=Math.log(shot.a.tan),lb=Math.log(shot.b.tan);
+  return {yaw:Math.atan2(d[0],d[2]),pitch:Math.asin(Math.max(-1,Math.min(1,d[1]))),tan:Math.exp(la+(lb-la)*e)};
+}
+function poseBasis(p){
+  const f=poseDir(p);let r=[-f[2],0,f[0]];if(Math.hypot(r[0],r[2])<1e-4)r=[1,0,0];r=norm3(r);
+  return {f,r,u:[r[1]*f[2]-r[2]*f[1],r[2]*f[0]-r[0]*f[2],r[0]*f[1]-r[1]*f[0]]};
+}
+// depth at which one cell edge covers FILM_CELL_PX film pixels
+function depthForTan(tan){return Math.max(0,Math.min(MAXD,Math.ceil(Math.log2(1.107/(2*tan/FILM_H*FILM_CELL_PX)))));}
+function shotDemand(shots,out){
+  out.fill(-1);
+  for(const s of shots)for(let k=0;k<=SHOT_SAMPLES;k++){
+    const p=poseAt(s,k/SHOT_SAMPLES),B=poseBasis(p),need=depthForTan(p.tan),tx=p.tan*FILM_W/FILM_H*FRAME_MARGIN+REGION_RAD,ty=p.tan*FRAME_MARGIN+REGION_RAD;
+    for(let i=0;i<NLEDGER;i++){const d=LC[i],z=d[0]*B.f[0]+d[1]*B.f[1]+d[2]*B.f[2];if(z<=0.05)continue;
+      if(Math.abs(d[0]*B.r[0]+d[1]*B.r[1]+d[2]*B.r[2])>tx*z||Math.abs(d[0]*B.u[0]+d[1]*B.u[1]+d[2]*B.u[2])>ty*z)continue;
+      if(need>out[i])out[i]=need;}
+  }
+}
+// verify: the three checks behind invariants I2 and I6.
+function verify(){
+  let okA=0,nA=0,okN=0,nN=0,okS=0,nS=0;
+  for(let n=0;n<=4;n++)for(let f=0;f<20;f++)for(let p=0;p<POW4[n];p++){
+    const w=cellCorners(f,p,n),c=[(w[0][0]+w[1][0]+w[2][0])/3,(w[0][1]+w[1][1]+w[2][1])/3,(w[0][2]+w[1][2]+w[2][2])/3];
+    const d=dirOfBary(f,c);nA++;if(idxAt(leafOf(d[0],d[1],d[2]),n)===f*POW4[n]+p)okA++;
+    const q=netOfBary(f,c),f2=netFaceBary(q[0],q[1]);nN++;if(f2===f&&idxAt(leafFromBary(f2,_a,_b,_c),n)===f*POW4[n]+p)okN++;
+  }
+  const E=[2.2,1.5,2.4];
+  for(let i=0;i<NLEDGER;i++){const f=i>>4,w=cellCorners(f,i&15,2),P=dirOfBary(f,w[0]),Q=dirOfBary(f,w[1]),pts=[];
+    for(let s=0;s<=2;s++){const u=s/2,d=norm3([P[0]+(Q[0]-P[0])*u,P[1]+(Q[1]-P[1])*u,P[2]+(Q[2]-P[2])*u]);
+      if(surfaceHit(E[0],E[1],E[2],d[0],d[1],d[2]))pts.push(norm3([_hit.x-E[0],_hit.y-E[1],_hit.z-E[2]]));}
+    if(pts.length===3){nS++;const a=pts[0],b=pts[1],c=pts[2];
+      const t=a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]);if(Math.abs(t)<1e-9)okS++;}
+  }
+  return {okA,nA,okN,nN,okS,nS,pass:okA===nA&&okN===nN&&okS===nS};
+}
+// ===== KERNEL-END =====
+
+// ---------- instrument ----------
+const $=id=>document.getElementById(id);
+const stage=$('stage'),ras=$('ras'),ov=$('ov'),rctx=ras.getContext('2d'),octx=ov.getContext('2d');
+const RASTER_MAX=420,WANDER_S=1.1,DEPOSIT_HZ=12,SU=44,SV=34,HFOV=52,VFOV=40,MAX_PINS=4;
+const PITCHES=[[0.005,'5 mm'],[0.02,'2 cm'],[0.05,'5 cm'],[0.1,'10 cm']];
+const TAN40=Math.tan(40*Math.PI/180),TAN39=Math.tan(39*Math.PI/180),TAN19=Math.tan(19*Math.PI/180),NET_C=[2.75,Math.sqrt(3)/4];
+let SEGN=6;
+const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+const S=makeStore();
+const A={view:'orb',running:true,source:'world',fault:'',faultUntil:0,seated:false,
+  stand:1,standNow:1,grid:true,gapOn:true,markInf:true,past:false,pastT:0,t:0,frame:0,
+  yaw:0.6,pitch:0.25,lastTouch:-1e9,E:[2.2,1.5,2.4],pins:[],pitchI:1,az:0.62,el:0.5,
+  seatYaw:0,seatPitch:0,look:norm3([0.3,0.1,-1]),target:null,nextPick:0,sel:-1,threads:{},
+  camR:null,camOK:false,checks:null,
+  shots:[],markIn:null,durI:1,play:null,
+  zoom:1,netZ:1,netC:NET_C.slice(),inYaw:0.4,inPitch:0,inTan:TAN40,roomZoom:1,seatTan:TAN39,focus:null,fly:null,eyeH:HFOV,eyeV:VFOV};
+(function(){const v=norm3([0.3-A.E[0],1.1-A.E[1],0.3-A.E[2]]);A.seatYaw=Math.atan2(v[0],v[2]);A.seatPitch=Math.asin(v[1]);})();
+const DURS=[3,6,10,15],shotNeed=new Int8Array(NLEDGER).fill(-1);
+const seenD=new Int8Array(NLEDGER).fill(-1),needD=new Int8Array(NLEDGER).fill(-1),gapD=new Int8Array(NLEDGER),demInfo=new Array(NLEDGER).fill(null);
+let W=0,H=0,BW=0,BH=0,DPR=1,img=null,pix=null,pln=null,chartDirty=true,paintDirty=true,ovDirty=true;
+let cam=null,netX=null;
+
+function resize(){
+  const r=stage.getBoundingClientRect();W=Math.max(50,r.width);H=Math.max(50,r.height);
+  DPR=Math.min(window.devicePixelRatio||1,2);const q=Math.ceil(Math.max(W,H)/RASTER_MAX);
+  BW=Math.ceil(W/q);BH=Math.ceil(H/q);ras.width=BW;ras.height=BH;ov.width=Math.round(W*DPR);ov.height=Math.round(H*DPR);
+  pix=new Int32Array(BW*BH);pln=new Uint8Array(BW*BH);img=rctx.createImageData(BW,BH);chartDirty=true;
+}
+
+// ----- charts: every view is pixel -> direction -> leaf -----
+function orbR(){return Math.min(W,H)*0.46*A.zoom;}
+function orbTrig(){return [Math.cos(A.yaw),Math.sin(A.yaw),Math.cos(A.pitch),Math.sin(A.pitch)];}
+function chartOrb(){
+  const cx=W/2,cy=H/2,R=orbR(),[cy_,sy_,cp,sp]=orbTrig();
+  for(let j=0,k=0;j<BH;j++){const v=-((j+0.5)*H/BH-cy)/R;
+    for(let i=0;i<BW;i++,k++){const u=((i+0.5)*W/BW-cx)/R,q=u*u+v*v;
+      if(q>1){pix[k]=-1;continue;}
+      const z=Math.sqrt(1-q),y1=v*cp+z*sp,z1=-v*sp+z*cp,x=u*cy_-z1*sy_,zz=u*sy_+z1*cy_;
+      pix[k]=leafOf(x,y1,zz);pln[k]=0;}}
+}
+function netLayout(){
+  const h=Math.sqrt(3)/2,nw=5.5,nh=3*h,m=14,port=H>W*1.05;
+  const base=port?Math.min((W-2*m)/nh,(H-2*m)/nw):Math.min((W-2*m)/nw,(H-2*m)/nh);
+  netX={port,base,sc:base*A.netZ};
+}
+function netToScreen(nx,ny){const n=netX,c=A.netC;return n.port?[W/2+(ny-c[1])*n.sc,H/2+(nx-c[0])*n.sc]:[W/2+(nx-c[0])*n.sc,H/2-(ny-c[1])*n.sc];}
+function screenToNet(sx,sy){const n=netX,c=A.netC;return n.port?[c[0]+(sy-H/2)/n.sc,c[1]+(sx-W/2)/n.sc]:[c[0]+(sx-W/2)/n.sc,c[1]-(sy-H/2)/n.sc];}
+function chartNet(){
+  netLayout();
+  for(let j=0,k=0;j<BH;j++)for(let i=0;i<BW;i++,k++){
+    const q=screenToNet((i+0.5)*W/BW,(j+0.5)*H/BH),f=netFaceBary(q[0],q[1]);
+    pix[k]=f<0?-1:leafFromBary(f,_a,_b,_c);pln[k]=0;}
+}
+function inBasis(){
+  const y=A.inYaw,p=A.inPitch,f=[Math.cos(p)*Math.sin(y),Math.sin(p),Math.cos(p)*Math.cos(y)];
+  let r=[-f[2],0,f[0]];if(Math.hypot(r[0],r[2])<1e-4)r=[1,0,0];r=norm3(r);
+  return {f,r,u:[r[1]*f[2]-r[2]*f[1],r[2]*f[0]-r[0]*f[2],r[0]*f[1]-r[1]*f[0]],tanY:A.inTan,tanX:A.inTan*W/H};
+}
+let inB=null;
+function chartIn(){
+  inB=inBasis();const b=inB;
+  for(let j=0,k=0;j<BH;j++){const ny=(1-2*(j+0.5)/BH)*b.tanY;
+    for(let i=0;i<BW;i++,k++){const nx=(2*(i+0.5)/BW-1)*b.tanX;
+      let x=b.f[0]+b.r[0]*nx+b.u[0]*ny,y=b.f[1]+b.r[1]*nx+b.u[1]*ny,z=b.f[2]+b.r[2]*nx+b.u[2]*ny;const l=Math.hypot(x,y,z);
+      pix[k]=leafOf(x/l,y/l,z/l);pln[k]=0;}}
+}
+function buildCam(){
+  const s=A.standNow,tanYs=A.seatTan,tanYo=TAN19/A.roomZoom,tanY=tanYs+(tanYo-tanYs)*s,tanX=tanY*W/H;
+  const T=[1.3,1.0,1.3],r=3.4/Math.min(TAN19*W/H,TAN19)+1;
+  const Co=[T[0]+r*Math.cos(A.el)*Math.cos(A.az),T[1]+r*Math.sin(A.el),T[2]+r*Math.cos(A.el)*Math.sin(A.az)];
+  const fo=norm3([T[0]-Co[0],T[1]-Co[1],T[2]-Co[2]]);
+  const fs=[Math.cos(A.seatPitch)*Math.sin(A.seatYaw),Math.sin(A.seatPitch),Math.cos(A.seatPitch)*Math.cos(A.seatYaw)];
+  const C=[A.E[0]+(Co[0]-A.E[0])*s,A.E[1]+(Co[1]-A.E[1])*s,A.E[2]+(Co[2]-A.E[2])*s];
+  const f=norm3([fs[0]+(fo[0]-fs[0])*s,fs[1]+(fo[1]-fs[1])*s,fs[2]+(fo[2]-fs[2])*s]);
+  let rt=[-f[2],0,f[0]];
+  if(Math.hypot(rt[0],rt[2])<1e-4)rt=[1,0,0];rt=norm3(rt);
+  const up=[rt[1]*f[2]-rt[2]*f[1],rt[2]*f[0]-rt[0]*f[2],rt[0]*f[1]-rt[1]*f[0]];
+  cam={C,f,r:rt,u:up,tanX,tanY,Co};
+}
+function camProject(P){
+  const c=cam,vx=P[0]-c.C[0],vy=P[1]-c.C[1],vz=P[2]-c.C[2],z=vx*c.f[0]+vy*c.f[1]+vz*c.f[2];if(z<0.02)return null;
+  const x=(vx*c.r[0]+vy*c.r[1]+vz*c.r[2])/(z*c.tanX),y=(vx*c.u[0]+vy*c.u[1]+vz*c.u[2])/(z*c.tanY);
+  return [(x+1)*0.5*W,(1-y)*0.5*H];
+}
+function camRay(sx,sy){const c=cam,nx=(2*sx/W-1)*c.tanX,ny=(1-2*sy/H)*c.tanY;return norm3([c.f[0]+c.r[0]*nx+c.u[0]*ny,c.f[1]+c.r[1]*nx+c.u[1]*ny,c.f[2]+c.r[2]*nx+c.u[2]*ny]);}
+function chartRoom(){
+  buildCam();const C=cam.C,E=A.E;
+  for(let j=0,k=0;j<BH;j++)for(let i=0;i<BW;i++,k++){
+    const d=camRay((i+0.5)*W/BW,(j+0.5)*H/BH),p=surfaceHit(C[0],C[1],C[2],d[0],d[1],d[2]);
+    if(!p){pix[k]=-1;continue;}
+    const vx=_hit.x-E[0],vy=_hit.y-E[1],vz=_hit.z-E[2],l=Math.hypot(vx,vy,vz)||1;
+    pix[k]=leafOf(vx/l,vy/l,vz/l);pln[k]=p;}
+}
+function buildChart(){if(A.view==='orb')chartOrb();else if(A.view==='in')chartIn();else if(A.view==='net')chartNet();else chartRoom();chartDirty=false;paintDirty=true;ovDirty=true;}
+
+const _o=[0,0,0];
+function paint(){
+  const d=img.data,shade=[1,1,1-0.07*A.standNow,1-0.14*A.standNow],mark=A.markInf;
+  for(let j=0,k=0;j<BH;j++)for(let i=0;i<BW;i++,k++){
+    const o=k*4,leaf=pix[k];if(leaf<0){d[o+3]=0;continue;}
+    const p=resolveLeaf(S,leaf,_o);
+    if(!p||(p===2&&mark&&((i+j)&1))){d[o+3]=0;continue;}
+    const s=shade[pln[k]];d[o]=_o[0]*s;d[o+1]=_o[1]*s;d[o+2]=_o[2]*s;d[o+3]=255;}
+  rctx.putImageData(img,0,0);paintDirty=false;
+}
+
+// ----- overlay: vector ink -----
+function projectDir(d){
+  if(A.view==='orb'){const [cy_,sy_,cp,sp]=orbTrig(),x=d[0]*cy_+d[2]*sy_,z1=-d[0]*sy_+d[2]*cy_,y=d[1]*cp-z1*sp,z=d[1]*sp+z1*cp;
+    if(z<0)return null;const R=orbR();return [W/2+x*R,H/2-y*R];}
+  if(A.view==='in'){const b=inB,z=d[0]*b.f[0]+d[1]*b.f[1]+d[2]*b.f[2];if(z<0.02)return null;
+    return [(1+(d[0]*b.r[0]+d[1]*b.r[1]+d[2]*b.r[2])/(z*b.tanX))*0.5*W,(1-(d[0]*b.u[0]+d[1]*b.u[1]+d[2]*b.u[2])/(z*b.tanY))*0.5*H];}
+  if(A.view==='room'){if(!surfaceHit(A.E[0],A.E[1],A.E[2],d[0],d[1],d[2]))return null;return camProject([_hit.x,_hit.y,_hit.z]);}
+  const f=faceOf(d[0],d[1],d[2]);baryOfDir(f,d[0],d[1],d[2]);const q=netOfBary(f,[_a,_b,_c]),s=netToScreen(q[0],q[1]);s.push(f);return s;
+}
+function arc(P,Q,depth){
+  const SEG=Math.max(2,Math.ceil(SEGN/(1<<(depth||0))));let prev=projectDir(norm3(P));
+  for(let s=1;s<=SEG;s++){const u=s/SEG,d=norm3([P[0]+(Q[0]-P[0])*u,P[1]+(Q[1]-P[1])*u,P[2]+(Q[2]-P[2])*u]),cur=projectDir(d);
+    if(prev&&cur&&!(A.view==='net'&&prev[2]!==cur[2])){octx.moveTo(prev[0],prev[1]);octx.lineTo(cur[0],cur[1]);}
+    prev=cur;}
+}
+function cellPath(f,path,depth){
+  const w=cellCorners(f,path,depth);
+  if(A.view==='net'){const p=w.map(x=>{const q=netOfBary(f,x);return netToScreen(q[0],q[1]);});
+    octx.moveTo(p[0][0],p[0][1]);octx.lineTo(p[1][0],p[1][1]);octx.lineTo(p[2][0],p[2][1]);octx.lineTo(p[0][0],p[0][1]);return;}
+  const P=w.map(x=>planePoint(f,x));arc(P[0],P[1],depth);arc(P[1],P[2],depth);arc(P[2],P[0],depth);
+}
+function label(t,x,y,col){octx.lineWidth=3;octx.strokeStyle='#f1eee4';octx.strokeText(t,x,y);octx.fillStyle=col||'#121514';octx.fillText(t,x,y);}
+function eyeFrustum(){
+  const f=A.look;let r=norm3([-f[2],0,f[0]]);if(Math.hypot(f[0],f[2])<1e-3)r=[1,0,0];
+  const u=[r[1]*f[2]-r[2]*f[1],r[2]*f[0]-r[0]*f[2],r[0]*f[1]-r[1]*f[0]],tx=Math.tan(A.eyeH/2*Math.PI/180),ty=Math.tan(A.eyeV/2*Math.PI/180);
+  const c=(a,b)=>norm3([f[0]+r[0]*a*tx+u[0]*b*ty,f[1]+r[1]*a*tx+u[1]*b*ty,f[2]+r[2]*a*tx+u[2]*b*ty]);
+  return [c(-1,-1),c(1,-1),c(1,1),c(-1,1)];
+}
+function drawOverlay(){
+  octx.setTransform(DPR,0,0,DPR,0,0);octx.clearRect(0,0,W,H);octx.lineCap='butt';octx.font='10px "IBM Plex Mono",ui-monospace,monospace';octx.textBaseline='middle';
+  {const zf=A.view==='orb'?A.zoom:A.view==='in'?TAN40/A.inTan:A.view==='room'?(A.standNow<0.5?TAN39/A.seatTan:A.roomZoom):1;SEGN=Math.max(6,Math.min(128,Math.round(6*Math.sqrt(zf))));}
+  if(A.view==='in')inB=inBasis();
+  if(A.view==='room'){
+    octx.beginPath();octx.strokeStyle='#121514';octx.lineWidth=1;
+    const R=ROOM,L=[[[0,0,0],[R.W,0,0]],[[0,0,0],[0,R.H,0]],[[0,0,0],[0,0,R.D]],[[R.W,0,0],[R.W,0,R.D]],[[0,0,R.D],[R.W,0,R.D]],[[0,R.H,0],[R.W,R.H,0]],[[R.W,0,0],[R.W,R.H,0]],[[0,R.H,0],[0,R.H,R.D]],[[0,0,R.D],[0,R.H,R.D]]];
+    for(const [p,q] of L){const a=camProject(p),b=camProject(q);if(a&&b){octx.moveTo(a[0],a[1]);octx.lineTo(b[0],b[1]);}}
+    octx.stroke();
+  }
+  if(A.view==='orb'){octx.beginPath();octx.strokeStyle='#121514';octx.lineWidth=1;octx.arc(W/2,H/2,orbR(),0,Math.PI*2);octx.stroke();}
+  if(A.grid&&!A.play){
+    octx.beginPath();octx.strokeStyle='rgba(18,21,20,.22)';octx.lineWidth=0.6;for(let f=0;f<20;f++)for(let p=0;p<4;p++)cellPath(f,p,1);octx.stroke();
+    octx.beginPath();octx.strokeStyle='rgba(18,21,20,.85)';octx.lineWidth=1.1;for(let f=0;f<20;f++)cellPath(f,0,0);octx.stroke();
+    if(A.view==='net'){octx.textAlign='center';for(let f=0;f<20;f++){const q=netOfBary(f,[1/3,1/3,1/3]),s=netToScreen(q[0],q[1]);label(addrString(f,0,0),s[0],s[1]);}}
+  }
+  if((A.seated||A.shots.length)&&A.gapOn&&!A.play){
+    for(let wgt=1;wgt<=3;wgt++){octx.beginPath();octx.strokeStyle='#a8462a';octx.lineWidth=wgt;
+      for(let i=0;i<NLEDGER;i++){const g=gapD[i];if(g>0&&Math.min(g,3)===wgt)cellPath(i>>4,i&15,2);}octx.stroke();}
+  }
+  if((A.shots.length||A.markIn)&&!A.play){
+    octx.textAlign='left';const draw=(sh,k)=>{const a=poseDir(sh.a),b=poseDir(sh.b);octx.beginPath();octx.strokeStyle='#a8462a';octx.lineWidth=1.5;arc(a,b,0);octx.stroke();
+      const pa=projectDir(a),pb=projectDir(b);if(pa){octx.fillStyle='#a8462a';octx.fillRect(pa[0]-3,pa[1]-3,6,6);label('shot '+(k+1),pa[0]+7,pa[1],'#a8462a');}
+      if(pb){octx.strokeStyle='#a8462a';octx.lineWidth=1.5;octx.strokeRect(pb[0]-3,pb[1]-3,6,6);}};
+    A.shots.forEach(draw);
+    if(A.markIn){const pa=projectDir(poseDir(A.markIn));if(pa){octx.fillStyle='#a8462a';octx.fillRect(pa[0]-3,pa[1]-3,6,6);label('in',pa[0]+7,pa[1],'#a8462a');}}
+  }
+  if(A.view==='in'){const g=gate();octx.strokeStyle='#121514';octx.lineWidth=1;octx.strokeRect(g.x+0.5,g.y+0.5,g.w,g.h);
+    octx.fillStyle='rgba(241,238,228,.5)';octx.fillRect(0,0,W,g.y);octx.fillRect(0,g.y+g.h,W,H-g.y-g.h);octx.fillRect(0,g.y,g.x,g.h);octx.fillRect(g.x+g.w,g.y,W-g.x-g.w,g.h);}
+  if(A.running&&!A.past&&!A.play){const c=eyeFrustum();octx.beginPath();octx.setLineDash([4,3]);octx.strokeStyle='#121514';octx.lineWidth=1;
+    for(let e=0;e<4;e++)arc(c[e],c[(e+1)%4],A.eyeH<20?3:1);octx.stroke();octx.setLineDash([]);}
+  if(A.focus){const F=A.focus;
+    if(F.depth+2<=MAXD){octx.beginPath();octx.strokeStyle='rgba(18,21,20,.3)';octx.lineWidth=0.6;for(let q=0;q<16;q++)cellPath(F.f,F.path*16+q,F.depth+2);octx.stroke();}
+    if(F.depth+1<=MAXD){octx.beginPath();octx.setLineDash([5,4]);octx.strokeStyle='#121514';octx.lineWidth=1;for(let q=0;q<4;q++)cellPath(F.f,F.path*4+q,F.depth+1);octx.stroke();octx.setLineDash([]);}
+    octx.beginPath();octx.strokeStyle='#121514';octx.lineWidth=2;cellPath(F.f,F.path,F.depth);octx.stroke();}
+  if(A.sel>=0){const d=enterDepth(A.sel),i=idxAt(A.sel,d),f=A.sel>>>LEAFBITS;octx.beginPath();octx.strokeStyle='#a8462a';octx.lineWidth=2.5;cellPath(f,i-f*POW4[d],d);octx.stroke();}
+  if(A.view==='room'){
+    octx.textAlign='left';
+    if(A.standNow>0.12){const e=camProject(A.E),g=camProject([A.E[0],0,A.E[2]]);
+      if(e&&g){octx.beginPath();octx.strokeStyle='#121514';octx.lineWidth=1;octx.moveTo(g[0],g[1]);octx.lineTo(e[0],e[1]);octx.stroke();
+        octx.fillStyle='#121514';octx.fillRect(e[0]-5,e[1]-5,10,10);label('seat',e[0]+9,e[1]);}}
+    A.pins.forEach((P,k)=>{const e=camProject(P);if(!e)return;octx.strokeStyle='#a8462a';octx.lineWidth=1.5;octx.strokeRect(e[0]-5,e[1]-5,10,10);label('pin '+(k+1),e[0]+9,e[1],'#a8462a');});
+  }
+  ovDirty=false;
+}
+
+// ----- sources -----
+const _col=[0,0,0];
+function pickTarget(){
+  if(A.focus&&Math.random()<0.78){const F=A.focus,w=cellCorners(F.f,F.path,F.depth);let a=Math.random(),b=Math.random();if(a+b>1){a=1-a;b=1-b;}const c=1-a-b;
+    A.target=dirOfBary(F.f,[a*w[0][0]+b*w[1][0]+c*w[2][0],a*w[0][1]+b*w[1][1]+c*w[2][1],a*w[0][2]+b*w[1][2]+c*w[2][2]]);return;}
+  let best=-1,bs=-1;
+  for(let i=0;i<NLEDGER;i++){const sc=((A.seated||A.shots.length)?gapD[i]*10:0)+(MAXD-seenD[i])+Math.random()*2.5;if(sc>bs){bs=sc;best=i;}}
+  A.target=LC[best];
+}
+function stepWorld(dt){
+  if(A.t>=A.nextPick||!A.target){pickTarget();A.nextPick=A.t+WANDER_S;}
+  const f=A.look,g=A.target,k=Math.min(1,dt*1.6);
+  A.look=norm3([f[0]+(g[0]-f[0])*k+1e-5,f[1]+(g[1]-f[1])*k,f[2]+(g[2]-f[2])*k]);
+}
+function depositWorld(){
+  const f=A.look;let r=norm3([-f[2],0,f[0]]);if(Math.hypot(f[0],f[2])<1e-3)r=[1,0,0];
+  const u=[r[1]*f[2]-r[2]*f[1],r[2]*f[0]-r[0]*f[2],r[0]*f[1]-r[1]*f[0]],tx=Math.tan(A.eyeH/2*Math.PI/180),ty=Math.tan(A.eyeV/2*Math.PI/180);
+  for(let j=0;j<SV;j++)for(let i=0;i<SU;i++){
+    const a=((i+Math.random())/SU*2-1)*tx,b=((j+Math.random())/SV*2-1)*ty;
+    let x=f[0]+r[0]*a+u[0]*b,y=f[1]+r[1]*a+u[1]*b,z=f[2]+r[2]*a+u[2]*b;const l=Math.hypot(x,y,z);x/=l;y/=l;z/=l;
+    envColor(x,y,z,_col);deposit(S,leafOf(x,y,z),_col[0],_col[1],_col[2],A.t,A.frame,MAXD,1);}
+}
+const vid=$('vid'),grab=document.createElement('canvas'),gctx=grab.getContext('2d',{willReadFrequently:true});
+function onOrient(e){if(e.alpha==null||e.beta==null)return;A.camR=devRot(e.alpha,e.beta,e.gamma||0);A.camOK=true;}
+function depositCamera(){
+  if(!A.camOK||vid.readyState<2||!vid.videoWidth)return;
+  const port=vid.videoHeight>=vid.videoWidth,gw=port?36:48,gh=port?48:36;grab.width=gw;grab.height=gh;gctx.drawImage(vid,0,0,gw,gh);
+  const px=gctx.getImageData(0,0,gw,gh).data,R=A.camR,tl=Math.tan(32*Math.PI/180),ts=tl*Math.min(gw,gh)/Math.max(gw,gh),tx=port?ts:tl,ty=port?tl:ts;
+  const w=(a,b)=>{const dx=a*tx,dy=b*ty,dz=-1,e=R[0]*dx+R[1]*dy+R[2]*dz,n=R[3]*dx+R[4]*dy+R[5]*dz,up=R[6]*dx+R[7]*dy+R[8]*dz;return norm3([e,up,-n]);};
+  A.look=w(0,0);
+  for(let j=0;j<gh;j++)for(let i=0;i<gw;i++){const d=w((i+0.5)/gw*2-1,1-(j+0.5)/gh*2),o=(j*gw+i)*4;
+    deposit(S,leafOf(d[0],d[1],d[2]),px[o],px[o+1],px[o+2],A.t,A.frame,CAMERA_CEILING,1);}
+}
+function fault(msg){A.fault=msg;A.faultUntil=performance.now()+7000;}
+async function useCamera(){
+  try{
+    if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted')throw new Error('orientation');}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('nocam');
+    const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    vid.srcObject=st;await vid.play();A.camOK=false;window.addEventListener('deviceorientation',onOrient);
+    A.source='camera';$('bSrc').setAttribute('aria-pressed','true');
+    setTimeout(()=>{if(A.source==='camera'&&!A.camOK){stopCamera();fault('No orientation sensor, so the camera has no direction. The test world continues.');}},2500);
+  }catch(e){stopCamera();fault(e&&e.message==='orientation'?'Orientation was refused. The test world continues.':'The camera could not be opened. The test world continues.');}
+}
+function stopCamera(){
+  if(vid.srcObject){vid.srcObject.getTracks().forEach(t=>t.stop());vid.srcObject=null;}
+  window.removeEventListener('deviceorientation',onOrient);A.source='world';$('bSrc').setAttribute('aria-pressed','false');
+}
+
+// ----- ledger and status -----
+function ledger(){
+  const pins=A.pins,pitch=PITCHES[A.pitchI][0];let seen=0,maxD=-1,on=0,short=0,worst=-1,wg=0,inFrame=0;const useShots=A.shots.length>0;
+  for(let i=0;i<NLEDGER;i++){
+    const sd=seenDepth(S,i);seenD[i]=sd;if(sd>=0)seen++;if(sd>maxD)maxD=sd;
+    if(A.seated||useShots){let need=-1,dm=null;if(A.seated){dm=demandFor(i,A.E,pins,pitch);if(dm)need=dm.need;}
+      demInfo[i]=dm;if(useShots&&shotNeed[i]>need)need=shotNeed[i];if(useShots&&shotNeed[i]>=0)inFrame++;
+      if(need>=0){on++;needD[i]=need;const g=Math.max(0,need-Math.max(sd,0));gapD[i]=g;if(g>0){short++;if(g>wg){wg=g;worst=i;}}}
+      else{needD[i]=-1;gapD[i]=0;}}
+  }
+  const st=$('status');let msg;
+  if(performance.now()<A.faultUntil){msg=A.fault;st.className='fault';}
+  else{st.className='';
+    if(A.focus&&A.view==='room'&&!surfaceHit(A.E[0],A.E[1],A.E[2],...focusDir()))msg='This place does not land on the floor or walls from the seat. Move the seat, or go OUT.';
+    else if(A.past)msg='Reading the tape at '+A.pastT.toFixed(0)+' s of '+A.t.toFixed(0)+' s. Looking is paused.';
+    else if(S.full)msg='The tape is full at '+LOG_CAP+' observations. Looking has stopped.';
+    else if(!S.anySeen)msg=A.running?'Empty. The eye is starting to look.':'Empty. Press RUN to start looking.';
+    else if(A.play)msg=(A.play.exp?'Recording':'Playing')+' shot '+(A.play.i+1)+' of '+A.shots.length+'.';
+    else if(A.markIn&&A.view==='in')msg='In point marked. Aim and zoom to where the shot ends, then press MARK OUT.';
+    else if(useShots&&(A.view==='in'||!A.seated)){const tot=A.shots.reduce((q,x)=>q+x.dur,0);
+      msg=A.shots.length+(A.shots.length===1?' shot, ':' shots, ')+tot+' s. '+inFrame+' regions are in frame. '+(short===0?'All are fine enough.':short+' are short of detail. Worst: '+addrString(worst>>4,worst&15,2)+' needs depth '+needD[worst]+', has '+Math.max(seenD[worst],0)+'.');}
+    else if(A.seated&&A.view==='room'||A.seated&&short===0){
+      msg=short===0?'Complete for this seat. '+on+' of 320 regions land on the surface.':
+        on+' of 320 regions land on the surface. '+short+' are short of detail. Worst: '+addrString(worst>>4,worst&15,2)+' needs depth '+needD[worst]+', has '+Math.max(seenD[worst],0)+'.';
+      if(A.pins.length)msg+=' Correct from the seat only.';}
+    else msg=(A.running?'Filling. ':'Stopped. ')+Math.round(seen/3.2)+'% of the sphere seen. Finest depth '+Math.max(maxD,0)+'. Tape '+S.logN+'.';
+  }
+  st.textContent=msg;
+  if(A.sel>=0)showInspector();
+  ovDirty=true;
+}
+function showInspector(){
+  const leaf=A.sel,p=resolveLeaf(S,leaf,_o),n=_rd[0],i=idxAt(leaf,LEDGER_DEPTH),f=leaf>>>LEAFBITS;
+  let a;
+  if(p===1||p===3){const idx=idxAt(leaf,n),path=(leaf&LEAFMASK)>>>(2*(MAXD-n));
+    a=addrString(f,path,n)+'  seen '+S.cnt[n][idx]+' times, last '+Math.max(0,(A.past?A.pastT:A.t)-S.tt[n][idx]).toFixed(0)+' s ago';}
+  else a=addrString(f,i&15,2)+(p===2?'  not seen, colour inferred from neighbours':'  not seen');
+  let b='Region '+addrString(f,i&15,2)+' has depth '+Math.max(seenD[i],0)+'.';
+  if(A.seated){const dm=demInfo[i];
+    if(!dm)b+=' It does not land on the surface from this seat.';
+    else{b+=' Needs '+dm.need+(gapD[i]>0?', short by '+gapD[i]+'.':', enough.');
+      if(dm.who>=0)b+=' Pin '+(dm.who+1)+' sees it '+dm.mag.toFixed(1)+' times larger.';
+      if(dm.cap<BASE_DEPTH)b+=' The surface pixel size limits it to depth '+dm.cap+'.';}}
+  else if(!A.shots.length)b+=' Open ROOM to set a seat, or INSIDE to make shots.';
+  if(A.shots.length)b+=shotNeed[i]>=0?' The shots need depth '+shotNeed[i]+' here'+(gapD[i]>0?', short by '+gapD[i]+'.':', enough.'):' No shot sees it.';
+  $('insA').textContent=a;$('insB').textContent=b;
+  const key=addrString(f,i&15,2),note=$('note');if(note.dataset.key!==key){note.dataset.key=key;note.value=A.threads[key]||'';}
+  {const d=enterDepth(leaf),fi=idxAt(leaf,d);$('bEnter').textContent='ENTER '+addrString(f,fi-f*POW4[d],d);$('bEnter').hidden=!!A.focus&&A.focus.depth>=MAXD&&inFocus(leaf);}
+  $('ins').hidden=false;
+}
+function closeInspector(){A.sel=-1;$('ins').hidden=true;$('note').dataset.key='';ovDirty=true;setTimeout(resizeSoon,0);}
+function resizeSoon(){resize();}
+
+// ----- going places: focus, fly, zoom -----
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+function inFocus(leaf){const F=A.focus;return !!F&&idxAt(leaf,F.depth)===F.f*POW4[F.depth]+F.path;}
+function enterDepth(leaf){const F=A.focus;return !F?1:(inFocus(leaf)?Math.min(MAXD,F.depth+1):F.depth);}
+function enterLeaf(leaf){
+  const d=enterDepth(leaf),f=leaf>>>LEAFBITS;A.focus={f,path:idxAt(leaf,d)-f*POW4[d],depth:d};afterFocus();
+}
+function exitFocus(){const F=A.focus;if(!F)return;A.focus=F.depth<=1?null:{f:F.f,path:F.path>>>2,depth:F.depth-1};afterFocus();}
+function focusDir(){const F=A.focus,w=cellCorners(F.f,F.path,F.depth);return dirOfBary(F.f,[(w[0][0]+w[1][0]+w[2][0])/3,(w[0][1]+w[1][1]+w[2][1])/3,(w[0][2]+w[1][2]+w[2][2])/3]);}
+function focusRadius(){return 0.652/(1<<A.focus.depth);}
+function afterFocus(){
+  const F=A.focus,o=$('bOut');
+  if(F){o.hidden=false;o.textContent='OUT OF '+addrString(F.f,F.path,F.depth);const deg=focusRadius()*180/Math.PI;A.eyeH=clamp(deg*5,5,HFOV);A.eyeV=A.eyeH*VFOV/HFOV;}
+  else{o.hidden=true;A.eyeH=HFOV;A.eyeV=VFOV;}
+  A.nextPick=0;flyToFocus();ovDirty=true;if(A.sel>=0)showInspector();setTimeout(resizeSoon,0);
+}
+function flyToFocus(){
+  const F=A.focus,v=A.view;
+  if(!F){A.fly=v==='orb'?{zoom:1}:v==='net'?{netZ:1,cx:NET_C[0],cy:NET_C[1]}:v==='in'?{tan:TAN40}:{tan:TAN39,rz:1};if(REDUCED)applyFly(1);return;}
+  const w=cellCorners(F.f,F.path,F.depth),cb=[(w[0][0]+w[1][0]+w[2][0])/3,(w[0][1]+w[1][1]+w[2][1])/3,(w[0][2]+w[1][2]+w[2][2])/3];
+  const d=dirOfBary(F.f,cb),r=focusRadius();
+  if(v==='orb')A.fly={yaw:Math.atan2(-d[0],d[2]),pitch:Math.atan2(d[1],Math.hypot(d[0],d[2])),zoom:clamp(0.36/(0.46*Math.sin(Math.min(r,1.2))),1,400)};
+  else if(v==='net'){netLayout();const q=netOfBary(F.f,cb);A.fly={cx:q[0],cy:q[1],netZ:clamp(0.5*Math.min(W,H)/(netX.base/(1<<F.depth)),1,400)};}
+  else{const t=clamp(Math.tan(Math.min(r*1.9,0.69)),0.003,TAN40);A.fly={lookYaw:Math.atan2(d[0],d[2]),lookPitch:Math.asin(clamp(d[1],-1,1)),tan:t};}
+  if(REDUCED)applyFly(1);
+}
+function easeAng(a,b,k){let d=b-a;d=Math.atan2(Math.sin(d),Math.cos(d));return a+d*k;}
+function applyFly(k){
+  const F=A.fly;if(!F)return;const v=A.view,L=(a,b)=>a+(b-a)*k,G=(a,b)=>Math.exp(L(Math.log(a),Math.log(b)));let rest=0;
+  if(v==='orb'){if(F.yaw!=null){A.yaw=easeAng(A.yaw,F.yaw,k);A.pitch=L(A.pitch,F.pitch);rest+=Math.abs(Math.sin((A.yaw-F.yaw)/2))+Math.abs(A.pitch-F.pitch);}
+    A.zoom=G(A.zoom,F.zoom);rest+=Math.abs(Math.log(A.zoom/F.zoom));}
+  else if(v==='net'){A.netZ=G(A.netZ,F.netZ);A.netC[0]=L(A.netC[0],F.cx);A.netC[1]=L(A.netC[1],F.cy);rest+=Math.abs(Math.log(A.netZ/F.netZ))+(Math.abs(A.netC[0]-F.cx)+Math.abs(A.netC[1]-F.cy))*A.netZ;}
+  else if(v==='in'){if(F.lookYaw!=null){A.inYaw=easeAng(A.inYaw,F.lookYaw,k);A.inPitch=L(A.inPitch,F.lookPitch);rest+=Math.abs(Math.sin((A.inYaw-F.lookYaw)/2))+Math.abs(A.inPitch-F.lookPitch);}
+    A.inTan=G(A.inTan,F.tan);rest+=Math.abs(Math.log(A.inTan/F.tan));}
+  else{if(F.lookYaw!=null){A.seatYaw=easeAng(A.seatYaw,F.lookYaw,k);A.seatPitch=L(A.seatPitch,F.lookPitch);rest+=Math.abs(Math.sin((A.seatYaw-F.lookYaw)/2))+Math.abs(A.seatPitch-F.lookPitch);}
+    A.seatTan=G(A.seatTan,F.tan);rest+=Math.abs(Math.log(A.seatTan/F.tan));if(F.rz!=null){A.roomZoom=G(A.roomZoom,F.rz);rest+=Math.abs(Math.log(A.roomZoom/F.rz));}}
+  if(rest<0.002||k>=1)A.fly=null;chartDirty=true;
+}
+function applyZoom(f,px,py){
+  A.fly=null;const v=A.view;
+  if(v==='orb')A.zoom=clamp(A.zoom*f,0.5,400);
+  else if(v==='net'){const n0=screenToNet(px,py);A.netZ=clamp(A.netZ*f,0.6,400);netLayout();const n1=screenToNet(px,py);A.netC[0]+=n0[0]-n1[0];A.netC[1]+=n0[1]-n1[1];}
+  else if(v==='in')A.inTan=clamp(A.inTan/f,0.003,1.4);
+  else if(A.standNow<0.5)A.seatTan=clamp(A.seatTan/f,0.003,1.4);
+  else A.roomZoom=clamp(A.roomZoom*f,0.6,14);
+  chartDirty=true;
+}
+
+// ----- saving files: the hosted page asks its viewer; the standalone file downloads directly -----
+async function saveFile(filename,blob){
+  try{if(window.claude&&typeof window.claude.use==='function'){const d=await window.claude.use('downloads');
+    if(d){try{await d.save({filename,data:blob});}catch(e){if(!e||e.code!=='declined')fault('The file could not be saved here.');}return;}}}catch(_){}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),8000);
+}
+// ----- shots -----
+function gate(){const w=Math.min(W*0.94,H*0.94*FILM_W/FILM_H),h=w*FILM_H/FILM_W;return {x:(W-w)/2,y:(H-h)/2,w,h};}
+function currentPose(){return {yaw:A.inYaw,pitch:A.inPitch,tan:A.inTan*gate().h/H};}
+function setInsideFromPose(p){A.inYaw=p.yaw;A.inPitch=p.pitch;A.inTan=p.tan*H/gate().h;chartDirty=true;}
+function shotsChanged(){A.film=null;shotDemand(A.shots,shotNeed);if(A.shots.length)$('bGap').hidden=false;syncShotKeys();A.nextPick=0;ledger();}
+function syncShotKeys(){
+  const n=A.shots.length,pl=!!A.play;
+  $('bMark').hidden=pl;$('bMark').textContent=A.markIn?'MARK OUT':'MARK IN';$('bMark').setAttribute('aria-pressed',String(!!A.markIn));
+  $('bDur').hidden=pl;$('bDur').textContent=DURS[A.durI]+' s';
+  $('bPlay').hidden=!n||(pl&&A.play.exp);$('bPlay').textContent=pl?'STOP':'PLAY';
+  $('bFilm').hidden=!n||(pl&&!A.play.exp);$('bFilm').textContent=pl?'STOP RECORDING':'FILM';
+  $('bUndo').hidden=pl||(!n&&!A.markIn);
+  $('bSaveFilm').hidden=pl||!A.film;if(A.film)$('bSaveFilm').textContent='SAVE FILM '+(A.film.blob.size/1048576).toFixed(1)+' MB';
+}
+$('bMark').onclick=()=>{
+  if(!A.markIn){A.markIn=currentPose();}
+  else{if(A.shots.length>=24){fault('Twenty-four shots is the limit.');}else A.shots.push({a:A.markIn,b:currentPose(),dur:DURS[A.durI]});A.markIn=null;}
+  shotsChanged();
+};
+$('bSaveFilm').onclick=()=>{if(A.film)saveFile(A.film.name,A.film.blob);};
+$('bDur').onclick=()=>{A.durI=(A.durI+1)%DURS.length;syncShotKeys();};
+$('bUndo').onclick=()=>{if(A.markIn)A.markIn=null;else A.shots.pop();shotsChanged();};
+$('bPlay').onclick=()=>{if(A.play)endPlay(true);else startPlay(false);};
+$('bFilm').onclick=()=>{if(A.play)endPlay(true);else startFilm();};
+function startPlay(exp){
+  if(!A.shots.length)return;if(A.view!=='in')setView('in');A.fly=null;A.markIn=null;A.saved=currentPose();
+  A.play={i:0,t:0,exp};if(exp)ras.style.visibility='hidden';syncShotKeys();ledger();
+}
+function endPlay(){
+  const P=A.play;if(!P)return;A.play=null;ras.style.visibility='';
+  if(P.exp)stopRecorder();if(A.saved)setInsideFromPose(A.saved);syncShotKeys();ledger();paintDirty=true;ovDirty=true;
+}
+function stepPlay(dt){
+  const P=A.play;let sh=A.shots[P.i];P.t+=dt;let cut=false;
+  if(P.t>=sh.dur){P.i++;P.t=0;cut=true;if(P.i>=A.shots.length){endPlay();return;}sh=A.shots[P.i];}
+  const pose=poseAt(sh,P.t/sh.dur);
+  if(P.exp){const lum=renderFilm(pose);soundFrame(lum,cut);
+    octx.setTransform(DPR,0,0,DPR,0,0);octx.clearRect(0,0,W,H);const g=gate();octx.imageSmoothingEnabled=false;octx.drawImage(fc,g.x,g.y,g.w,g.h);octx.strokeStyle='#121514';octx.lineWidth=1;octx.strokeRect(g.x+0.5,g.y+0.5,g.w,g.h);}
+  else setInsideFromPose(pose);
+}
+// film frame: the same pixel -> direction -> leaf -> resolve, at film size
+const fsm=document.createElement('canvas');fsm.width=FILM_W;fsm.height=FILM_H;const fsx=fsm.getContext('2d'),fimg=fsx.createImageData(FILM_W,FILM_H);
+const fc=document.createElement('canvas');fc.width=FILM_W*2;fc.height=FILM_H*2;const fctx=fc.getContext('2d');
+function renderFilm(p){
+  const B=poseBasis(p),tx=p.tan*FILM_W/FILM_H,ty=p.tan,d=fimg.data;let lum=0;
+  for(let j=0,k=0;j<FILM_H;j++){const ny=(1-2*(j+0.5)/FILM_H)*ty;
+    for(let i=0;i<FILM_W;i++,k+=4){const nx=(2*(i+0.5)/FILM_W-1)*tx;
+      let x=B.f[0]+B.r[0]*nx+B.u[0]*ny,y=B.f[1]+B.r[1]*nx+B.u[1]*ny,z=B.f[2]+B.r[2]*nx+B.u[2]*ny;const l=Math.hypot(x,y,z);
+      if(resolveLeaf(S,leafOf(x/l,y/l,z/l),_o)){d[k]=_o[0];d[k+1]=_o[1];d[k+2]=_o[2];}else{d[k]=241;d[k+1]=238;d[k+2]=228;}
+      d[k+3]=255;lum+=d[k]+d[k+1]+d[k+2];}}
+  fsx.putImageData(fimg,0,0);fctx.imageSmoothingEnabled=false;fctx.drawImage(fsm,0,0,fc.width,fc.height);
+  return lum/(FILM_W*FILM_H*3);
+}
+let rec=null,chunks=[],snd=null;
+function startSound(){
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+  const ctx=new AC(),dest=ctx.createMediaStreamDestination(),lp=ctx.createBiquadFilter(),g=ctx.createGain();lp.type='lowpass';lp.frequency.value=400;g.gain.value=0;
+  [73.42,110.13,146.84,220.26].forEach((hz,i)=>{const o=ctx.createOscillator(),og=ctx.createGain();o.type=i<2?'sawtooth':'sine';o.frequency.value=hz;og.gain.value=[0.5,0.3,0.25,0.12][i];o.connect(og);og.connect(lp);o.start();});
+  lp.connect(g);g.connect(dest);g.connect(ctx.destination);g.gain.linearRampToValueAtTime(0.16,ctx.currentTime+0.6);
+  return {ctx,dest,lp,g};
+}
+function soundFrame(lum,cut){
+  if(!snd)return;const t=snd.ctx.currentTime;snd.lp.frequency.setTargetAtTime(180+lum/255*2600,t,0.2);
+  if(cut){snd.g.gain.cancelScheduledValues(t);snd.g.gain.setTargetAtTime(0.03,t,0.015);snd.g.gain.setTargetAtTime(0.16,t+0.12,0.12);}
+}
+function startFilm(){
+  if(!window.MediaRecorder||!fc.captureStream){fault('This browser cannot record video.');return;}
+  try{
+    const stream=fc.captureStream(24);try{snd=startSound();}catch(_){snd=null;}
+    if(snd)snd.dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+    const mime=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'';
+    chunks=[];rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:5e6}:undefined);
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+    rec.onstop=()=>{const type=(rec&&rec.mimeType)||mime||'video/webm',blob=new Blob(chunks,{type});
+      A.film={blob,name:'seat-film.'+(type.indexOf('mp4')>=0?'mp4':'webm')};syncShotKeys();
+      if(snd){try{snd.ctx.close();}catch(_){}snd=null;}rec=null;window.__filmBytes=blob.size;};
+    renderFilm(poseAt(A.shots[0],0));rec.start();startPlay(true);
+  }catch(e){fault('Recording could not start in this browser.');if(snd){try{snd.ctx.close();}catch(_){}snd=null;}rec=null;}
+}
+function stopRecorder(){
+  if(snd){const t=snd.ctx.currentTime;snd.g.gain.cancelScheduledValues(t);snd.g.gain.setTargetAtTime(0,t,0.08);}
+  const r=rec;setTimeout(()=>{try{if(r&&r.state!=='inactive')r.stop();}catch(_){}} ,350);
+}
+
+// ----- input -----
+let ptr=null,lastTap=null,tapTimer=0;const pts=new Map();let pinch=null;
+function stagePos(e){const r=stage.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
+function leafAt(x,y){const i=clamp(Math.floor(x/W*BW),0,BW-1),j=clamp(Math.floor(y/H*BH),0,BH-1);return pix[j*BW+i];}
+stage.addEventListener('pointerdown',e=>{
+  if(!$('help').hidden||A.play)return;const p=stagePos(e);try{stage.setPointerCapture(e.pointerId);}catch(_){}
+  A.lastTouch=performance.now();pts.set(e.pointerId,p);
+  if(pts.size===2){const q=[...pts.values()];pinch={d:Math.hypot(q[0][0]-q[1][0],q[0][1]-q[1][1])||1};if(ptr)ptr.moved=true;return;}
+  let mode='view';
+  if(A.view==='room'&&A.standNow>0.9){const s=camProject(A.E);if(s&&Math.hypot(s[0]-p[0],s[1]-p[1])<30)mode='seat';}
+  ptr={x:p[0],y:p[1],sx:p[0],sy:p[1],moved:false,mode};
+});
+stage.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId))return;const p=stagePos(e);pts.set(e.pointerId,p);A.lastTouch=performance.now();
+  if(pts.size>=2&&pinch){const q=[...pts.values()],d=Math.hypot(q[0][0]-q[1][0],q[0][1]-q[1][1])||1;
+    applyZoom(d/pinch.d,(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2);pinch.d=d;return;}
+  if(!ptr)return;const dx=p[0]-ptr.x,dy=p[1]-ptr.y;
+  if(!ptr.moved&&Math.hypot(p[0]-ptr.sx,p[1]-ptr.sy)<7)return;ptr.moved=true;ptr.x=p[0];ptr.y=p[1];A.fly=null;
+  if(A.view==='orb'){const k=0.008/A.zoom;A.yaw+=dx*k;A.pitch=clamp(A.pitch+dy*k,-1.5,1.5);chartDirty=true;}
+  else if(A.view==='in'){const k=2*A.inTan/H;A.inYaw+=dx*k;A.inPitch=clamp(A.inPitch+dy*k,-1.5,1.5);chartDirty=true;}
+  else if(A.view==='net'){const n=netX;if(n.port){A.netC[1]-=dx/n.sc;A.netC[0]-=dy/n.sc;}else{A.netC[0]-=dx/n.sc;A.netC[1]+=dy/n.sc;}chartDirty=true;}
+  else if(A.view==='room'){
+    if(ptr.mode==='seat'){const d=camRay(p[0],p[1]);if(Math.abs(d[1])>1e-4){const t=(A.E[1]-cam.C[1])/d[1];
+      if(t>0){A.E[0]=clamp(cam.C[0]+d[0]*t,0.4,ROOM.W);A.E[2]=clamp(cam.C[2]+d[2]*t,0.4,ROOM.D);chartDirty=true;}}}
+    else if(A.standNow<0.1){const k=2*A.seatTan/H;A.seatYaw+=dx*k;A.seatPitch=clamp(A.seatPitch+dy*k,-1.4,1.4);chartDirty=true;}
+    else{A.az=clamp(A.az-dx*0.006,0.14,1.43);A.el=clamp(A.el+dy*0.006,0.1,1.22);chartDirty=true;}
+  }
+});
+function selectLeaf(leaf){
+  if(leaf<0||(A.sel>=0&&idxAt(leaf,enterDepth(leaf))===idxAt(A.sel,enterDepth(A.sel))&&(leaf>>>LEAFBITS)===(A.sel>>>LEAFBITS))){if(A.sel>=0)closeInspector();return;}
+  const opening=A.sel<0;A.sel=leaf;showInspector();ovDirty=true;if(opening)setTimeout(resizeSoon,0);
+}
+function endPtr(e){
+  pts.delete(e.pointerId);if(pts.size<2)pinch=null;
+  if(!ptr||pts.size>0)return;const was=ptr;ptr=null;if(was.moved)return;
+  const leaf=leafAt(was.sx,was.sy),now=performance.now();
+  if(lastTap&&now-lastTap.t<340&&Math.hypot(lastTap.x-was.sx,lastTap.y-was.sy)<28){clearTimeout(tapTimer);lastTap=null;if(leaf>=0)enterLeaf(leaf);return;}
+  lastTap={t:now,x:was.sx,y:was.sy};clearTimeout(tapTimer);tapTimer=setTimeout(()=>selectLeaf(leaf),300);
+}
+stage.addEventListener('pointerup',endPtr);stage.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);pinch=null;ptr=null;});
+stage.addEventListener('wheel',e=>{if(!$('help').hidden||A.play)return;e.preventDefault();const p=stagePos(e);A.lastTouch=performance.now();applyZoom(Math.exp(-e.deltaY*0.0016),p[0],p[1]);},{passive:false});
+$('bOut').onclick=exitFocus;
+$('bEnter').onclick=()=>{if(A.sel>=0){const l=A.sel;enterLeaf(l);}};
+window.addEventListener('keydown',e=>{if(e.target&&e.target.id==='note')return;if(e.key==='Escape'||e.key==='Backspace')exitFocus();});
+
+function setView(v){
+  if(A.play&&v!=='in')endPlay();
+  A.view=v;for(const [id,k] of [['vOrb','orb'],['vIn','in'],['vNet','net'],['vRoom','room']])$(id).setAttribute('aria-pressed',String(k===v));
+  $('roomRow').hidden=v!=='room';$('shotRow').hidden=v!=='in';if(v==='room'&&!A.seated){A.seated=true;$('bGap').hidden=false;}
+  syncRoomKeys();setTimeout(()=>{resize();if(A.focus)flyToFocus();},0);chartDirty=true;
+}
+function syncRoomKeys(){
+  const sit=A.stand===0;$('bStand').setAttribute('aria-pressed',String(sit));$('bStand').textContent=sit?'STAND ELSEWHERE':'SIT IN SEAT';
+  $('bPin').hidden=sit||A.pins.length>=MAX_PINS;$('bUnpin').hidden=A.pins.length===0;
+}
+$('vOrb').onclick=()=>setView('orb');$('vIn').onclick=()=>setView('in');$('vNet').onclick=()=>setView('net');$('vRoom').onclick=()=>setView('room');
+$('bStand').onclick=()=>{A.stand=A.stand===0?1:0;if(REDUCED)A.standNow=A.stand;syncRoomKeys();chartDirty=true;};
+$('bPin').onclick=()=>{if(cam&&A.pins.length<MAX_PINS){A.pins.push(cam.Co.slice());syncRoomKeys();ledger();}};
+$('bUnpin').onclick=()=>{A.pins.length=0;syncRoomKeys();ledger();};
+$('eyeH').oninput=e=>{A.E[1]=parseFloat(e.target.value);chartDirty=true;};
+$('bPitch').onclick=()=>{A.pitchI=(A.pitchI+1)%PITCHES.length;$('bPitch').textContent='PIXEL '+PITCHES[A.pitchI][1];ledger();};
+function toggle(id,key){$(id).onclick=()=>{A[key]=!A[key];$(id).setAttribute('aria-pressed',String(A[key]));paintDirty=true;ovDirty=true;};}
+toggle('bGrid','grid');toggle('bGap','gapOn');toggle('bInf','markInf');
+$('bRun').onclick=()=>{A.running=!A.running;$('bRun').textContent=A.running?'STOP':'RUN';ovDirty=true;};
+$('bSrc').onclick=()=>{if(A.source==='camera')stopCamera();else useCamera();};
+$('bHelp').onclick=()=>{const h=$('help');h.hidden=!h.hidden;$('bHelp').setAttribute('aria-pressed',String(!h.hidden));};
+$('closeIns').onclick=closeInspector;
+$('note').oninput=e=>{const k=e.target.dataset.key;if(!k)return;if(e.target.value)A.threads[k]=e.target.value;else delete A.threads[k];};
+$('tape').oninput=e=>{
+  const v=parseInt(e.target.value,10);
+  if(v>=1000){backToNow();return;}
+  A.past=true;A.pastT=A.t*v/1000;$('bNow').hidden=false;replay(S,A.pastT);infer(S);ledger();paintDirty=true;
+};
+function backToNow(){if(!A.past)return;A.past=false;$('bNow').hidden=true;$('tape').value=1000;replay(S,Infinity);infer(S);ledger();paintDirty=true;}
+$('bNow').onclick=backToNow;
+$('bExport').onclick=()=>{
+  const cells=[];for(let n=0;n<=MAXD;n++){const N=20*POW4[n];for(let i=0;i<N;i++)if(S.prov[n][i]){const f=(i/POW4[n])|0,o=i*3;
+    cells.push([addrString(f,i-f*POW4[n],n),S.rgb[n][o],S.rgb[n][o+1],S.rgb[n][o+2],S.prov[n][i],+S.tt[n][i].toFixed(2)]);}}
+  const out={protocol:'SEAT v2',note:'Shot = {a, b, dur}; a pose is yaw, pitch (radians) and tan, the tangent of half the vertical angle of a 16:9 frame. Cell = [address, r, g, b, provenance (1 seen, 3 given), time s]. Faces are gnomonic. Face numbering is this file\'s own.',
+    maxDepth:MAXD,shots:A.shots,faces:FA.map((a,f)=>[a,FB[f],FC[f]]),seat:A.E,pins:A.pins,room:ROOM,surfacePixel:PITCHES[A.pitchI][0],threads:A.threads,cells};
+  saveFile('seat-sphere.json',new Blob([JSON.stringify(out)],{type:'application/json'}));
+};
+window.addEventListener('resize',resize);
+document.addEventListener('visibilitychange',()=>{lastNow=performance.now();});
+
+// ----- loop -----
+let lastNow=performance.now(),accDep=0,accLed=0,accInf=0,accPaint=0;
+function tick(now){
+  const dt=Math.min(0.1,(now-lastNow)/1000);lastNow=now;
+  if(A.running&&!A.past&&!S.full&&!document.hidden){
+    A.t+=dt;if(A.source==='world')stepWorld(dt);
+    accDep+=dt;if(accDep>=1/DEPOSIT_HZ){accDep=0;A.frame++;if(A.source==='world')depositWorld();else depositCamera();paintDirty=true;ovDirty=true;}
+    accInf+=dt;if(accInf>=0.7){accInf=0;infer(S);}
+  }
+  accLed+=dt;if(accLed>=0.5){accLed=0;ledger();}
+  if(A.standNow!==A.stand){const k=Math.min(1,dt*2.6);A.standNow+=(A.stand-A.standNow)*k;if(Math.abs(A.stand-A.standNow)<0.004)A.standNow=A.stand;chartDirty=true;}
+  if(A.play)stepPlay(dt);
+  if(A.fly&&!A.play)applyFly(Math.min(1,dt*4.2));
+  if(A.view==='orb'&&!REDUCED&&!ptr&&!A.focus&&!A.fly&&Math.abs(A.zoom-1)<0.02&&now-A.lastTouch>6000&&A.running&&!A.past){
+    const f=A.look,ty=Math.atan2(-f[0],f[2]),z1=Math.hypot(f[0],f[2]),tp=Math.atan2(f[1],z1)*0.6;
+    let dy=ty+0.5-A.yaw;dy=Math.atan2(Math.sin(dy),Math.cos(dy));
+    if(Math.abs(dy)>0.002||Math.abs(tp-A.pitch)>0.002){A.yaw+=dy*Math.min(1,dt*0.5);A.pitch+=(tp-A.pitch)*Math.min(1,dt*0.5);chartDirty=true;}
+  }
+  accPaint+=dt;
+  if(A.play&&A.play.exp){requestAnimationFrame(tick);return;}
+  if(accPaint>=1/20){accPaint=0;if(chartDirty)buildChart();if(paintDirty)paint();if(ovDirty)drawOverlay();}
+  requestAnimationFrame(tick);
+}
+
+(function boot(){
+  const v=verify();A.checks=v;
+  $('checks').textContent=(v.pass?'Checks pass: ':'A CHECK FAILED: ')+v.okA+' of '+v.nA+' addresses round-trip, '+v.okN+' of '+v.nN+' through the net, '+v.okS+' of '+v.nS+' edges stay straight from the seat.';
+  if(!v.pass)fault('A geometry check failed. Open ? to read which.');
+  if(/[?&]verify/.test(location.search)){$('help').hidden=false;$('bHelp').setAttribute('aria-pressed','true');}
+  resize();ledger();requestAnimationFrame(tick);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{ovDirty=true;});
+})();
+</script>
+</body>
+</html>
